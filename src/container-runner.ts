@@ -41,6 +41,7 @@ export interface ContainerInput {
   isMain: boolean;
   isScheduledTask?: boolean;
   assistantName?: string;
+  mcpServers?: Record<string, { command: string; args: string[]; env?: Record<string, string> }>;
 }
 
 export interface ContainerOutput {
@@ -146,15 +147,20 @@ function buildVolumeMounts(
     );
   }
 
-  // Sync skills from container/skills/ into each group's .claude/skills/
-  const skillsSrc = path.join(process.cwd(), 'container', 'skills');
+  // Sync skills from container/skills/ and governance/skills/ into each group's .claude/skills/
   const skillsDst = path.join(groupSessionsDir, 'skills');
-  if (fs.existsSync(skillsSrc)) {
-    for (const skillDir of fs.readdirSync(skillsSrc)) {
-      const srcDir = path.join(skillsSrc, skillDir);
-      if (!fs.statSync(srcDir).isDirectory()) continue;
-      const dstDir = path.join(skillsDst, skillDir);
-      fs.cpSync(srcDir, dstDir, { recursive: true });
+  const skillSources = [
+    path.join(process.cwd(), 'container', 'skills'),
+    path.join(process.cwd(), 'governance', 'skills'),
+  ];
+  for (const skillsSrc of skillSources) {
+    if (fs.existsSync(skillsSrc)) {
+      for (const skillDir of fs.readdirSync(skillsSrc)) {
+        const srcDir = path.join(skillsSrc, skillDir);
+        if (!fs.statSync(srcDir).isDirectory()) continue;
+        const dstDir = path.join(skillsDst, skillDir);
+        fs.cpSync(srcDir, dstDir, { recursive: true });
+      }
     }
   }
   mounts.push({

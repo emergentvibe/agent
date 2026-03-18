@@ -19,6 +19,12 @@ import path from 'path';
 import { query, HookCallback, PreCompactHookInput } from '@anthropic-ai/claude-agent-sdk';
 import { fileURLToPath } from 'url';
 
+interface McpServerConfig {
+  command: string;
+  args: string[];
+  env?: Record<string, string>;
+}
+
 interface ContainerInput {
   prompt: string;
   sessionId?: string;
@@ -27,6 +33,7 @@ interface ContainerInput {
   isMain: boolean;
   isScheduledTask?: boolean;
   assistantName?: string;
+  mcpServers?: Record<string, McpServerConfig>; // Per-group MCP servers
 }
 
 interface ContainerOutput {
@@ -407,7 +414,8 @@ async function runQuery(
         'TeamCreate', 'TeamDelete', 'SendMessage',
         'TodoWrite', 'ToolSearch', 'Skill',
         'NotebookEdit',
-        'mcp__nanoclaw__*'
+        'mcp__nanoclaw__*',
+        'mcp__mem0__*'
       ],
       env: sdkEnv,
       permissionMode: 'bypassPermissions',
@@ -423,6 +431,18 @@ async function runQuery(
             NANOCLAW_IS_MAIN: containerInput.isMain ? '1' : '0',
           },
         },
+        // Mem0 MCP server for personal + community memory (if API key available)
+        ...(process.env.MEM0_API_KEY ? {
+          mem0: {
+            command: 'uvx',
+            args: ['mem0-mcp-server'],
+            env: {
+              MEM0_API_KEY: process.env.MEM0_API_KEY,
+            },
+          },
+        } : {}),
+        // Per-group MCP servers (from container config)
+        ...(containerInput.mcpServers || {}),
       },
       hooks: {
         PreCompact: [{ hooks: [createPreCompactHook(containerInput.assistantName)] }],

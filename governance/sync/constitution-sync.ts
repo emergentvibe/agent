@@ -28,6 +28,27 @@ async function fetchConstitution(apiUrl: string, slug: string): Promise<Constitu
   }
 }
 
+async function sendHeartbeat(apiUrl: string, slug: string, constitutionVersion: string): Promise<void> {
+  const botSecret = process.env.BOT_API_SECRET;
+  if (!botSecret) return;
+
+  try {
+    await fetch(`${apiUrl}/api/constitution/${slug}/heartbeat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Bot-Secret': botSecret,
+      },
+      body: JSON.stringify({
+        constitution_version: constitutionVersion,
+        status: 'ok',
+      }),
+    });
+  } catch (err) {
+    console.error(`Heartbeat failed for ${slug}:`, err);
+  }
+}
+
 function loadTemplate(): string {
   const templatePath = path.resolve(__dirname, '../templates/claude-md-template.md');
   return fs.readFileSync(templatePath, 'utf-8');
@@ -44,19 +65,32 @@ function buildClaudeMd(template: string, group: GroupConfig, data: ConstitutionD
     .replace(/\{\{charter_updated_at\}\}/g, 'N/A')
     .replace(/\{\{emergentvibe_url\}\}/g, apiUrl)
     .replace(/\{\{slug\}\}/g, data.slug)
+    .replace(/\{\{last_sync_time\}\}/g, new Date().toISOString())
     .replace(/\{\{polis_url\}\}/g, group.polis_url || `${apiUrl}/c/${data.slug}/polis`);
 }
 
 async function syncGroup(group: GroupConfig, apiUrl: string): Promise<void> {
   const data = await fetchConstitution(apiUrl, group.slug);
-  if (!data) return;
+
+  if (!data) {
+    // API down — use cached CLAUDE.md if it exists
+    const outputPath = path.join(process.cwd(), 'groups', group.folder, 'CLAUDE.md');
+    if (fs.existsSync(outputPath)) {
+      console.log(`[sync] API unavailable for ${group.slug}, using cached CLAUDE.md`);
+    } else {
+      console.error(`[sync] API unavailable for ${group.slug} and no cached CLAUDE.md`);
+    }
+    return;
+  }
 
   const cacheKey = `${group.folder}:${group.slug}`;
   const cached = versionCache.get(cacheKey);
   const current = `${data.version}:${data.content_hash}`;
 
   if (cached === current) {
-    return; // No changes
+    // No constitution changes, but still send heartbeat
+    await sendHeartbeat(apiUrl, group.slug, data.version);
+    return;
   }
 
   const template = loadTemplate();
@@ -70,6 +104,9 @@ async function syncGroup(group: GroupConfig, apiUrl: string): Promise<void> {
 
   versionCache.set(cacheKey, current);
   console.log(`[sync] Updated ${group.folder} — version ${data.version}`);
+
+  // Send heartbeat after successful sync
+  await sendHeartbeat(apiUrl, group.slug, data.version);
 }
 
 async function syncAll(): Promise<void> {

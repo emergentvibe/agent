@@ -1,16 +1,30 @@
 # /propose
 
-Help a community member draft an amendment proposal.
+Help a community member draft and submit a governance proposal.
 
 ## What to do
 
 When the user runs `/propose [description]`:
 
 1. Ask what they want to change (if not provided)
-2. Help them articulate the change clearly
-3. Generate a link to the amendment form on emergentvibe.com:
-   `https://emergentvibe.com/c/[slug]/governance/new`
-4. Encourage them to discuss with other community members first
+2. Help them articulate the change clearly — draft a title (10+ chars) and description (100+ chars)
+3. Confirm the proposal with the user before submitting
+4. Extract the sender's ID from the message context (the `sender_id` attribute)
+5. Submit the proposal via the platform API:
+
+```bash
+curl -s -X POST "$EMERGENTVIBE_API_URL/api/governance/proposals" \
+  -H "Content-Type: application/json" \
+  -H "X-Bot-Secret: $BOT_API_SECRET" \
+  -d '{
+    "title": "<title>",
+    "description": "<description>",
+    "telegram_id": "<sender_id>",
+    "constitution": "<slug>"
+  }'
+```
+
+6. Share the result with the community — encourage discussion and voting
 
 ## Examples
 
@@ -23,3 +37,4 @@ When the user runs `/propose [description]`:
 - You don't make changes to the constitution directly
 - All changes go through the governance process (propose, deliberate, vote)
 - Be encouraging — community participation is how this works
+- The sender must be a registered member (auto-registration handles this)
