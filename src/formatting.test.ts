@@ -121,6 +121,42 @@ describe('formatMessages', () => {
     expect(result).toContain('PM');
     expect(result).toContain('<context timezone="America/New_York" />');
   });
+
+  it('includes sender_id attribute from sender field', () => {
+    const result = formatMessages(
+      [makeMsg({ sender: '123456789', sender_name: 'Alice' })],
+      TZ,
+    );
+    expect(result).toContain('sender_id="123456789"');
+    expect(result).toContain('sender="Alice"');
+  });
+
+  it('includes sender_id for each message in multi-message format', () => {
+    const msgs = [
+      makeMsg({ id: '1', sender: 'user-a', sender_name: 'Alice' }),
+      makeMsg({ id: '2', sender: 'user-b', sender_name: 'Bob' }),
+    ];
+    const result = formatMessages(msgs, TZ);
+    expect(result).toContain('sender_id="user-a"');
+    expect(result).toContain('sender_id="user-b"');
+  });
+
+  it('escapes special characters in sender_id', () => {
+    const result = formatMessages(
+      [makeMsg({ sender: '123@s.whatsapp.net' })],
+      TZ,
+    );
+    // @ is not a special XML char, but & and < are
+    expect(result).toContain('sender_id="123@s.whatsapp.net"');
+  });
+
+  it('escapes XML entities in sender_id', () => {
+    const result = formatMessages(
+      [makeMsg({ sender: 'user&<id>' })],
+      TZ,
+    );
+    expect(result).toContain('sender_id="user&amp;&lt;id&gt;"');
+  });
 });
 
 // --- TRIGGER_PATTERN ---

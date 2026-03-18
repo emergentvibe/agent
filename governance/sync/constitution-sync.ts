@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { loadConfig, GroupConfig } from './config';
+import { loadConfig, GroupConfig } from './config.js';
 
-interface ConstitutionData {
+export interface ConstitutionData {
   slug: string;
   name: string;
   content: string;
@@ -14,7 +14,12 @@ interface ConstitutionData {
 // Cache of last-seen versions per group
 const versionCache = new Map<string, string>();
 
-async function fetchConstitution(apiUrl: string, slug: string): Promise<ConstitutionData | null> {
+/** @internal Exported for testing */
+export function _clearVersionCache(): void {
+  versionCache.clear();
+}
+
+export async function fetchConstitution(apiUrl: string, slug: string): Promise<ConstitutionData | null> {
   try {
     const res = await fetch(`${apiUrl}/api/constitution/${slug}`);
     if (!res.ok) {
@@ -28,7 +33,7 @@ async function fetchConstitution(apiUrl: string, slug: string): Promise<Constitu
   }
 }
 
-async function sendHeartbeat(apiUrl: string, slug: string, constitutionVersion: string): Promise<void> {
+export async function sendHeartbeat(apiUrl: string, slug: string, constitutionVersion: string): Promise<void> {
   const botSecret = process.env.BOT_API_SECRET;
   if (!botSecret) return;
 
@@ -49,12 +54,14 @@ async function sendHeartbeat(apiUrl: string, slug: string, constitutionVersion: 
   }
 }
 
-function loadTemplate(): string {
-  const templatePath = path.resolve(__dirname, '../templates/claude-md-template.md');
+export function loadTemplate(templateDir?: string): string {
+  const templatePath = templateDir
+    ? path.join(templateDir, 'claude-md-template.md')
+    : path.resolve(import.meta.dirname ?? '.', '../templates/claude-md-template.md');
   return fs.readFileSync(templatePath, 'utf-8');
 }
 
-function buildClaudeMd(template: string, group: GroupConfig, data: ConstitutionData, apiUrl: string): string {
+export function buildClaudeMd(template: string, group: GroupConfig, data: ConstitutionData, apiUrl: string): string {
   return template
     .replace(/\{\{community_name\}\}/g, group.community_name)
     .replace(/\{\{principles_version\}\}/g, data.version)
@@ -69,12 +76,12 @@ function buildClaudeMd(template: string, group: GroupConfig, data: ConstitutionD
     .replace(/\{\{polis_url\}\}/g, group.polis_url || `${apiUrl}/c/${data.slug}/polis`);
 }
 
-async function syncGroup(group: GroupConfig, apiUrl: string): Promise<void> {
+export async function syncGroup(group: GroupConfig, apiUrl: string, basePath?: string): Promise<void> {
   const data = await fetchConstitution(apiUrl, group.slug);
+  const base = basePath || process.cwd();
 
   if (!data) {
-    // API down — use cached CLAUDE.md if it exists
-    const outputPath = path.join(process.cwd(), 'groups', group.folder, 'CLAUDE.md');
+    const outputPath = path.join(base, 'groups', group.folder, 'CLAUDE.md');
     if (fs.existsSync(outputPath)) {
       console.log(`[sync] API unavailable for ${group.slug}, using cached CLAUDE.md`);
     } else {
@@ -88,7 +95,6 @@ async function syncGroup(group: GroupConfig, apiUrl: string): Promise<void> {
   const current = `${data.version}:${data.content_hash}`;
 
   if (cached === current) {
-    // No constitution changes, but still send heartbeat
     await sendHeartbeat(apiUrl, group.slug, data.version);
     return;
   }
@@ -96,7 +102,7 @@ async function syncGroup(group: GroupConfig, apiUrl: string): Promise<void> {
   const template = loadTemplate();
   const claudeMd = buildClaudeMd(template, group, data, apiUrl);
 
-  const groupDir = path.resolve(process.cwd(), 'groups', group.folder);
+  const groupDir = path.resolve(base, 'groups', group.folder);
   fs.mkdirSync(groupDir, { recursive: true });
 
   const outputPath = path.join(groupDir, 'CLAUDE.md');
@@ -105,11 +111,10 @@ async function syncGroup(group: GroupConfig, apiUrl: string): Promise<void> {
   versionCache.set(cacheKey, current);
   console.log(`[sync] Updated ${group.folder} — version ${data.version}`);
 
-  // Send heartbeat after successful sync
   await sendHeartbeat(apiUrl, group.slug, data.version);
 }
 
-async function syncAll(): Promise<void> {
+export async function syncAll(): Promise<void> {
   const config = loadConfig();
   console.log(`[sync] Syncing ${config.groups.length} groups from ${config.apiUrl}`);
 
@@ -118,16 +123,15 @@ async function syncAll(): Promise<void> {
   }
 }
 
-// Run once or on interval
-async function main() {
-  const config = loadConfig();
-
-  await syncAll();
-
-  if (config.syncIntervalMs > 0) {
-    console.log(`[sync] Polling every ${config.syncIntervalMs / 1000}s`);
-    setInterval(syncAll, config.syncIntervalMs);
-  }
+// Run as script when executed directly
+const isMain = process.argv[1]?.endsWith('constitution-sync.js') || process.argv[1]?.endsWith('constitution-sync.ts');
+if (isMain) {
+  (async () => {
+    const config = loadConfig();
+    await syncAll();
+    if (config.syncIntervalMs > 0) {
+      console.log(`[sync] Polling every ${config.syncIntervalMs / 1000}s`);
+      setInterval(syncAll, config.syncIntervalMs);
+    }
+  })().catch(console.error);
 }
-
-main().catch(console.error);
