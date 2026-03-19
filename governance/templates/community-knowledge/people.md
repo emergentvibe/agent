@@ -1,12 +1,18 @@
-# People & Roles
+# Key Contacts
 
-Key community members and their roles.
+<!-- Only list people who have opted in to being listed here -->
+<!-- The bot uses this to answer "who do I talk to about X?" -->
 
 ## Organizers
-<!-- Add organizer names and responsibilities -->
+<!-- Example:
+### Operations
+- **Name** — handles logistics, space issues, emergencies
+- Contact: @handle
 
-## Point People
-<!-- Add topic-specific contacts (e.g., "For housing questions, ask...") -->
+### Community
+- **Name** — community events, onboarding, welcome
+- Contact: @handle
+-->
 
-## How to Connect
-<!-- Add info about introductions, buddy systems, or community channels -->
+## How to Get Help
+Ask in the group chat. Someone will know.

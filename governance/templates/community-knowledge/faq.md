@@ -1,15 +1,15 @@
 # Frequently Asked Questions
 
-Common questions and answers for community members.
+<!-- Add common questions as they come up -->
+<!-- The bot uses this to answer recurring questions from newcomers -->
 
-## Getting Started
-<!-- Add onboarding info, first steps, etc. -->
+<!-- Example:
+## What's the WiFi password?
+Check the notice board in the common area, or ask in the group chat.
 
-## Logistics
-<!-- Add practical info: wifi, parking, hours, etc. -->
+## How do I get a key/access card?
+Talk to [operations contact].
 
-## Community Norms
-<!-- Add behavioral expectations, quiet hours, etc. -->
-
-## Technical
-<!-- Add info about tools, platforms, accounts needed -->
+## Where do I do laundry?
+Building C, basement level. Machines are coin-operated.
+-->

@@ -151,10 +151,7 @@ describe('formatMessages', () => {
   });
 
   it('escapes XML entities in sender_id', () => {
-    const result = formatMessages(
-      [makeMsg({ sender: 'user&<id>' })],
-      TZ,
-    );
+    const result = formatMessages([makeMsg({ sender: 'user&<id>' })], TZ);
     expect(result).toContain('sender_id="user&amp;&lt;id&gt;"');
   });
 });

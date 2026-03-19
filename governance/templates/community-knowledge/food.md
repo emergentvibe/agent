@@ -1,15 +1,21 @@
 # Food & Dining
 
-Local food options, dietary info, and community meals.
+<!-- Fill in with your community's food arrangements -->
+<!-- The bot uses this to answer "when is dinner?" or "where can I eat?" -->
 
-## Community Meals
-<!-- Add scheduled community meals here -->
+## Meals
+<!-- Example:
+### Breakfast
+- When: 7:30am - 9:00am
+- Where: Main dining area
+- Notes: Self-serve. Coffee available from 6:30am.
+-->
+
+## Kitchen Access
+<!-- Hours, rules, shared supplies, etc. -->
 
 ## Local Restaurants & Cafes
 <!-- Add recommendations with dietary info (vegetarian, vegan, halal, etc.) -->
 
-## Groceries & Markets
-<!-- Add nearby grocery stores and markets -->
-
 ## Dietary Notes
-<!-- Add info about community dietary preferences or restrictions -->
+<!-- Any community-wide dietary considerations, allergy protocols, etc. -->

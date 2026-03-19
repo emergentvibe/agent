@@ -18,7 +18,10 @@ import type { GroupConfig } from '../governance/sync/config.js';
 // ── Template rendering ──────────────────────────────────────
 
 const TEMPLATE = fs.readFileSync(
-  path.resolve(import.meta.dirname ?? '.', '../governance/templates/claude-md-template.md'),
+  path.resolve(
+    import.meta.dirname ?? '.',
+    '../governance/templates/claude-md-template.md',
+  ),
   'utf-8',
 );
 
@@ -39,19 +42,28 @@ const MOCK_DATA: ConstitutionData = {
 
 describe('buildClaudeMd', () => {
   it('replaces all template placeholders', () => {
-    const result = buildClaudeMd(TEMPLATE, MOCK_GROUP, MOCK_DATA, 'https://emergentvibe.com');
+    const result = buildClaudeMd(
+      TEMPLATE,
+      MOCK_GROUP,
+      MOCK_DATA,
+      'https://emergentvibe.com',
+    );
 
-    expect(result).toContain('# Test Community Community AI');
+    expect(result).toContain('# Test Community — Community Intelligence');
     expect(result).toContain('Version: 1.0.0');
     expect(result).toContain('Hash: abc123def456');
     expect(result).toContain('1. Do no harm');
     expect(result).toContain('2. Be excellent to each other');
     expect(result).toContain('https://emergentvibe.com/c/test-community');
-    expect(result).toContain('https://emergentvibe.com/c/test-community/governance');
   });
 
   it('includes memory instructions with correct slug', () => {
-    const result = buildClaudeMd(TEMPLATE, MOCK_GROUP, MOCK_DATA, 'https://emergentvibe.com');
+    const result = buildClaudeMd(
+      TEMPLATE,
+      MOCK_GROUP,
+      MOCK_DATA,
+      'https://emergentvibe.com',
+    );
 
     expect(result).toContain('community:test-community');
     expect(result).toContain('Mem0 MCP tools');
@@ -60,32 +72,55 @@ describe('buildClaudeMd', () => {
   });
 
   it('includes privacy rules', () => {
-    const result = buildClaudeMd(TEMPLATE, MOCK_GROUP, MOCK_DATA, 'https://emergentvibe.com');
+    const result = buildClaudeMd(
+      TEMPLATE,
+      MOCK_GROUP,
+      MOCK_DATA,
+      'https://emergentvibe.com',
+    );
 
-    expect(result).toContain('NEVER share one user\'s personal memories');
+    expect(result).toContain("NEVER share one user's personal memories");
     expect(result).toContain('Community memories are shared');
   });
 
-  it('includes governance commands', () => {
-    const result = buildClaudeMd(TEMPLATE, MOCK_GROUP, MOCK_DATA, 'https://emergentvibe.com');
+  it('does not include governance commands in Phase 0 (dormant)', () => {
+    const result = buildClaudeMd(
+      TEMPLATE,
+      MOCK_GROUP,
+      MOCK_DATA,
+      'https://emergentvibe.com',
+    );
 
-    expect(result).toContain('/propose');
-    expect(result).toContain('/vote');
-    expect(result).toContain('/governance');
-    expect(result).toContain('/constitution');
-    expect(result).toContain('/help');
+    // Governance commands are in skill files, not in the community intelligence template
+    expect(result).not.toContain('/propose');
+    expect(result).not.toContain('/vote');
+    // /governance and /constitution may appear in URLs, so check for command format
+    expect(result).not.toMatch(/`\/governance`/);
+    expect(result).not.toMatch(/`\/constitution`/);
   });
 
   it('includes auto-registration instructions', () => {
-    const result = buildClaudeMd(TEMPLATE, MOCK_GROUP, MOCK_DATA, 'https://emergentvibe.com');
+    const result = buildClaudeMd(
+      TEMPLATE,
+      MOCK_GROUP,
+      MOCK_DATA,
+      'https://emergentvibe.com',
+    );
 
-    expect(result).toContain('POST https://emergentvibe.com/api/members/telegram');
+    expect(result).toContain(
+      'POST https://emergentvibe.com/api/members/telegram',
+    );
     expect(result).toContain('X-Bot-Secret');
     expect(result).toContain('constitution_slug: "test-community"');
   });
 
   it('includes last sync time', () => {
-    const result = buildClaudeMd(TEMPLATE, MOCK_GROUP, MOCK_DATA, 'https://emergentvibe.com');
+    const result = buildClaudeMd(
+      TEMPLATE,
+      MOCK_GROUP,
+      MOCK_DATA,
+      'https://emergentvibe.com',
+    );
 
     expect(result).toContain('Last synced:');
     // Should contain an ISO date
@@ -94,20 +129,35 @@ describe('buildClaudeMd', () => {
 
   it('handles null content_hash', () => {
     const data = { ...MOCK_DATA, content_hash: null };
-    const result = buildClaudeMd(TEMPLATE, MOCK_GROUP, data, 'https://emergentvibe.com');
+    const result = buildClaudeMd(
+      TEMPLATE,
+      MOCK_GROUP,
+      data,
+      'https://emergentvibe.com',
+    );
 
     expect(result).toContain('Hash: unknown');
   });
 
   it('uses custom polis_url when provided', () => {
     const group = { ...MOCK_GROUP, polis_url: 'https://polis.test/abc' };
-    const result = buildClaudeMd(TEMPLATE, group, MOCK_DATA, 'https://emergentvibe.com');
+    const result = buildClaudeMd(
+      TEMPLATE,
+      group,
+      MOCK_DATA,
+      'https://emergentvibe.com',
+    );
 
     expect(result).not.toContain('/polis');
   });
 
   it('leaves no unreplaced placeholders', () => {
-    const result = buildClaudeMd(TEMPLATE, MOCK_GROUP, MOCK_DATA, 'https://emergentvibe.com');
+    const result = buildClaudeMd(
+      TEMPLATE,
+      MOCK_GROUP,
+      MOCK_DATA,
+      'https://emergentvibe.com',
+    );
 
     // Check no {{ }} remain
     const unreplaced = result.match(/\{\{[^}]+\}\}/g);
@@ -130,9 +180,14 @@ describe('fetchConstitution', () => {
       json: () => Promise.resolve(MOCK_DATA),
     });
 
-    const result = await fetchConstitution('https://api.test', 'test-community');
+    const result = await fetchConstitution(
+      'https://api.test',
+      'test-community',
+    );
     expect(result).toEqual(MOCK_DATA);
-    expect(global.fetch).toHaveBeenCalledWith('https://api.test/api/constitution/test-community');
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://api.test/api/constitution/test-community',
+    );
   });
 
   it('returns null on HTTP error', async () => {
@@ -179,7 +234,9 @@ describe('sendHeartbeat', () => {
       }),
     );
 
-    const body = JSON.parse((global.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body);
+    const body = JSON.parse(
+      (global.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body,
+    );
     expect(body.constitution_version).toBe('1.0.0');
     expect(body.status).toBe('ok');
   });
@@ -205,9 +262,18 @@ describe('sendHeartbeat', () => {
 // ── Skill files exist ────────────────────────────────────────
 
 describe('governance skills', () => {
-  const skillsDir = path.resolve(import.meta.dirname ?? '.', '../governance/skills');
+  const skillsDir = path.resolve(
+    import.meta.dirname ?? '.',
+    '../governance/skills',
+  );
 
-  const expectedSkills = ['propose', 'vote', 'governance', 'constitution', 'help'];
+  const expectedSkills = [
+    'propose',
+    'vote',
+    'governance',
+    'constitution',
+    'help',
+  ];
 
   for (const skill of expectedSkills) {
     it(`/${skill} skill exists with SKILL.md`, () => {
@@ -217,14 +283,20 @@ describe('governance skills', () => {
   }
 
   it('/propose skill mentions platform API endpoint', () => {
-    const content = fs.readFileSync(path.join(skillsDir, 'propose/SKILL.md'), 'utf-8');
+    const content = fs.readFileSync(
+      path.join(skillsDir, 'propose/SKILL.md'),
+      'utf-8',
+    );
     expect(content).toContain('/api/governance/proposals');
     expect(content).toContain('X-Bot-Secret');
     expect(content).toContain('telegram_id');
   });
 
   it('/vote skill mentions vote API endpoint', () => {
-    const content = fs.readFileSync(path.join(skillsDir, 'vote/SKILL.md'), 'utf-8');
+    const content = fs.readFileSync(
+      path.join(skillsDir, 'vote/SKILL.md'),
+      'utf-8',
+    );
     expect(content).toContain('/api/governance/proposals/');
     expect(content).toContain('/vote');
     expect(content).toContain('X-Bot-Secret');
@@ -232,7 +304,10 @@ describe('governance skills', () => {
   });
 
   it('/governance skill mentions active proposals endpoint', () => {
-    const content = fs.readFileSync(path.join(skillsDir, 'governance/SKILL.md'), 'utf-8');
+    const content = fs.readFileSync(
+      path.join(skillsDir, 'governance/SKILL.md'),
+      'utf-8',
+    );
     expect(content).toContain('/api/governance/proposals/active');
   });
 });
@@ -240,9 +315,22 @@ describe('governance skills', () => {
 // ── Community knowledge templates ────────────────────────────
 
 describe('community knowledge templates', () => {
-  const knowledgeDir = path.resolve(import.meta.dirname ?? '.', '../governance/templates/community-knowledge');
+  const knowledgeDir = path.resolve(
+    import.meta.dirname ?? '.',
+    '../governance/templates/community-knowledge',
+  );
 
-  const expectedFiles = ['events.md', 'spaces.md', 'resources.md', 'food.md', 'people.md', 'faq.md', 'norms.md', 'decisions.md'];
+  const expectedFiles = [
+    'events.md',
+    'spaces.md',
+    'resources.md',
+    'food.md',
+    'people.md',
+    'faq.md',
+    'norms.md',
+    'decisions.md',
+    'welcome.md',
+  ];
 
   for (const file of expectedFiles) {
     it(`${file} template exists`, () => {
@@ -251,11 +339,51 @@ describe('community knowledge templates', () => {
   }
 });
 
+// ── Phase 0: Community intelligence features ─────────────────
+
+describe('community intelligence template (Phase 0)', () => {
+  const result = buildClaudeMd(
+    TEMPLATE,
+    MOCK_GROUP,
+    MOCK_DATA,
+    'https://emergentvibe.com',
+  );
+
+  it('defines listening mode as default', () => {
+    expect(result).toContain('Listening Mode');
+    expect(result).toContain('silence');
+  });
+
+  it('includes pattern sensing instructions', () => {
+    expect(result).toContain('Pattern Sensing');
+    expect(result).toContain('3+ people');
+  });
+
+  it('includes connection protocol', () => {
+    expect(result).toContain('Connection');
+    expect(result).toContain('consent from both parties');
+  });
+
+  it('includes memory metadata examples with type tags', () => {
+    expect(result).toContain('"type": "wish"');
+    expect(result).toContain('"type": "concern"');
+    expect(result).toContain('"type": "fact"');
+    expect(result).toContain('"type": "connection"');
+  });
+
+  it('includes "What You Never Do" section', () => {
+    expect(result).toContain('What You Never Do');
+    expect(result).toContain('Don\'t respond to every message');
+  });
+});
+
 // ── MCP config ───────────────────────────────────────────────
 
 describe('ContainerConfig MCP servers', () => {
   it('McpServerConfig type supports mem0 shape', async () => {
-    const { McpServerConfig } = await import('../src/types.js') as { McpServerConfig: unknown };
+    const { McpServerConfig } = (await import('../src/types.js')) as {
+      McpServerConfig: unknown;
+    };
     // Type-level test: this should compile
     const mem0Config = {
       command: 'uvx',
