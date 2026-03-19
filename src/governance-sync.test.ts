@@ -373,7 +373,7 @@ describe('community intelligence template (Phase 0)', () => {
 
   it('includes "What You Never Do" section', () => {
     expect(result).toContain('What You Never Do');
-    expect(result).toContain('Don\'t respond to every message');
+    expect(result).toContain("Don't respond to every message");
   });
 });
 
