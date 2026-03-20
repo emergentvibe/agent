@@ -496,6 +496,30 @@ export function logTaskRun(log: TaskRunLog): void {
   );
 }
 
+/**
+ * Check if a sender has sent messages in a specific chat.
+ * Used for DM auto-registration to find which community a user belongs to.
+ */
+export function hasSenderInChat(chatJid: string, senderJid: string): boolean {
+  const row = db
+    .prepare(
+      `SELECT 1 FROM messages WHERE chat_jid = ? AND sender = ? LIMIT 1`,
+    )
+    .get(chatJid, senderJid);
+  return !!row;
+}
+
+/**
+ * Get chat metadata for a specific JID.
+ */
+export function getChatMetadata(chatJid: string): ChatInfo | undefined {
+  return db
+    .prepare(
+      `SELECT jid, name, last_message_time, channel, is_group FROM chats WHERE jid = ?`,
+    )
+    .get(chatJid) as ChatInfo | undefined;
+}
+
 // --- Router state accessors ---
 
 export function getRouterState(key: string): string | undefined {

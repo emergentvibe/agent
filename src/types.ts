@@ -27,11 +27,19 @@ export interface AllowedRoot {
   description?: string;
 }
 
-export interface McpServerConfig {
+export interface McpServerStdio {
   command: string;
   args: string[];
   env?: Record<string, string>;
 }
+
+export interface McpServerSse {
+  type: 'sse';
+  url: string;
+  headers?: Record<string, string>;
+}
+
+export type McpServerConfig = McpServerStdio | McpServerSse;
 
 export interface ContainerConfig {
   additionalMounts?: AdditionalMount[];

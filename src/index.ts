@@ -31,10 +31,12 @@ import {
   getAllRegisteredGroups,
   getAllSessions,
   getAllTasks,
+  getChatMetadata,
   getMessagesSince,
   getNewMessages,
   getRegisteredGroup,
   getRouterState,
+  hasSenderInChat,
   initDatabase,
   setRegisteredGroup,
   setRouterState,
@@ -42,6 +44,11 @@ import {
   storeChatMetadata,
   storeMessage,
 } from './db.js';
+import {
+  findCommunityForUser,
+  sanitizeForFolder,
+  writeDmClaudeMd,
+} from './dm-registration.js';
 import { GroupQueue } from './group-queue.js';
 import { resolveGroupFolderPath } from './group-folder.js';
 import { startIpcWatcher } from './ipc.js';
@@ -57,6 +64,7 @@ import {
   loadSenderAllowlist,
   shouldDropMessage,
 } from './sender-allowlist.js';
+import { syncAll } from '../governance/sync/constitution-sync.js';
 import { startSchedulerLoop } from './task-scheduler.js';
 import { Channel, NewMessage, RegisteredGroup } from './types.js';
 import { logger } from './logger.js';
@@ -478,6 +486,14 @@ async function main(): Promise<void> {
   loadState();
   restoreRemoteControl();
 
+  // Sync constitutions at startup (writes CLAUDE.md to group folders)
+  try {
+    await syncAll();
+    logger.info('Constitution sync complete');
+  } catch (err) {
+    logger.warn({ err }, 'Constitution sync failed, using cached CLAUDE.md files');
+  }
+
   // Start credential proxy (containers route API calls through this)
   const proxyServer = await startCredentialProxy(
     CREDENTIAL_PROXY_PORT,
@@ -566,6 +582,53 @@ async function main(): Promise<void> {
         }
       }
       storeMessage(msg);
+
+      // Auto-register DMs from community members
+      if (!registeredGroups[chatJid]) {
+        const chatMeta = getChatMetadata(chatJid);
+        if (chatMeta && chatMeta.is_group === 0) {
+          const community = findCommunityForUser(
+            msg.sender,
+            registeredGroups,
+            hasSenderInChat,
+          );
+          if (community) {
+            const dmFolder = `${community.group.folder}-dm-${sanitizeForFolder(msg.sender)}`;
+            registerGroup(chatJid, {
+              name: msg.sender_name || chatJid,
+              folder: dmFolder,
+              trigger: ASSISTANT_NAME,
+              added_at: new Date().toISOString(),
+              requiresTrigger: false,
+              containerConfig: {
+                additionalMounts: [
+                  {
+                    hostPath: resolveGroupFolderPath(community.group.folder),
+                    containerPath: 'community',
+                    readonly: true,
+                  },
+                ],
+              },
+            });
+            writeDmClaudeMd(
+              dmFolder,
+              community.group.name,
+              msg.sender_name || msg.sender,
+              msg.sender,
+              community.slug,
+            );
+            logger.info(
+              {
+                chatJid,
+                sender: msg.sender,
+                community: community.group.name,
+                dmFolder,
+              },
+              'Auto-registered DM from community member',
+            );
+          }
+        }
+      }
     },
     onChatMetadata: (
       chatJid: string,

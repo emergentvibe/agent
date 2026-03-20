@@ -19,11 +19,19 @@ import path from 'path';
 import { query, HookCallback, PreCompactHookInput } from '@anthropic-ai/claude-agent-sdk';
 import { fileURLToPath } from 'url';
 
-interface McpServerConfig {
+interface McpServerStdio {
   command: string;
   args: string[];
   env?: Record<string, string>;
 }
+
+interface McpServerSse {
+  type: 'sse';
+  url: string;
+  headers?: Record<string, string>;
+}
+
+type McpServerConfig = McpServerStdio | McpServerSse;
 
 interface ContainerInput {
   prompt: string;
@@ -431,8 +439,14 @@ async function runQuery(
             NANOCLAW_IS_MAIN: containerInput.isMain ? '1' : '0',
           },
         },
-        // Mem0 MCP server for personal + community memory (if API key available)
-        ...(process.env.MEM0_API_KEY ? {
+        // Mem0 MCP server for personal + community memory
+        // SSE (self-hosted OpenMemory) takes priority over hosted API
+        ...(process.env.MEM0_SSE_URL ? {
+          mem0: {
+            type: 'sse' as const,
+            url: process.env.MEM0_SSE_URL,
+          },
+        } : process.env.MEM0_API_KEY ? {
           mem0: {
             command: 'uvx',
             args: ['mem0-mcp-server'],

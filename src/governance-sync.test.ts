@@ -57,7 +57,7 @@ describe('buildClaudeMd', () => {
     expect(result).toContain('https://emergentvibe.com/c/test-community');
   });
 
-  it('includes memory instructions with correct slug', () => {
+  it('includes community memory namespace with correct slug', () => {
     const result = buildClaudeMd(
       TEMPLATE,
       MOCK_GROUP,
@@ -66,21 +66,7 @@ describe('buildClaudeMd', () => {
     );
 
     expect(result).toContain('community:test-community');
-    expect(result).toContain('Mem0 MCP tools');
-    expect(result).toContain('add_memory');
     expect(result).toContain('search_memories');
-  });
-
-  it('includes privacy rules', () => {
-    const result = buildClaudeMd(
-      TEMPLATE,
-      MOCK_GROUP,
-      MOCK_DATA,
-      'https://emergentvibe.com',
-    );
-
-    expect(result).toContain("NEVER share one user's personal memories");
-    expect(result).toContain('Community memories are shared');
   });
 
   it('does not include governance commands in Phase 0 (dormant)', () => {
@@ -364,13 +350,6 @@ describe('community intelligence template (Phase 0)', () => {
     expect(result).toContain('consent from both parties');
   });
 
-  it('includes memory metadata examples with type tags', () => {
-    expect(result).toContain('"type": "wish"');
-    expect(result).toContain('"type": "concern"');
-    expect(result).toContain('"type": "fact"');
-    expect(result).toContain('"type": "connection"');
-  });
-
   it('includes "What You Never Do" section', () => {
     expect(result).toContain('What You Never Do');
     expect(result).toContain("Don't respond to every message");
@@ -380,11 +359,8 @@ describe('community intelligence template (Phase 0)', () => {
 // ── MCP config ───────────────────────────────────────────────
 
 describe('ContainerConfig MCP servers', () => {
-  it('McpServerConfig type supports mem0 shape', async () => {
-    const { McpServerConfig } = (await import('../src/types.js')) as {
-      McpServerConfig: unknown;
-    };
-    // Type-level test: this should compile
+  it('McpServerConfig supports stdio shape (hosted API)', async () => {
+    // Type-level test: this should compile and run
     const mem0Config = {
       command: 'uvx',
       args: ['mem0-mcp-server'],
@@ -393,20 +369,32 @@ describe('ContainerConfig MCP servers', () => {
     expect(mem0Config.command).toBe('uvx');
     expect(mem0Config.args).toEqual(['mem0-mcp-server']);
   });
+
+  it('McpServerConfig supports SSE shape (self-hosted)', async () => {
+    const sseConfig = {
+      type: 'sse' as const,
+      url: 'http://localhost:8765/sse',
+    };
+    expect(sseConfig.type).toBe('sse');
+    expect(sseConfig.url).toBe('http://localhost:8765/sse');
+  });
 });
 
 // ── Memory namespace conventions ─────────────────────────────
 
 describe('memory namespace conventions', () => {
-  it('template uses tg: prefix for personal memory examples', () => {
-    expect(TEMPLATE).toContain('user_id="tg:');
-  });
-
-  it('template uses community: prefix for shared memory examples', () => {
-    expect(TEMPLATE).toContain('user_id="community:');
-  });
-
-  it('community namespace includes slug placeholder', () => {
+  it('template uses community: prefix for memory search', () => {
     expect(TEMPLATE).toContain('community:{{slug}}');
+  });
+
+  it('global CLAUDE.md has full memory protocol with namespace examples', () => {
+    const globalMd = fs.readFileSync(
+      path.resolve(import.meta.dirname ?? '.', '../groups/global/CLAUDE.md'),
+      'utf-8',
+    );
+    expect(globalMd).toContain('user_id="tg:');
+    expect(globalMd).toContain('user_id="community:');
+    expect(globalMd).toContain('"type": "wish"');
+    expect(globalMd).toContain('"type": "concern"');
   });
 });

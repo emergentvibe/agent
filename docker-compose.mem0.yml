@@ -1,0 +1,29 @@
+# Self-hosted Mem0 (OpenMemory) stack
+# Optional — only needed if you want to self-host instead of using Mem0 cloud API.
+#
+# Uses external inference (OpenAI-compatible). Set OPENAI_API_KEY in your environment.
+# For Mem0 cloud, just set MEM0_API_KEY in .env — no Docker needed.
+#
+# Usage:
+#   docker compose -f docker-compose.mem0.yml up -d
+#   Then set MEM0_SSE_URL=http://localhost:8765/sse in .env
+
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports: ["6333:6333"]
+    volumes: ["qdrant_data:/qdrant/storage"]
+    restart: unless-stopped
+
+  openmemory:
+    image: mem0/openmemory-mcp:latest
+    ports: ["8765:8765"]
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+    depends_on: [qdrant]
+    restart: unless-stopped
+
+volumes:
+  qdrant_data:

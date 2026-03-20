@@ -41,10 +41,7 @@ export interface ContainerInput {
   isMain: boolean;
   isScheduledTask?: boolean;
   assistantName?: string;
-  mcpServers?: Record<
-    string,
-    { command: string; args: string[]; env?: Record<string, string> }
-  >;
+  mcpServers?: Record<string, import('./types.js').McpServerConfig>;
 }
 
 export interface ContainerOutput {
