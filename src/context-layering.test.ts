@@ -5,7 +5,10 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
-import { buildClaudeMd, type ConstitutionData } from '../governance/sync/constitution-sync.js';
+import {
+  buildClaudeMd,
+  type ConstitutionData,
+} from '../governance/sync/constitution-sync.js';
 import type { GroupConfig } from '../governance/sync/config.js';
 import { buildDmClaudeMd } from './dm-registration.js';
 
@@ -17,12 +20,18 @@ const GLOBAL_CLAUDE_MD = fs.readFileSync(
 );
 
 const COMMUNITY_TEMPLATE = fs.readFileSync(
-  path.resolve(import.meta.dirname ?? '.', '../governance/templates/claude-md-template.md'),
+  path.resolve(
+    import.meta.dirname ?? '.',
+    '../governance/templates/claude-md-template.md',
+  ),
   'utf-8',
 );
 
 const DM_TEMPLATE = fs.readFileSync(
-  path.resolve(import.meta.dirname ?? '.', '../governance/templates/dm-template.md'),
+  path.resolve(
+    import.meta.dirname ?? '.',
+    '../governance/templates/dm-template.md',
+  ),
   'utf-8',
 );
 
@@ -30,6 +39,8 @@ const MOCK_GROUP: GroupConfig = {
   folder: 'telegram_test',
   slug: 'test-community',
   community_name: 'Test Community',
+  admin_id: 'tg:admin1',
+  admin_name: 'TestAdmin',
 };
 
 const MOCK_DATA: ConstitutionData = {
@@ -61,7 +72,9 @@ describe('Global CLAUDE.md (Layer 1)', () => {
   });
 
   it('contains privacy rules', () => {
-    expect(GLOBAL_CLAUDE_MD).toContain("NEVER share one user's personal memories");
+    expect(GLOBAL_CLAUDE_MD).toContain(
+      "NEVER share one user's personal memories",
+    );
     expect(GLOBAL_CLAUDE_MD).toContain('Community memories are shared');
   });
 
@@ -89,7 +102,12 @@ describe('Global CLAUDE.md (Layer 1)', () => {
 // ── Layer 2: Community template ──────────────────────────────
 
 describe('Community template (Layer 2)', () => {
-  const rendered = buildClaudeMd(COMMUNITY_TEMPLATE, MOCK_GROUP, MOCK_DATA, 'https://emergentvibe.com');
+  const rendered = buildClaudeMd(
+    COMMUNITY_TEMPLATE,
+    MOCK_GROUP,
+    MOCK_DATA,
+    'https://emergentvibe.com',
+  );
 
   it('renders with constitution content', () => {
     expect(rendered).toContain('1. Do no harm');
@@ -121,8 +139,32 @@ describe('Community template (Layer 2)', () => {
     expect(rendered).toContain("Don't respond to every message");
   });
 
+  it('contains onboarding section with knowledge categories', () => {
+    expect(rendered).toContain('Onboarding');
+    expect(rendered).toContain('spaces');
+    expect(rendered).toContain('meals');
+    expect(rendered).toContain('norms');
+    expect(rendered).toContain('events');
+    expect(rendered).toContain('welcome');
+    expect(rendered).toContain('contacts');
+  });
+
+  it('contains admin/organizer roles', () => {
+    expect(rendered).toContain('Admin');
+    expect(rendered).toContain('Organizers');
+    expect(rendered).toContain('TestAdmin');
+    expect(rendered).toContain('tg:admin1');
+  });
+
+  it('references community memory instead of files', () => {
+    expect(rendered).toContain('community:test-community');
+    expect(rendered).not.toContain('community-knowledge/');
+  });
+
   it('contains auto-registration instructions', () => {
-    expect(rendered).toContain('POST https://emergentvibe.com/api/members/telegram');
+    expect(rendered).toContain(
+      'POST https://emergentvibe.com/api/members/telegram',
+    );
     expect(rendered).toContain('constitution_slug: "test-community"');
   });
 
@@ -146,7 +188,13 @@ describe('Community template (Layer 2)', () => {
 // ── Layer 3: DM template ─────────────────────────────────────
 
 describe('DM template (Layer 3)', () => {
-  const rendered = buildDmClaudeMd('Test Village', 'Alice', 'tg:123', 'test-village');
+  const rendered = buildDmClaudeMd(
+    'Test Village',
+    'Alice',
+    'tg:123',
+    'test-village',
+    'tg:admin1',
+  );
 
   it('identifies as private conversation', () => {
     expect(rendered).toContain('Private Conversation');
@@ -162,8 +210,13 @@ describe('DM template (Layer 3)', () => {
     expect(rendered).toContain('community:test-village');
   });
 
-  it('includes community context path', () => {
-    expect(rendered).toContain('/workspace/extra/community/community-knowledge/');
+  it('includes admin awareness', () => {
+    expect(rendered).toContain('tg:admin1');
+  });
+
+  it('includes onboarding instructions for admin', () => {
+    expect(rendered).toContain('Onboarding');
+    expect(rendered).toContain('knowledge category');
   });
 
   it('includes privacy rules', () => {

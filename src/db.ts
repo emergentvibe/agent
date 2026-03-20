@@ -502,9 +502,7 @@ export function logTaskRun(log: TaskRunLog): void {
  */
 export function hasSenderInChat(chatJid: string, senderJid: string): boolean {
   const row = db
-    .prepare(
-      `SELECT 1 FROM messages WHERE chat_jid = ? AND sender = ? LIMIT 1`,
-    )
+    .prepare(`SELECT 1 FROM messages WHERE chat_jid = ? AND sender = ? LIMIT 1`)
     .get(chatJid, senderJid);
   return !!row;
 }

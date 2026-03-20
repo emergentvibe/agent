@@ -3,6 +3,8 @@ export interface GroupConfig {
   slug: string;
   community_name: string;
   polis_url?: string;
+  admin_id?: string;
+  admin_name?: string;
 }
 
 export interface SyncConfig {

@@ -491,7 +491,10 @@ async function main(): Promise<void> {
     await syncAll();
     logger.info('Constitution sync complete');
   } catch (err) {
-    logger.warn({ err }, 'Constitution sync failed, using cached CLAUDE.md files');
+    logger.warn(
+      { err },
+      'Constitution sync failed, using cached CLAUDE.md files',
+    );
   }
 
   // Start credential proxy (containers route API calls through this)
@@ -603,8 +606,8 @@ async function main(): Promise<void> {
               containerConfig: {
                 additionalMounts: [
                   {
-                    hostPath: resolveGroupFolderPath(community.group.folder),
-                    containerPath: 'community',
+                    hostPath: path.join(resolveGroupFolderPath(community.group.folder), 'community-knowledge'),
+                    containerPath: 'community-knowledge',
                     readonly: true,
                   },
                 ],

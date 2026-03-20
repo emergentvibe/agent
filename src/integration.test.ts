@@ -61,10 +61,22 @@ describe('Integration: community intelligence message flow', () => {
 
   // Step 2: register a fake community group
   it('registers a community group in the chat metadata', () => {
-    storeChatMetadata(groupChatJid, new Date().toISOString(), communityName, 'telegram', true);
+    storeChatMetadata(
+      groupChatJid,
+      new Date().toISOString(),
+      communityName,
+      'telegram',
+      true,
+    );
 
     // Also register the DM chat as non-group
-    storeChatMetadata(dmChatJid, new Date().toISOString(), undefined, 'telegram', false);
+    storeChatMetadata(
+      dmChatJid,
+      new Date().toISOString(),
+      undefined,
+      'telegram',
+      false,
+    );
   });
 
   // Step 3: store messages from the sender in the group chat
@@ -105,7 +117,11 @@ describe('Integration: community intelligence message flow', () => {
 
   // Step 4: simulate DM arrival — find which community the sender belongs to
   it('finds the community for a DM sender via message history', () => {
-    const match = findCommunityForUser(senderJid, registeredGroups, hasSenderInChat);
+    const match = findCommunityForUser(
+      senderJid,
+      registeredGroups,
+      hasSenderInChat,
+    );
 
     expect(match).not.toBeNull();
     expect(match!.jid).toBe(groupChatJid);
@@ -226,7 +242,12 @@ describe('Integration: community intelligence message flow', () => {
       updated_at: '2026-03-20T00:00:00Z',
     };
 
-    const rendered = buildClaudeMd(template, groupConfig, constitutionData, 'https://emergentvibe.com');
+    const rendered = buildClaudeMd(
+      template,
+      groupConfig,
+      constitutionData,
+      'https://emergentvibe.com',
+    );
 
     // Has constitution content
     expect(rendered).toContain('Be kind. Be fair. Listen more than you speak.');
@@ -245,7 +266,12 @@ describe('Integration: community intelligence message flow', () => {
 
   // Step 11: DM template rendering verification
   it('DM template has "always respond", correct namespaces, NO listening mode', () => {
-    const dmContent = buildDmClaudeMd(communityName, senderName, 'user123', 'test-community');
+    const dmContent = buildDmClaudeMd(
+      communityName,
+      senderName,
+      'user123',
+      'test-community',
+    );
 
     // Has "always respond"
     expect(dmContent).toContain('Always respond');

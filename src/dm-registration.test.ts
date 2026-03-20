@@ -55,47 +55,92 @@ describe('sanitizeForFolder', () => {
 
 describe('buildDmClaudeMd', () => {
   it('includes user name', () => {
-    const result = buildDmClaudeMd('Test Village', 'Alice', 'tg:123', 'test-village');
+    const result = buildDmClaudeMd(
+      'Test Village',
+      'Alice',
+      'tg:123',
+      'test-village',
+    );
     expect(result).toContain('Alice');
   });
 
   it('includes community name', () => {
-    const result = buildDmClaudeMd('Test Village', 'Alice', 'tg:123', 'test-village');
+    const result = buildDmClaudeMd(
+      'Test Village',
+      'Alice',
+      'tg:123',
+      'test-village',
+    );
     expect(result).toContain('Test Village');
   });
 
   it('includes correct personal memory namespace', () => {
-    const result = buildDmClaudeMd('Test Village', 'Alice', 'tg:123', 'test-village');
+    const result = buildDmClaudeMd(
+      'Test Village',
+      'Alice',
+      'tg:123',
+      'test-village',
+    );
     expect(result).toContain('tg:123');
   });
 
   it('includes correct community memory namespace', () => {
-    const result = buildDmClaudeMd('Test Village', 'Alice', 'tg:123', 'test-village');
+    const result = buildDmClaudeMd(
+      'Test Village',
+      'Alice',
+      'tg:123',
+      'test-village',
+    );
     expect(result).toContain('community:test-village');
   });
 
   it('does NOT include listening mode (group-only)', () => {
-    const result = buildDmClaudeMd('Test Village', 'Alice', 'tg:123', 'test-village');
+    const result = buildDmClaudeMd(
+      'Test Village',
+      'Alice',
+      'tg:123',
+      'test-village',
+    );
     expect(result).not.toContain('Listening Mode');
   });
 
   it('does NOT include pattern sensing (group-only)', () => {
-    const result = buildDmClaudeMd('Test Village', 'Alice', 'tg:123', 'test-village');
+    const result = buildDmClaudeMd(
+      'Test Village',
+      'Alice',
+      'tg:123',
+      'test-village',
+    );
     expect(result).not.toContain('Pattern Sensing');
   });
 
   it('includes "always respond" instruction', () => {
-    const result = buildDmClaudeMd('Test Village', 'Alice', 'tg:123', 'test-village');
+    const result = buildDmClaudeMd(
+      'Test Village',
+      'Alice',
+      'tg:123',
+      'test-village',
+    );
     expect(result).toContain('Always respond');
   });
 
   it('includes privacy rules', () => {
-    const result = buildDmClaudeMd('Test Village', 'Alice', 'tg:123', 'test-village');
+    const result = buildDmClaudeMd(
+      'Test Village',
+      'Alice',
+      'tg:123',
+      'test-village',
+    );
     expect(result).toContain('NEVER share other people');
   });
 
   it('leaves no unreplaced placeholders', () => {
-    const result = buildDmClaudeMd('Test Village', 'Alice', 'tg:123', 'test-village');
+    const result = buildDmClaudeMd(
+      'Test Village',
+      'Alice',
+      'tg:123',
+      'test-village',
+    );
     const unreplaced = result.match(/\{\{[^}]+\}\}/g);
     expect(unreplaced).toBeNull();
   });
@@ -119,7 +164,12 @@ describe('writeDmClaudeMd', () => {
   it('writes CLAUDE.md to the correct path', async () => {
     // We need to mock resolveGroupFolderPath since it uses GROUPS_DIR from config
     // Instead, test buildDmClaudeMd (pure function) and trust writeDmClaudeMd calls it
-    const content = buildDmClaudeMd('My Community', 'Bob', 'tg:456', 'my-community');
+    const content = buildDmClaudeMd(
+      'My Community',
+      'Bob',
+      'tg:456',
+      'my-community',
+    );
     expect(content).toContain('Bob');
     expect(content).toContain('My Community');
     expect(content).toContain('tg:456');

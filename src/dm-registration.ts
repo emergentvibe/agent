@@ -43,13 +43,15 @@ export function buildDmClaudeMd(
   userName: string,
   userId: string,
   slug: string,
+  adminId?: string,
 ): string {
   const template = fs.readFileSync(DM_TEMPLATE_PATH, 'utf-8');
   return template
     .replace(/\{\{community_name\}\}/g, communityName)
     .replace(/\{\{user_name\}\}/g, userName)
     .replace(/\{\{user_id\}\}/g, userId)
-    .replace(/\{\{slug\}\}/g, slug);
+    .replace(/\{\{slug\}\}/g, slug)
+    .replace(/\{\{admin_id\}\}/g, adminId || 'unknown');
 }
 
 /**
@@ -61,11 +63,12 @@ export function writeDmClaudeMd(
   userName: string,
   userId: string,
   slug: string,
+  adminId?: string,
 ): void {
   const dmDir = resolveGroupFolderPath(dmFolder);
   fs.mkdirSync(dmDir, { recursive: true });
 
-  const content = buildDmClaudeMd(communityName, userName, userId, slug);
+  const content = buildDmClaudeMd(communityName, userName, userId, slug, adminId);
   fs.writeFileSync(path.join(dmDir, 'CLAUDE.md'), content, 'utf-8');
 
   logger.info({ dmFolder, userName }, 'Wrote DM CLAUDE.md');
@@ -104,9 +107,7 @@ export function findCommunityForUser(
       let slug = group.folder; // fallback
       if (fs.existsSync(claudeMdPath)) {
         const content = fs.readFileSync(claudeMdPath, 'utf-8');
-        const slugMatch = content.match(
-          /constitution_slug:\s*"([^"]+)"/,
-        );
+        const slugMatch = content.match(/constitution_slug:\s*"([^"]+)"/);
         if (slugMatch) slug = slugMatch[1];
       }
 

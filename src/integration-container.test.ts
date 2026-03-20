@@ -129,9 +129,7 @@ describe('Volume mount configuration', () => {
     );
     expect(groupMount).toBeDefined();
     expect(groupMount!.readonly).toBe(false);
-    expect(groupMount!.hostPath).toBe(
-      path.join(groupsDir, 'telegram_edge'),
-    );
+    expect(groupMount!.hostPath).toBe(path.join(groupsDir, 'telegram_edge'));
 
     // /workspace/global (ro) — shared global CLAUDE.md
     const globalMount = mounts.find(
@@ -148,9 +146,7 @@ describe('Volume mount configuration', () => {
     expect(sessionsMount!.readonly).toBe(false);
 
     // /workspace/ipc (rw) — IPC namespace
-    const ipcMount = mounts.find(
-      (m) => m.containerPath === '/workspace/ipc',
-    );
+    const ipcMount = mounts.find((m) => m.containerPath === '/workspace/ipc');
     expect(ipcMount).toBeDefined();
     expect(ipcMount!.readonly).toBe(false);
 
@@ -178,7 +174,7 @@ describe('Volume mount configuration', () => {
   it('DM group includes additional community mount', () => {
     const communityMount: VolumeMount = {
       hostPath: '/project/groups/telegram_edge',
-      containerPath: '/workspace/extra/community',
+      containerPath: '/workspace/extra/community-knowledge',
       readonly: true,
     };
 
@@ -192,15 +188,25 @@ describe('Volume mount configuration', () => {
     );
 
     // All base mounts present
-    expect(mounts.filter((m) => m.containerPath === '/workspace/group')).toHaveLength(1);
-    expect(mounts.filter((m) => m.containerPath === '/workspace/global')).toHaveLength(1);
-    expect(mounts.filter((m) => m.containerPath === '/home/node/.claude')).toHaveLength(1);
-    expect(mounts.filter((m) => m.containerPath === '/workspace/ipc')).toHaveLength(1);
-    expect(mounts.filter((m) => m.containerPath === '/app/src')).toHaveLength(1);
+    expect(
+      mounts.filter((m) => m.containerPath === '/workspace/group'),
+    ).toHaveLength(1);
+    expect(
+      mounts.filter((m) => m.containerPath === '/workspace/global'),
+    ).toHaveLength(1);
+    expect(
+      mounts.filter((m) => m.containerPath === '/home/node/.claude'),
+    ).toHaveLength(1);
+    expect(
+      mounts.filter((m) => m.containerPath === '/workspace/ipc'),
+    ).toHaveLength(1);
+    expect(mounts.filter((m) => m.containerPath === '/app/src')).toHaveLength(
+      1,
+    );
 
     // Plus the community mount
     const extra = mounts.find(
-      (m) => m.containerPath === '/workspace/extra/community',
+      (m) => m.containerPath === '/workspace/extra/community-knowledge',
     );
     expect(extra).toBeDefined();
     expect(extra!.readonly).toBe(true);
@@ -380,9 +386,8 @@ describe('Context file verification', () => {
       'edge-esmeralda',
     );
 
-    // DM template should reference the community folder mounted at /workspace/extra/community
-    expect(rendered).toContain('/workspace/extra/community/community-knowledge/');
-    expect(rendered).toContain('/workspace/extra/community/CLAUDE.md');
+    // DM template should reference community-knowledge path
+    expect(rendered).toContain('/workspace/extra/community-knowledge/');
   });
 });
 
@@ -395,7 +400,9 @@ describe('Mem0 MCP config construction', () => {
    * has side effects (reads stdin, calls main()), so we replicate the logic
    * and verify it matches.
    */
-  function buildMem0Config(env: Record<string, string | undefined>): Record<string, McpServerConfig> {
+  function buildMem0Config(
+    env: Record<string, string | undefined>,
+  ): Record<string, McpServerConfig> {
     if (env.MEM0_SSE_URL) {
       return {
         mem0: {
@@ -582,11 +589,7 @@ describe('Container input construction', () => {
       },
     };
 
-    const input = buildContainerInput(
-      dmGroup,
-      'Hey Bob',
-      'tg:dm-bob@c.us',
-    );
+    const input = buildContainerInput(dmGroup, 'Hey Bob', 'tg:dm-bob@c.us');
 
     expect(input.mcpServers).toBeDefined();
     expect(input.mcpServers!['custom-tool']).toBeDefined();
@@ -640,11 +643,7 @@ describe('Container input construction', () => {
       added_at: new Date().toISOString(),
     };
 
-    const input = buildContainerInput(
-      group,
-      'Hello',
-      'tg:test@g.us',
-    );
+    const input = buildContainerInput(group, 'Hello', 'tg:test@g.us');
 
     expect(input.sessionId).toBeUndefined();
   });

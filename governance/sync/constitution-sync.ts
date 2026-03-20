@@ -64,6 +64,8 @@ export function loadTemplate(templateDir?: string): string {
 export function buildClaudeMd(template: string, group: GroupConfig, data: ConstitutionData, apiUrl: string): string {
   return template
     .replace(/\{\{community_name\}\}/g, group.community_name)
+    .replace(/\{\{admin_id\}\}/g, group.admin_id || 'unknown')
+    .replace(/\{\{admin_name\}\}/g, group.admin_name || 'the admin')
     .replace(/\{\{principles_version\}\}/g, data.version)
     .replace(/\{\{principles_hash\}\}/g, data.content_hash || 'unknown')
     .replace(/\{\{principles_updated_at\}\}/g, data.updated_at)

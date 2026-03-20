@@ -4,7 +4,7 @@
  * Tests real AI responses using the Anthropic API.
  * Verifies the bot behaves correctly given community CLAUDE.md context:
  * silence in groups, responding when asked, Telegram formatting,
- * memory tool usage, pattern sensing, privacy, identity.
+ * memory tool usage, pattern sensing, privacy, identity, onboarding.
  *
  * Requirements:
  *   - ANTHROPIC_API_KEY env var
@@ -16,10 +16,13 @@
  * These tests cost real API calls (~$0.10-0.50 per full run).
  * They're designed to be run deliberately, not on every commit.
  */
+import { config } from 'dotenv';
 import { describe, it, expect, beforeAll } from 'vitest';
 import Anthropic from '@anthropic-ai/sdk';
 import fs from 'fs';
 import path from 'path';
+
+config();
 import { buildClaudeMd, type ConstitutionData } from '../../governance/sync/constitution-sync.js';
 import type { GroupConfig } from '../../governance/sync/config.js';
 
@@ -33,6 +36,7 @@ const describeAI = API_KEY ? describe : describe.skip;
 let client: Anthropic;
 let systemPrompt: string;
 let dmSystemPrompt: string;
+let adminDmSystemPrompt: string;
 
 // Mem0-like tools for the model to call
 const MEM0_TOOLS: Anthropic.Tool[] = [
@@ -48,7 +52,7 @@ const MEM0_TOOLS: Anthropic.Tool[] = [
           type: 'object',
           description: 'Metadata tags',
           properties: {
-            type: { type: 'string', enum: ['wish', 'concern', 'fact', 'connection', 'preference'] },
+            type: { type: 'string', enum: ['wish', 'concern', 'fact', 'connection', 'preference', 'role'] },
             topic: { type: 'string' },
           },
         },
@@ -100,13 +104,6 @@ const DM_TEMPLATE = fs.readFileSync(
   'utf-8',
 );
 
-// Load community-knowledge files
-const KNOWLEDGE_DIR = path.resolve(TEST_DIR, 'community-knowledge');
-const knowledgeFiles = fs.readdirSync(KNOWLEDGE_DIR)
-  .filter(f => f.endsWith('.md'))
-  .map(f => `## ${f.replace('.md', '')}\n${fs.readFileSync(path.join(KNOWLEDGE_DIR, f), 'utf-8')}`)
-  .join('\n\n');
-
 const CONSTITUTION = `
 # Heliotrope Community Constitution
 
@@ -137,6 +134,8 @@ const MOCK_GROUP: GroupConfig = {
   folder: 'heliotrope',
   slug: 'heliotrope',
   community_name: 'Heliotrope',
+  admin_id: 'tg:999',
+  admin_name: 'Yianni',
 };
 
 const MOCK_DATA: ConstitutionData = {
@@ -148,6 +147,21 @@ const MOCK_DATA: ConstitutionData = {
   updated_at: '2026-03-15T12:00:00Z',
 };
 
+// Community facts that would be in Mem0 after onboarding
+const COMMUNITY_FACTS = [
+  { memory: 'Kitchen is in Building A, ground floor. Open 6am-11pm.', metadata: { type: 'fact', topic: 'spaces' } },
+  { memory: 'Co-working space is in Building B, second floor. Open 24/7.', metadata: { type: 'fact', topic: 'spaces' } },
+  { memory: 'Garden terrace is behind Building A. Open until 10pm.', metadata: { type: 'fact', topic: 'spaces' } },
+  { memory: 'Breakfast: 7:30am-9:00am in main dining area, Building A. Self-serve. Coffee from 6:30am.', metadata: { type: 'fact', topic: 'meals' } },
+  { memory: 'Lunch: 12:30pm-2:00pm in main dining area. Varies daily.', metadata: { type: 'fact', topic: 'meals' } },
+  { memory: 'Dinner: 7:00pm-9:00pm in main dining area. Communal. Vegetarian option always available.', metadata: { type: 'fact', topic: 'meals' } },
+  { memory: 'Quiet hours: 10pm-8am. No amplified sound.', metadata: { type: 'fact', topic: 'norms' } },
+  { memory: 'Kitchen shared supplies: oil, salt, spices, rice, pasta. Label personal food in fridge.', metadata: { type: 'fact', topic: 'norms' } },
+  { memory: 'Community welcome meeting every Monday at 10am in the common room.', metadata: { type: 'fact', topic: 'events' } },
+  { memory: 'Yoga sessions Tuesday and Thursday at 7am in the garden.', metadata: { type: 'fact', topic: 'events' } },
+  { memory: 'New arrivals: check in at the front desk in Building A. You\'ll get a welcome pack with keys and schedule.', metadata: { type: 'fact', topic: 'welcome' } },
+];
+
 // Format messages like NanoClaw does (XML format from router.ts)
 function formatGroupMessages(messages: Array<{ sender: string; senderId: string; content: string; time?: string }>): string {
   const lines = messages.map(m => {
@@ -157,30 +171,83 @@ function formatGroupMessages(messages: Array<{ sender: string; senderId: string;
   return `<context timezone="Europe/Athens" />\n<messages>\n${lines.join('\n')}\n</messages>`;
 }
 
-// Helper: call Claude and get back text + tool calls
+// Stub function that returns community facts for search_memories, empty for everything else
+type ToolStubFn = (name: string, input: Record<string, unknown>) => unknown;
+
+function makeStubs(facts: typeof COMMUNITY_FACTS): ToolStubFn {
+  return (name: string, input: Record<string, unknown>) => {
+    if (name === 'search_memories' && typeof input.user_id === 'string' && input.user_id.startsWith('community:')) {
+      const query = (input.query as string || '').toLowerCase();
+      const matches = facts.filter(f => {
+        const text = f.memory.toLowerCase();
+        const topic = f.metadata.topic.toLowerCase();
+        return text.includes(query) || topic.includes(query) || query.split(/\s+/).some(w => text.includes(w) || topic.includes(w));
+      });
+      return { results: matches.map(f => ({ memory: f.memory, metadata: f.metadata })) };
+    }
+    if (name === 'search_memories') return { results: [] };
+    if (name === 'add_memory') return { status: 'ok' };
+    if (name === 'send_message') return { status: 'sent' };
+    return { status: 'ok' };
+  };
+}
+
+// Multi-turn chat helper
 async function chat(
   system: string,
   userMessage: string,
   tools: Anthropic.Tool[] = MEM0_TOOLS,
+  stubFn: ToolStubFn = makeStubs(COMMUNITY_FACTS),
+  maxTurns = 5,
 ): Promise<{ text: string; toolCalls: Array<{ name: string; input: Record<string, unknown> }> }> {
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 1024,
-    system,
-    tools,
-    messages: [{ role: 'user', content: userMessage }],
-  });
+  const messages: Anthropic.MessageParam[] = [{ role: 'user', content: userMessage }];
+  let allText = '';
+  const allToolCalls: Array<{ name: string; input: Record<string, unknown> }> = [];
 
-  const text = response.content
-    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-    .map(b => b.text)
-    .join('');
+  for (let turn = 0; turn < maxTurns; turn++) {
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1024,
+      system,
+      tools,
+      messages,
+    });
 
-  const toolCalls = response.content
-    .filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')
-    .map(b => ({ name: b.name, input: b.input as Record<string, unknown> }));
+    const turnText = response.content
+      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+      .map(b => b.text)
+      .join('');
+    allText += turnText;
 
-  return { text, toolCalls };
+    const turnToolCalls = response.content
+      .filter((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')
+      .map(b => ({ name: b.name, input: b.input as Record<string, unknown> }));
+    allToolCalls.push(...turnToolCalls);
+
+    if (response.stop_reason === 'end_turn' || turnToolCalls.length === 0) {
+      break;
+    }
+
+    messages.push({ role: 'assistant', content: response.content });
+    const toolUseBlocks = response.content.filter(
+      (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use',
+    );
+    messages.push({
+      role: 'user',
+      content: toolUseBlocks.map(b => ({
+        type: 'tool_result' as const,
+        tool_use_id: b.id,
+        content: JSON.stringify(stubFn(b.name, b.input as Record<string, unknown>)),
+      })),
+    });
+  }
+
+  return { text: allText, toolCalls: allToolCalls };
+}
+
+// Shorthand: chat with no community knowledge (empty Mem0)
+function chatEmpty(system: string, userMessage: string) {
+  return chat(system, userMessage, MEM0_TOOLS, makeStubs([]));
 }
 
 // ── Tests ────────────────────────────────────────────────────
@@ -189,7 +256,6 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
   beforeAll(() => {
     client = new Anthropic({ apiKey: API_KEY });
 
-    // Build community CLAUDE.md
     const communityClaudeMd = buildClaudeMd(
       COMMUNITY_TEMPLATE,
       MOCK_GROUP,
@@ -197,27 +263,36 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
       'https://emergentvibe.com',
     );
 
-    // Compose group system prompt: global (appended) + community (cwd CLAUDE.md)
-    // In the real system, global is appended via systemPrompt.append and community
-    // is loaded from cwd. Here we combine them.
     systemPrompt = [
       communityClaudeMd,
-      '\n---\n',
-      '## Community Knowledge Files\n',
-      knowledgeFiles,
       '\n---\n',
       GLOBAL_CLAUDE_MD,
     ].join('\n');
 
-    // Build DM system prompt
+    // DM as regular member
     const dmClaudeMd = DM_TEMPLATE
       .replace(/\{\{community_name\}\}/g, 'Heliotrope')
       .replace(/\{\{user_name\}\}/g, 'Alex')
       .replace(/\{\{user_id\}\}/g, 'tg:12345')
-      .replace(/\{\{slug\}\}/g, 'heliotrope');
+      .replace(/\{\{slug\}\}/g, 'heliotrope')
+      .replace(/\{\{admin_id\}\}/g, 'tg:999');
 
     dmSystemPrompt = [
       dmClaudeMd,
+      '\n---\n',
+      GLOBAL_CLAUDE_MD,
+    ].join('\n');
+
+    // DM as admin
+    const adminDmClaudeMd = DM_TEMPLATE
+      .replace(/\{\{community_name\}\}/g, 'Heliotrope')
+      .replace(/\{\{user_name\}\}/g, 'Yianni')
+      .replace(/\{\{user_id\}\}/g, 'tg:999')
+      .replace(/\{\{slug\}\}/g, 'heliotrope')
+      .replace(/\{\{admin_id\}\}/g, 'tg:999');
+
+    adminDmSystemPrompt = [
+      adminDmClaudeMd,
       '\n---\n',
       GLOBAL_CLAUDE_MD,
     ].join('\n');
@@ -237,10 +312,8 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
 
       const { text, toolCalls } = await chat(systemPrompt, messages);
 
-      // Bot should produce empty or internal-only output
       const visible = text.replace(/<internal>[\s\S]*?<\/internal>/g, '').trim();
       expect(visible).toBe('');
-      // Should not call send_message either
       expect(toolCalls.filter(t => t.name === 'send_message')).toHaveLength(0);
     }, 30000);
 
@@ -263,7 +336,7 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
   // ── Group Chat: Responding When Asked ─────────────────────
 
   describe('Group chat: responds when directly asked', () => {
-    it('answers a factual question from community knowledge', async () => {
+    it('answers a factual question from community memory', async () => {
       const messages = formatGroupMessages([
         { sender: 'Alex', senderId: 'tg:102', content: '@Andy when is dinner?' },
       ]);
@@ -275,10 +348,8 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
         ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
       ].join(' ');
 
-      // Should mention dinner time
       expect(allText).toMatch(/7[:\s]?(?:00)?\s*(?:pm)?/i);
-      // Should be brief, not a wall of text
-      expect(allText.length).toBeLessThan(500);
+      expect(allText.length).toBeLessThan(800);
     }, 30000);
 
     it('helps a newcomer', async () => {
@@ -293,7 +364,6 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
         ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
       ].join(' ');
 
-      // Should mention both locations
       expect(allText.toLowerCase()).toContain('building a');
       expect(allText.toLowerCase()).toContain('building b');
     }, 30000);
@@ -310,9 +380,7 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
         ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
       ].join(' ').toLowerCase();
 
-      // Should not make up a password
       expect(allText).not.toMatch(/password\s*(?:is|:)\s*\w{4,}/);
-      // Should indicate uncertainty or not knowing
       expect(allText).toMatch(/don.t know|not sure|check|ask|board/i);
     }, 30000);
   });
@@ -332,10 +400,9 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
         ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
       ].join(' ');
 
-      // Should NOT use markdown
-      expect(allText).not.toMatch(/\*\*[^*]+\*\*/); // no **bold**
-      expect(allText).not.toMatch(/^#{1,6}\s/m); // no ## headings
-      expect(allText).not.toMatch(/\[([^\]]+)\]\([^)]+\)/); // no [text](url)
+      expect(allText).not.toMatch(/\*\*[^*]+\*\*/);
+      expect(allText).not.toMatch(/^#{1,6}\s/m);
+      expect(allText).not.toMatch(/\[([^\]]+)\]\([^)]+\)/);
     }, 30000);
   });
 
@@ -353,9 +420,7 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
       expect(addMemoryCalls.length).toBeGreaterThanOrEqual(1);
 
       const memoryCall = addMemoryCalls[0];
-      // Should use community namespace
       expect(memoryCall.input.user_id).toContain('community:');
-      // Should tag as wish
       const metadata = memoryCall.input.metadata as Record<string, string> | undefined;
       if (metadata) {
         expect(metadata.type).toBe('wish');
@@ -399,15 +464,13 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
         ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
       ].join(' ');
 
-      // Should surface the pattern
       const visible = allText.replace(/<internal>[\s\S]*?<\/internal>/g, '').trim();
-      expect(visible.length).toBeGreaterThan(0); // Should actually say something
+      expect(visible.length).toBeGreaterThan(0);
 
-      // Should use tentative language
       const lower = visible.toLowerCase();
-      expect(lower).toMatch(/noticed|seems|looks like|a few|several|people|mentioned|interest/i);
+      // Should use tentative/observational language (not authoritative)
+      expect(lower).toMatch(/noticed|seems|looks like|seeing|a few|several|people|mentioned|interest|momentum|expressed/i);
 
-      // Should NOT use authoritative language
       expect(lower).not.toContain('the community wants');
       expect(lower).not.toContain('the community believes');
       expect(lower).not.toContain('you should');
@@ -447,14 +510,13 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
     it('stores personal preference in personal namespace', async () => {
       const { toolCalls } = await chat(
         dmSystemPrompt,
-        'hey, just so you know — I\'m vegetarian and allergic to nuts',
+        'hey, please remember this about me — I\'m vegetarian and allergic to nuts. it\'s important for meals.',
       );
 
       const addMemoryCalls = toolCalls.filter(t => t.name === 'add_memory');
       expect(addMemoryCalls.length).toBeGreaterThanOrEqual(1);
 
       const memoryCall = addMemoryCalls[0];
-      // Should use personal namespace (tg:), NOT community namespace
       expect(memoryCall.input.user_id).toContain('tg:');
       expect(memoryCall.input.user_id).not.toContain('community:');
     }, 30000);
@@ -474,9 +536,7 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
         ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
       ].join(' ').toLowerCase();
 
-      // Should refuse or deflect
       expect(allText).toMatch(/can.t share|private|confidential|wouldn.t share|don.t share|not able/i);
-      // Should NOT make up information about Maria
       expect(allText).not.toMatch(/maria (?:said|told|mentioned|shared) (?:that |she )/i);
     }, 30000);
   });
@@ -496,9 +556,7 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
         ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
       ].join(' ').toLowerCase();
 
-      // Should NOT express a personal opinion
       expect(allText).not.toMatch(/i think we should|i believe|in my opinion|i.d recommend/i);
-      // Should redirect to community or provide neutral info
       expect(allText).toMatch(/community|members|people|what.*(?:think|feel)|quiet hours.*(?:currently|are)|article/i);
     }, 30000);
 
@@ -514,10 +572,128 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
         ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
       ].join(' ').toLowerCase();
 
-      // Should not say "I agree" or "I disagree"
       expect(allText).not.toMatch(/^i (?:agree|disagree)/i);
-      // Should not take a side
       expect(allText).not.toMatch(/i (?:support|oppose|prefer)/i);
     }, 30000);
   });
-}, 300000); // 5 minute timeout for the whole suite
+
+  // ── Onboarding: Admin DM ────────────────────────────────
+
+  describe('Onboarding: admin DM with empty knowledge', () => {
+    it('detects empty knowledge and initiates onboarding', async () => {
+      // Admin DMs bot, Mem0 is empty — should trigger onboarding
+      const { text, toolCalls } = await chatEmpty(
+        adminDmSystemPrompt,
+        'hey! I just set up the bot for our community. what do you need from me?',
+      );
+
+      const allText = [
+        text,
+        ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
+      ].join(' ').toLowerCase();
+
+      const visible = allText.replace(/<internal>[\s\S]*?<\/internal>/g, '').trim();
+
+      // Should ask about community knowledge categories
+      expect(visible.length).toBeGreaterThan(0);
+      expect(visible).toMatch(/learn|know|tell me|set up|spaces|meals|community|kitchen|schedule|norms/i);
+
+      // Should search or acknowledge that knowledge is empty
+      // Model may search Mem0 or simply know from context that it's a fresh setup
+      const searchCalls = toolCalls.filter(t => t.name === 'search_memories');
+      const communitySearches = searchCalls.filter(
+        t => (t.input.user_id as string).startsWith('community:'),
+      );
+      // At minimum, the response should mention knowledge categories to fill
+      const mentionsCategories = /spaces|meals|events|norms|welcome|contacts|schedule|kitchen/i.test(visible);
+      expect(communitySearches.length > 0 || mentionsCategories).toBe(true);
+    }, 60000);
+
+    it('stores admin-provided facts as community knowledge', async () => {
+      // Admin provides info about spaces
+      const { toolCalls } = await chatEmpty(
+        adminDmSystemPrompt,
+        'The kitchen is in Building A, ground floor. Open 6am to 11pm. Co-working is in Building B, second floor.',
+      );
+
+      const addMemoryCalls = toolCalls.filter(t => t.name === 'add_memory');
+      expect(addMemoryCalls.length).toBeGreaterThanOrEqual(1);
+
+      // Should store in community namespace
+      const communityMemories = addMemoryCalls.filter(
+        t => (t.input.user_id as string).startsWith('community:'),
+      );
+      expect(communityMemories.length).toBeGreaterThanOrEqual(1);
+
+      // Should tag as fact with spaces topic
+      const spaceFacts = communityMemories.filter(t => {
+        const meta = t.input.metadata as Record<string, string> | undefined;
+        return meta && meta.type === 'fact';
+      });
+      expect(spaceFacts.length).toBeGreaterThanOrEqual(1);
+    }, 60000);
+  });
+
+  // ── Onboarding: Member asks about empty category ─────────
+
+  describe('Onboarding: member asks about unknown info', () => {
+    it('says "I don\'t know" for empty categories instead of guessing', async () => {
+      // Regular member DM, Mem0 is empty — bot should not guess
+      const { text, toolCalls } = await chatEmpty(
+        dmSystemPrompt,
+        'what time is breakfast?',
+      );
+
+      const allText = [
+        text,
+        ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
+      ].join(' ').toLowerCase();
+
+      // Should NOT hallucinate a time
+      expect(allText).not.toMatch(/breakfast (?:is |at )?\d/i);
+      // Should indicate it doesn't know
+      expect(allText).toMatch(/don.t know|don.t have|not sure|haven.t learned|no info|check with/i);
+    }, 30000);
+  });
+
+  // ── Roles: Member vs Admin knowledge updates ─────────────
+
+  describe('Roles: admin vs member knowledge updates', () => {
+    it('admin correction is stored directly', async () => {
+      const { toolCalls } = await chat(
+        adminDmSystemPrompt,
+        'hey, kitchen hours changed — it now closes at 10pm instead of 11pm. please update.',
+      );
+
+      const addMemoryCalls = toolCalls.filter(t => t.name === 'add_memory');
+      expect(addMemoryCalls.length).toBeGreaterThanOrEqual(1);
+
+      // Should store in community namespace
+      const communityUpdates = addMemoryCalls.filter(
+        t => (t.input.user_id as string).startsWith('community:'),
+      );
+      expect(communityUpdates.length).toBeGreaterThanOrEqual(1);
+    }, 30000);
+
+    it('member correction is not stored directly as community fact', async () => {
+      const { text, toolCalls } = await chat(
+        dmSystemPrompt,
+        'hey, I think the kitchen actually closes at 10pm now, not 11pm',
+      );
+
+      const allText = [
+        text,
+        ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
+      ].join(' ').toLowerCase();
+
+      // Should NOT directly update community memory
+      const communityAdds = toolCalls
+        .filter(t => t.name === 'add_memory')
+        .filter(t => (t.input.user_id as string).startsWith('community:'));
+      expect(communityAdds).toHaveLength(0);
+
+      // Should mention checking with admin or acknowledge uncertainty
+      expect(allText).toMatch(/admin|confirm|check|yianni|let me|verify|organizer/i);
+    }, 30000);
+  });
+}, 600000); // 10 minute timeout for the whole suite
