@@ -52,8 +52,10 @@ const MEM0_TOOLS: Anthropic.Tool[] = [
           type: 'object',
           description: 'Metadata tags',
           properties: {
-            type: { type: 'string', enum: ['wish', 'concern', 'fact', 'connection', 'preference', 'role'] },
+            type: { type: 'string', enum: ['wish', 'concern', 'fact', 'norm', 'connection', 'preference'] },
             topic: { type: 'string' },
+            tier: { type: 'string', enum: ['operational', 'social', 'constitutional'] },
+            source_context: { type: 'string', enum: ['group', 'dm', 'onboarding'] },
           },
         },
       },
@@ -136,6 +138,7 @@ const MOCK_GROUP: GroupConfig = {
   community_name: 'Heliotrope',
   admin_id: 'tg:999',
   admin_name: 'Yianni',
+  community_start_date: '2026-03-15',
 };
 
 const MOCK_DATA: ConstitutionData = {
@@ -275,7 +278,8 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
       .replace(/\{\{user_name\}\}/g, 'Alex')
       .replace(/\{\{user_id\}\}/g, 'tg:12345')
       .replace(/\{\{slug\}\}/g, 'heliotrope')
-      .replace(/\{\{admin_id\}\}/g, 'tg:999');
+      .replace(/\{\{admin_id\}\}/g, 'tg:999')
+      .replace(/\{\{community_start_date\}\}/g, '2026-03-15');
 
     dmSystemPrompt = [
       dmClaudeMd,
@@ -289,7 +293,8 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
       .replace(/\{\{user_name\}\}/g, 'Yianni')
       .replace(/\{\{user_id\}\}/g, 'tg:999')
       .replace(/\{\{slug\}\}/g, 'heliotrope')
-      .replace(/\{\{admin_id\}\}/g, 'tg:999');
+      .replace(/\{\{admin_id\}\}/g, 'tg:999')
+      .replace(/\{\{community_start_date\}\}/g, '2026-03-15');
 
     adminDmSystemPrompt = [
       adminDmClaudeMd,
@@ -656,10 +661,10 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
     }, 30000);
   });
 
-  // ── Roles: Member vs Admin knowledge updates ─────────────
+  // ── Tier-Based Authority ─────────────────────────────────
 
-  describe('Roles: admin vs member knowledge updates', () => {
-    it('admin correction is stored directly', async () => {
+  describe('Tier-based authority: operational knowledge updates', () => {
+    it('bootstrapper correction is stored directly in bootstrap phase', async () => {
       const { toolCalls } = await chat(
         adminDmSystemPrompt,
         'hey, kitchen hours changed — it now closes at 10pm instead of 11pm. please update.',
@@ -675,25 +680,50 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
       expect(communityUpdates.length).toBeGreaterThanOrEqual(1);
     }, 30000);
 
-    it('member correction is not stored directly as community fact', async () => {
-      const { text, toolCalls } = await chat(
+    it('member operational correction is accepted (anyone can contribute)', async () => {
+      // In the new tier-based system, operational facts are last-writer-wins
+      // Any member can update operational knowledge
+      const { toolCalls } = await chat(
         dmSystemPrompt,
-        'hey, I think the kitchen actually closes at 10pm now, not 11pm',
+        'hey, the kitchen actually closes at 10pm now, not 11pm. the schedule changed yesterday.',
       );
 
-      const allText = [
-        text,
-        ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
-      ].join(' ').toLowerCase();
-
-      // Should NOT directly update community memory
+      // Operational tier = last-writer-wins. Member corrections should be stored.
       const communityAdds = toolCalls
         .filter(t => t.name === 'add_memory')
         .filter(t => (t.input.user_id as string).startsWith('community:'));
-      expect(communityAdds).toHaveLength(0);
+      expect(communityAdds.length).toBeGreaterThanOrEqual(1);
+    }, 30000);
+  });
 
-      // Should mention checking with admin or acknowledge uncertainty
-      expect(allText).toMatch(/admin|confirm|check|yianni|let me|verify|organizer/i);
+  describe('Functions OFF by default (R47)', () => {
+    it('does not suggest governance when someone has a complaint', async () => {
+      // Memory-only mode: when someone complains, the bot should listen and store,
+      // NOT suggest voting, proposals, or governance processes
+      const { text } = await chat(
+        systemPrompt,
+        '[Alex]: The noise level in the evenings is really getting to me. Something needs to change.',
+      );
+
+      const lower = text.toLowerCase();
+      expect(lower).not.toContain('proposal');
+      expect(lower).not.toContain('/propose');
+      expect(lower).not.toContain('vote');
+      expect(lower).not.toContain('governance');
+    }, 30000);
+
+    it('mentions governance tools exist only when directly asked', async () => {
+      // If someone asks about decision-making, acknowledge tools exist
+      const { text } = await chat(
+        systemPrompt,
+        '[Jordan]: How can we make decisions as a community? Is there a voting system?',
+      );
+
+      const lower = text.toLowerCase();
+      // Should acknowledge the question, not refuse it
+      expect(lower.length).toBeGreaterThan(10);
+      // Should NOT push governance proactively
+      expect(lower).not.toContain('/propose');
     }, 30000);
   });
 }, 600000); // 10 minute timeout for the whole suite

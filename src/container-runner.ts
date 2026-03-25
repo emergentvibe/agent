@@ -244,6 +244,19 @@ function buildContainerArgs(
     args.push('-e', 'CLAUDE_CODE_OAUTH_TOKEN=placeholder');
   }
 
+  // Pass model override if configured (e.g., CLAUDE_MODEL=claude-haiku-4-5-20251001 for cost savings)
+  if (process.env.CLAUDE_MODEL) {
+    args.push('-e', `CLAUDE_MODEL=${process.env.CLAUDE_MODEL}`);
+  }
+
+  // Pass Mem0 config if set
+  if (process.env.MEM0_SSE_URL) {
+    args.push('-e', `MEM0_SSE_URL=${process.env.MEM0_SSE_URL}`);
+  }
+  if (process.env.MEM0_API_KEY) {
+    args.push('-e', `MEM0_API_KEY=${process.env.MEM0_API_KEY}`);
+  }
+
   // Runtime-specific args for host gateway resolution
   args.push(...hostGatewayArgs());
 

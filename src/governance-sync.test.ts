@@ -149,6 +149,37 @@ describe('buildClaudeMd', () => {
     const unreplaced = result.match(/\{\{[^}]+\}\}/g);
     expect(unreplaced).toBeNull();
   });
+
+  it('defaults to memory-only mode (governance blocks OFF)', () => {
+    const result = buildClaudeMd(
+      TEMPLATE,
+      MOCK_GROUP,
+      MOCK_DATA,
+      'https://emergentvibe.com',
+    );
+
+    // Building blocks table should show OFF for governance functions
+    expect(result).toContain('| **Opinion Landscape** | OFF |');
+    expect(result).toContain('| **Synthesis** | OFF |');
+    expect(result).toContain('| **Consent** | OFF |');
+    // Memory blocks are always ON (hardcoded in template)
+    expect(result).toContain('| **Memory** | ON |');
+    expect(result).toContain('| **Sensing** | ON |');
+  });
+
+  it('enables governance blocks in full mode', () => {
+    const group = { ...MOCK_GROUP, governance_mode: 'full' as const };
+    const result = buildClaudeMd(
+      TEMPLATE,
+      group,
+      MOCK_DATA,
+      'https://emergentvibe.com',
+    );
+
+    expect(result).toContain('| **Opinion Landscape** | ON |');
+    expect(result).toContain('| **Synthesis** | ON |');
+    expect(result).toContain('| **Consent** | ON |');
+  });
 });
 
 // ── Network functions ────────────────────────────────────────

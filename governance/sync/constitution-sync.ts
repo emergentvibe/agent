@@ -62,10 +62,14 @@ export function loadTemplate(templateDir?: string): string {
 }
 
 export function buildClaudeMd(template: string, group: GroupConfig, data: ConstitutionData, apiUrl: string): string {
+  const isFullGovernance = group.governance_mode === 'full';
+  const govStatus = isFullGovernance ? 'ON' : 'OFF';
+
   return template
     .replace(/\{\{community_name\}\}/g, group.community_name)
     .replace(/\{\{admin_id\}\}/g, group.admin_id || 'unknown')
-    .replace(/\{\{admin_name\}\}/g, group.admin_name || 'the admin')
+    .replace(/\{\{admin_name\}\}/g, group.admin_name || 'the bootstrapper')
+    .replace(/\{\{community_start_date\}\}/g, group.community_start_date || new Date().toISOString().split('T')[0])
     .replace(/\{\{principles_version\}\}/g, data.version)
     .replace(/\{\{principles_hash\}\}/g, data.content_hash || 'unknown')
     .replace(/\{\{principles_updated_at\}\}/g, data.updated_at)
@@ -75,7 +79,10 @@ export function buildClaudeMd(template: string, group: GroupConfig, data: Consti
     .replace(/\{\{emergentvibe_url\}\}/g, apiUrl)
     .replace(/\{\{slug\}\}/g, data.slug)
     .replace(/\{\{last_sync_time\}\}/g, new Date().toISOString())
-    .replace(/\{\{polis_url\}\}/g, group.polis_url || `${apiUrl}/c/${data.slug}/polis`);
+    .replace(/\{\{polis_url\}\}/g, group.polis_url || `${apiUrl}/c/${data.slug}/polis`)
+    .replace(/\{\{opinion_landscape_status\}\}/g, govStatus)
+    .replace(/\{\{synthesis_status\}\}/g, govStatus)
+    .replace(/\{\{consent_status\}\}/g, govStatus);
 }
 
 export async function syncGroup(group: GroupConfig, apiUrl: string, basePath?: string): Promise<void> {
