@@ -85,6 +85,7 @@ export class TelegramChannel implements Channel {
     const TELEGRAM_BOT_COMMANDS = new Set(['chatid', 'ping']);
 
     this.bot.on('message:text', async (ctx) => {
+      logger.debug({ chatId: ctx.chat.id, chatType: ctx.chat.type, text: ctx.message.text.slice(0, 50) }, 'Telegram message:text event received');
       if (ctx.message.text.startsWith('/')) {
         const cmd = ctx.message.text.slice(1).split(/[\s@]/)[0].toLowerCase();
         if (TELEGRAM_BOT_COMMANDS.has(cmd)) return;
@@ -138,9 +139,10 @@ export class TelegramChannel implements Channel {
         isGroup,
       );
 
-      // Only deliver full message for registered groups
+      // Only deliver full message for registered groups or private chats
+      // (private chats may trigger DM auto-registration in the router)
       const group = this.opts.registeredGroups()[chatJid];
-      if (!group) {
+      if (!group && isGroup) {
         logger.debug(
           { chatJid, chatName },
           'Message from unregistered Telegram chat',

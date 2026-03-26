@@ -448,9 +448,10 @@ async function runQuery(
           },
         } : process.env.MEM0_API_KEY ? {
           mem0: {
-            command: 'uvx',
-            args: ['mem0-mcp-server'],
+            command: '/home/node/.local/bin/mem0-mcp-server',
+            args: [],
             env: {
+              ...process.env,
               MEM0_API_KEY: process.env.MEM0_API_KEY,
             },
           },

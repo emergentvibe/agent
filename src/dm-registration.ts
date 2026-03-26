@@ -44,6 +44,7 @@ export function buildDmClaudeMd(
   userId: string,
   slug: string,
   adminId?: string,
+  communityStartDate?: string,
 ): string {
   const template = fs.readFileSync(DM_TEMPLATE_PATH, 'utf-8');
   return template
@@ -51,7 +52,11 @@ export function buildDmClaudeMd(
     .replace(/\{\{user_name\}\}/g, userName)
     .replace(/\{\{user_id\}\}/g, userId)
     .replace(/\{\{slug\}\}/g, slug)
-    .replace(/\{\{admin_id\}\}/g, adminId || 'unknown');
+    .replace(/\{\{admin_id\}\}/g, adminId || 'unknown')
+    .replace(
+      /\{\{community_start_date\}\}/g,
+      communityStartDate || new Date().toISOString().split('T')[0],
+    );
 }
 
 /**
@@ -64,11 +69,19 @@ export function writeDmClaudeMd(
   userId: string,
   slug: string,
   adminId?: string,
+  communityStartDate?: string,
 ): void {
   const dmDir = resolveGroupFolderPath(dmFolder);
   fs.mkdirSync(dmDir, { recursive: true });
 
-  const content = buildDmClaudeMd(communityName, userName, userId, slug, adminId);
+  const content = buildDmClaudeMd(
+    communityName,
+    userName,
+    userId,
+    slug,
+    adminId,
+    communityStartDate,
+  );
   fs.writeFileSync(path.join(dmDir, 'CLAUDE.md'), content, 'utf-8');
 
   logger.info({ dmFolder, userName }, 'Wrote DM CLAUDE.md');
@@ -94,8 +107,7 @@ export function findCommunityForUser(
   findSenderInGroup: (chatJid: string, senderJid: string) => boolean,
 ): CommunityMatch | null {
   for (const [jid, group] of Object.entries(registeredGroups)) {
-    // Skip DM folders and main group
-    if (group.isMain) continue;
+    // Skip DM folders (but not main group — it can also be a community)
     if (group.folder.includes('-dm-')) continue;
 
     if (findSenderInGroup(jid, senderJid)) {

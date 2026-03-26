@@ -229,8 +229,11 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
           : JSON.stringify(result.result);
       // Strip <internal>...</internal> blocks — agent uses these for internal reasoning
       const text = raw.replace(/<internal>[\s\S]*?<\/internal>/g, '').trim();
-      logger.info({ group: group.name }, `Agent output: ${raw.slice(0, 200)}`);
-      if (text) {
+      // Detect silence indicators — bot should say nothing, not narrate staying quiet
+      const silencePattern = /^(\*?\s*(stays?\s+quiet|stays?\s+silent|silence|says?\s+nothing|no\s+response|\.{3}|🤐|—)\s*\*?\s*){1,2}$/i;
+      const isSilence = silencePattern.test(text);
+      logger.info({ group: group.name, isSilence }, `Agent output: ${raw.slice(0, 200)}`);
+      if (text && !isSilence) {
         await channel.sendMessage(chatJid, text);
         outputSentToUser = true;
       }
@@ -606,7 +609,10 @@ async function main(): Promise<void> {
               containerConfig: {
                 additionalMounts: [
                   {
-                    hostPath: path.join(resolveGroupFolderPath(community.group.folder), 'community-knowledge'),
+                    hostPath: path.join(
+                      resolveGroupFolderPath(community.group.folder),
+                      'community-knowledge',
+                    ),
                     containerPath: 'community-knowledge',
                     readonly: true,
                   },

@@ -41,6 +41,7 @@ const MOCK_GROUP: GroupConfig = {
   community_name: 'Test Community',
   admin_id: 'tg:admin1',
   admin_name: 'TestAdmin',
+  community_start_date: '2026-03-15',
 };
 
 const MOCK_DATA: ConstitutionData = {
@@ -78,11 +79,25 @@ describe('Global CLAUDE.md (Layer 1)', () => {
     expect(GLOBAL_CLAUDE_MD).toContain('Community memories are shared');
   });
 
-  it('contains memory metadata type tags', () => {
+  it('contains memory metadata type tags including norm', () => {
     expect(GLOBAL_CLAUDE_MD).toContain('"type": "wish"');
     expect(GLOBAL_CLAUDE_MD).toContain('"type": "concern"');
     expect(GLOBAL_CLAUDE_MD).toContain('"type": "fact"');
     expect(GLOBAL_CLAUDE_MD).toContain('"type": "connection"');
+    expect(GLOBAL_CLAUDE_MD).toContain('"type": "norm"');
+  });
+
+  it('contains tier metadata and conflict resolution', () => {
+    expect(GLOBAL_CLAUDE_MD).toContain('"tier": "operational"');
+    expect(GLOBAL_CLAUDE_MD).toContain('"tier": "social"');
+    expect(GLOBAL_CLAUDE_MD).toContain('Conflict Resolution by Tier');
+    expect(GLOBAL_CLAUDE_MD).toContain('Last-writer-wins');
+    expect(GLOBAL_CLAUDE_MD).toContain('Hold both sides');
+    expect(GLOBAL_CLAUDE_MD).toContain('Flag for humans');
+  });
+
+  it('contains source_context metadata', () => {
+    expect(GLOBAL_CLAUDE_MD).toContain('"source_context": "group"');
   });
 
   it('does NOT contain community-specific content', () => {
@@ -90,7 +105,8 @@ describe('Global CLAUDE.md (Layer 1)', () => {
     expect(GLOBAL_CLAUDE_MD).not.toContain('{{slug}}');
     expect(GLOBAL_CLAUDE_MD).not.toContain('Listening Mode');
     expect(GLOBAL_CLAUDE_MD).not.toContain('Pattern Sensing');
-    expect(GLOBAL_CLAUDE_MD).not.toContain('Constitution');
+    // "constitutional" appears in tier descriptions (that's global), but not constitution content
+    expect(GLOBAL_CLAUDE_MD).not.toContain('## Constitution');
   });
 
   it('does NOT contain DM-specific instructions', () => {
@@ -139,21 +155,58 @@ describe('Community template (Layer 2)', () => {
     expect(rendered).toContain("Don't respond to every message");
   });
 
-  it('contains onboarding section with knowledge categories', () => {
+  it('contains onboarding section with operational categories', () => {
     expect(rendered).toContain('Onboarding');
     expect(rendered).toContain('spaces');
     expect(rendered).toContain('meals');
-    expect(rendered).toContain('norms');
     expect(rendered).toContain('events');
-    expect(rendered).toContain('welcome');
     expect(rendered).toContain('contacts');
   });
 
-  it('contains admin/organizer roles', () => {
-    expect(rendered).toContain('Admin');
-    expect(rendered).toContain('Organizers');
+  it('contains bootstrapper phases instead of admin roles', () => {
+    expect(rendered).toContain('Bootstrapper and Phases');
     expect(rendered).toContain('TestAdmin');
     expect(rendered).toContain('tg:admin1');
+    expect(rendered).toContain('2026-03-15');
+    // No permanent admin/organizer hierarchy
+    expect(rendered).not.toContain('## Roles');
+    expect(rendered).not.toMatch(/Organizers.*Delegated/);
+  });
+
+  it('contains epistemic markers', () => {
+    expect(rendered).toContain('How You Speak About What You Know');
+    expect(rendered).toContain('Established fact');
+    expect(rendered).toContain("I've heard that");
+    expect(rendered).toContain('A few people have mentioned');
+  });
+
+  it('contains knowledge tiers', () => {
+    expect(rendered).toContain('Knowledge Tiers and Conflict Resolution');
+    expect(rendered).toContain('operational');
+    expect(rendered).toContain('social');
+    expect(rendered).toContain('constitutional');
+  });
+
+  it('contains first-person authority', () => {
+    expect(rendered).toContain('First-Person Authority');
+    expect(rendered).toContain('absolute authority');
+  });
+
+  it('contains anti-inference rule', () => {
+    expect(rendered).toContain(
+      "Don't infer and store things people didn't say",
+    );
+  });
+
+  it('contains tension awareness', () => {
+    expect(rendered).toContain('Tensions You Ship With');
+    expect(rendered).toContain('Legibility creep');
+    expect(rendered).toContain('Pattern sensing creates norms');
+  });
+
+  it('contains seven MVG rules', () => {
+    expect(rendered).toContain('Seven MVG Rules');
+    expect(rendered).toContain('Anyone can contribute knowledge');
   });
 
   it('references community memory instead of files', () => {
@@ -194,6 +247,7 @@ describe('DM template (Layer 3)', () => {
     'tg:123',
     'test-village',
     'tg:admin1',
+    '2026-03-15',
   );
 
   it('identifies as private conversation', () => {
@@ -210,13 +264,31 @@ describe('DM template (Layer 3)', () => {
     expect(rendered).toContain('community:test-village');
   });
 
-  it('includes admin awareness', () => {
-    expect(rendered).toContain('tg:admin1');
+  it('uses tier-based authority instead of role-based', () => {
+    expect(rendered).toContain('Knowledge Authority');
+    expect(rendered.toLowerCase()).toContain('operational');
+    expect(rendered.toLowerCase()).toContain('social');
+    expect(rendered.toLowerCase()).toContain('constitutional');
+    // No old role-based hierarchy
+    expect(rendered).not.toContain('Organizers');
+    expect(rendered).not.toContain('regular member');
   });
 
-  it('includes onboarding instructions for admin', () => {
+  it('includes bootstrapper phase awareness', () => {
+    expect(rendered).toContain('Bootstrapper Phase');
+    expect(rendered).toContain('tg:admin1');
+    expect(rendered).toContain('2026-03-15');
+  });
+
+  it('includes first-person authority', () => {
+    expect(rendered).toContain('First-Person Authority');
+    expect(rendered).toContain('absolute authority');
+  });
+
+  it('includes onboarding for bootstrapper only', () => {
     expect(rendered).toContain('Onboarding');
-    expect(rendered).toContain('knowledge category');
+    expect(rendered).toContain('Bootstrapper Only');
+    expect(rendered).toContain('operational categories');
   });
 
   it('includes privacy rules', () => {

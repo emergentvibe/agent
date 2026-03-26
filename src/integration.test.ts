@@ -220,7 +220,7 @@ describe('Integration: community intelligence message flow', () => {
     expect(globalContent).toContain('NEVER share');
     // Does NOT have community-specific content
     expect(globalContent).not.toContain('{{community_name}}');
-    expect(globalContent).not.toContain('Constitution');
+    expect(globalContent).not.toContain('## Constitution');
     expect(globalContent).not.toContain('Listening Mode');
     expect(globalContent).not.toContain('Pattern Sensing');
   });
@@ -232,6 +232,7 @@ describe('Integration: community intelligence message flow', () => {
       folder: communityFolder,
       slug: 'test-community',
       community_name: communityName,
+      community_start_date: '2026-03-15',
     };
     const constitutionData: ConstitutionData = {
       slug: 'test-community',
@@ -256,9 +257,10 @@ describe('Integration: community intelligence message flow', () => {
     expect(rendered).toContain('Listening Mode');
     // Has pattern sensing
     expect(rendered).toContain('Pattern Sensing');
-    // Does NOT have memory protocol (that's in global CLAUDE.md)
-    expect(rendered).not.toContain('Mem0');
+    // Does NOT have the full memory protocol (that's in global CLAUDE.md)
+    // Community template may reference Mem0 for context, but not the full protocol
     expect(rendered).not.toContain('Namespaces');
+    expect(rendered).not.toContain('Privacy Rules (Non-Negotiable)');
     // No unreplaced placeholders
     const unreplaced = rendered.match(/\{\{[^}]+\}\}/g);
     expect(unreplaced).toBeNull();

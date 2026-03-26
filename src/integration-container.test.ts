@@ -23,6 +23,7 @@ const MOCK_GROUP_CONFIG: GroupConfig = {
   folder: 'telegram_edge',
   slug: 'edge-esmeralda',
   community_name: 'Edge Esmeralda',
+  community_start_date: '2026-05-30',
 };
 
 const MOCK_CONSTITUTION: ConstitutionData = {
@@ -378,7 +379,7 @@ describe('Context file verification', () => {
     expect(combined).toContain('/api/members/telegram');
   });
 
-  it('rendered DM CLAUDE.md has the right community context path', () => {
+  it('rendered DM CLAUDE.md has correct community memory namespace', () => {
     const rendered = buildDmClaudeMd(
       'Edge Esmeralda',
       'Bob',
@@ -386,8 +387,12 @@ describe('Context file verification', () => {
       'edge-esmeralda',
     );
 
-    // DM template should reference community-knowledge path
-    expect(rendered).toContain('/workspace/extra/community-knowledge/');
+    // DM template references community memory via Mem0 namespace
+    expect(rendered).toContain('community:edge-esmeralda');
+    // Has personal memory namespace
+    expect(rendered).toContain('tg:tg:67890');
+    // No unreplaced placeholders
+    expect(rendered.match(/\{\{[^}]+\}\}/g)).toBeNull();
   });
 });
 

@@ -26,6 +26,7 @@ import {
   stopContainer,
 } from './container-runtime.js';
 import { detectAuthMode } from './credential-proxy.js';
+import { readEnvFile } from './env.js';
 import { validateAdditionalMounts } from './mount-security.js';
 import { RegisteredGroup } from './types.js';
 
@@ -196,7 +197,7 @@ function buildVolumeMounts(
     group.folder,
     'agent-runner-src',
   );
-  if (!fs.existsSync(groupAgentRunnerDir) && fs.existsSync(agentRunnerSrc)) {
+  if (fs.existsSync(agentRunnerSrc)) {
     fs.cpSync(agentRunnerSrc, groupAgentRunnerDir, { recursive: true });
   }
   mounts.push({
@@ -249,12 +250,15 @@ function buildContainerArgs(
     args.push('-e', `CLAUDE_MODEL=${process.env.CLAUDE_MODEL}`);
   }
 
-  // Pass Mem0 config if set
-  if (process.env.MEM0_SSE_URL) {
-    args.push('-e', `MEM0_SSE_URL=${process.env.MEM0_SSE_URL}`);
+  // Pass Mem0 config if set (check both process.env and .env file)
+  const mem0Env = readEnvFile(['MEM0_SSE_URL', 'MEM0_API_KEY']);
+  const mem0SseUrl = process.env.MEM0_SSE_URL || mem0Env.MEM0_SSE_URL;
+  const mem0ApiKey = process.env.MEM0_API_KEY || mem0Env.MEM0_API_KEY;
+  if (mem0SseUrl) {
+    args.push('-e', `MEM0_SSE_URL=${mem0SseUrl}`);
   }
-  if (process.env.MEM0_API_KEY) {
-    args.push('-e', `MEM0_API_KEY=${process.env.MEM0_API_KEY}`);
+  if (mem0ApiKey) {
+    args.push('-e', `MEM0_API_KEY=${mem0ApiKey}`);
   }
 
   // Runtime-specific args for host gateway resolution

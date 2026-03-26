@@ -30,9 +30,10 @@ RUN apt-get update && apt-get install -y \
 ENV AGENT_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 
-# Install uv (for uvx — needed by Mem0 hosted API MCP server fallback)
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.local/bin:$PATH"
+# Install uv to /usr/local/bin (accessible by all users)
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && cp /root/.local/bin/uv /usr/local/bin/uv \
+    && cp /root/.local/bin/uvx /usr/local/bin/uvx
 
 # Install agent-browser and claude-code globally
 RUN npm install -g agent-browser @anthropic-ai/claude-code
@@ -66,6 +67,11 @@ RUN chown -R node:node /workspace && chmod 777 /home/node
 
 # Switch to non-root user (required for --dangerously-skip-permissions)
 USER node
+
+# Pre-install mem0-mcp-server as node user so uvx/uv tool doesn't download on every run
+# This puts the binary at /home/node/.local/bin/mem0-mcp-server
+RUN uv tool install mem0-mcp-server
+ENV PATH="/home/node/.local/bin:$PATH"
 
 # Set working directory to group workspace
 WORKDIR /workspace/group
