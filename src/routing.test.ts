@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { _initTestDatabase, getAllChats, storeChatMetadata } from './db.js';
 import { getAvailableGroups, _setRegisteredGroups } from './index.js';
@@ -166,5 +166,60 @@ describe('getAvailableGroups', () => {
   it('returns empty array when no chats exist', () => {
     const groups = getAvailableGroups();
     expect(groups).toHaveLength(0);
+  });
+});
+
+// --- formatMessages date injection ---
+
+import { formatMessages } from './router.js';
+
+describe('formatMessages date injection', () => {
+  it('includes current_date and current_day in context header', () => {
+    const messages = [
+      {
+        id: '1',
+        chat_jid: 'tg:123',
+        sender: '456',
+        sender_name: 'Alice',
+        content: 'hello',
+        timestamp: '2026-03-29T10:00:00.000Z',
+        is_from_me: false,
+      },
+    ];
+
+    const result = formatMessages(messages, 'Europe/Athens');
+
+    expect(result).toMatch(/current_date="\d{4}-\d{2}-\d{2}"/);
+    expect(result).toMatch(/current_day="(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)"/);
+  });
+
+  it('respects timezone for date calculation', () => {
+    // Mock a time near midnight UTC where date differs by timezone
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-29T23:30:00.000Z')); // 23:30 UTC
+
+    const messages = [
+      {
+        id: '1',
+        chat_jid: 'tg:123',
+        sender: '456',
+        sender_name: 'Alice',
+        content: 'hello',
+        timestamp: '2026-03-29T23:30:00.000Z',
+        is_from_me: false,
+      },
+    ];
+
+    // Tokyo is UTC+9, so 23:30 UTC = 08:30 next day (March 30)
+    const tokyoResult = formatMessages(messages, 'Asia/Tokyo');
+    expect(tokyoResult).toContain('current_date="2026-03-30"');
+    expect(tokyoResult).toContain('current_day="Monday"');
+
+    // Los Angeles is UTC-7, so 23:30 UTC = 16:30 same day (March 29)
+    const laResult = formatMessages(messages, 'America/Los_Angeles');
+    expect(laResult).toContain('current_date="2026-03-29"');
+    expect(laResult).toContain('current_day="Sunday"');
+
+    vi.useRealTimers();
   });
 });

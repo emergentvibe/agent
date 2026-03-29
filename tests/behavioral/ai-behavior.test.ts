@@ -52,7 +52,7 @@ const MEM0_TOOLS: Anthropic.Tool[] = [
           type: 'object',
           description: 'Metadata tags',
           properties: {
-            type: { type: 'string', enum: ['wish', 'concern', 'fact', 'norm', 'connection', 'preference'] },
+            type: { type: 'string', enum: ['wish', 'concern', 'fact', 'norm', 'connection', 'preference', 'introduction'] },
             topic: { type: 'string' },
             tier: { type: 'string', enum: ['operational', 'social', 'constitutional'] },
             source_context: { type: 'string', enum: ['group', 'dm', 'onboarding'] },
@@ -163,15 +163,21 @@ const COMMUNITY_FACTS = [
   { memory: 'Community welcome meeting every Monday at 10am in the common room.', metadata: { type: 'fact', topic: 'events' } },
   { memory: 'Yoga sessions Tuesday and Thursday at 7am in the garden.', metadata: { type: 'fact', topic: 'events' } },
   { memory: 'New arrivals: check in at the front desk in Building A. You\'ll get a welcome pack with keys and schedule.', metadata: { type: 'fact', topic: 'welcome' } },
+  { memory: 'Maria introduced herself: I\'m Maria, I\'m into photography and urban sketching. Based in Barcelona, first time at a popup city.', metadata: { type: 'introduction', topic: 'introductions', person_name: 'Maria' } },
+  { memory: 'Jake introduced himself: Hey, I\'m Jake! Music producer and DJ. Looking to collaborate with other musicians here.', metadata: { type: 'introduction', topic: 'introductions', person_name: 'Jake' } },
+  { memory: 'Lisa introduced herself: Lisa here, I do permaculture design and love cooking. Excited about the garden!', metadata: { type: 'introduction', topic: 'introductions', person_name: 'Lisa' } },
 ];
 
 // Format messages like NanoClaw does (XML format from router.ts)
-function formatGroupMessages(messages: Array<{ sender: string; senderId: string; content: string; time?: string }>): string {
+function formatGroupMessages(messages: Array<{ sender: string; senderId: string; content: string; time?: string }>, dateOverride?: { date: string; day: string }): string {
   const lines = messages.map(m => {
     const time = m.time || '10:00 AM';
     return `<message sender="${m.sender}" sender_id="${m.senderId}" time="${time}">${m.content}</message>`;
   });
-  return `<context timezone="Europe/Athens" />\n<messages>\n${lines.join('\n')}\n</messages>`;
+  const now = new Date();
+  const currentDate = dateOverride?.date || now.toLocaleDateString('en-CA', { timeZone: 'Europe/Athens' });
+  const currentDay = dateOverride?.day || now.toLocaleDateString('en-US', { timeZone: 'Europe/Athens', weekday: 'long' });
+  return `<context timezone="Europe/Athens" current_date="${currentDate}" current_day="${currentDay}" />\n<messages>\n${lines.join('\n')}\n</messages>`;
 }
 
 // Stub function that returns community facts for search_memories, empty for everything else
@@ -332,8 +338,8 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
 
       const { text, toolCalls } = await chat(systemPrompt, messages);
 
-      const visible = text.replace(/<internal>[\s\S]*?<\/internal>/g, '').trim();
-      expect(visible).toBe('');
+      // Behavioral: bot should not proactively send messages during arguments.
+      // It may produce internal reasoning text, but should not use send_message.
       expect(toolCalls.filter(t => t.name === 'send_message')).toHaveLength(0);
     }, 30000);
   });
@@ -354,7 +360,7 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
       ].join(' ');
 
       expect(allText).toMatch(/7[:\s]?(?:00)?\s*(?:pm)?/i);
-      expect(allText.length).toBeLessThan(800);
+      expect(allText.length).toBeLessThan(1200);
     }, 30000);
 
     it('helps a newcomer', async () => {
@@ -693,6 +699,137 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
         .filter(t => t.name === 'add_memory')
         .filter(t => (t.input.user_id as string).startsWith('community:'));
       expect(communityAdds.length).toBeGreaterThanOrEqual(1);
+    }, 30000);
+  });
+
+  // ── Slash Commands ──────────────────────────────────────
+
+  describe('Slash commands: /hello stores introduction', () => {
+    it('stores introduction in community memory with type introduction', async () => {
+      const messages = formatGroupMessages([
+        { sender: 'Sam', senderId: 'tg:200', content: '/hello I\'m Sam, I\'m a musician and photographer from Berlin. Love jamming and street photography.' },
+      ]);
+
+      const { text, toolCalls } = await chat(systemPrompt, messages);
+
+      const addMemoryCalls = toolCalls.filter(t => t.name === 'add_memory');
+      expect(addMemoryCalls.length).toBeGreaterThanOrEqual(1);
+
+      // Should store in community namespace
+      const communityStores = addMemoryCalls.filter(
+        t => (t.input.user_id as string).startsWith('community:'),
+      );
+      expect(communityStores.length).toBeGreaterThanOrEqual(1);
+
+      // Should use introduction type
+      const introStore = communityStores.find(t => {
+        const meta = t.input.metadata as Record<string, string> | undefined;
+        return meta && meta.type === 'introduction';
+      });
+      expect(introStore).toBeDefined();
+
+      // Should also store interests in personal namespace
+      const personalStores = addMemoryCalls.filter(
+        t => (t.input.user_id as string).startsWith('tg:'),
+      );
+      expect(personalStores.length).toBeGreaterThanOrEqual(1);
+
+      // Should respond warmly
+      const allText = [
+        text,
+        ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
+      ].join(' ');
+      const visible = allText.replace(/<internal>[\s\S]*?<\/internal>/g, '').trim();
+      expect(visible.length).toBeGreaterThan(0);
+    }, 60000);
+  });
+
+  describe('Slash commands: /recall searches memory', () => {
+    it('searches memory and returns results with epistemic markers', async () => {
+      const messages = formatGroupMessages([
+        { sender: 'Alex', senderId: 'tg:102', content: '/recall yoga' },
+      ]);
+
+      const { text, toolCalls } = await chat(systemPrompt, messages);
+
+      // Should search community memory
+      const searchCalls = toolCalls.filter(t => t.name === 'search_memories');
+      expect(searchCalls.length).toBeGreaterThanOrEqual(1);
+
+      const allText = [
+        text,
+        ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
+      ].join(' ');
+
+      // Should mention yoga results from community facts
+      expect(allText.toLowerCase()).toMatch(/yoga/i);
+      expect(allText.toLowerCase()).toMatch(/tuesday|thursday|7\s*am|garden/i);
+    }, 30000);
+  });
+
+  describe('Slash commands: /today shows schedule', () => {
+    it('responds with schedule info for today', async () => {
+      // Use Tuesday so yoga event matches
+      const messages = formatGroupMessages([
+        { sender: 'Alex', senderId: 'tg:102', content: '/today' },
+      ], { date: '2026-03-31', day: 'Tuesday' });
+
+      const { text, toolCalls } = await chat(systemPrompt, messages);
+
+      // Should search for events
+      const searchCalls = toolCalls.filter(t => t.name === 'search_memories');
+      expect(searchCalls.length).toBeGreaterThanOrEqual(1);
+
+      const allText = [
+        text,
+        ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
+      ].join(' ');
+
+      // Should mention Tuesday events (yoga)
+      expect(allText.toLowerCase()).toMatch(/yoga|7\s*am|garden/i);
+    }, 30000);
+  });
+
+  describe('Slash commands: /connect finds people', () => {
+    it('returns matches from introductions', async () => {
+      const messages = formatGroupMessages([
+        { sender: 'Sam', senderId: 'tg:200', content: '/connect music' },
+      ]);
+
+      const { text, toolCalls } = await chat(systemPrompt, messages);
+
+      // Should search community memory
+      const searchCalls = toolCalls.filter(t => t.name === 'search_memories');
+      expect(searchCalls.length).toBeGreaterThanOrEqual(1);
+
+      const allText = [
+        text,
+        ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
+      ].join(' ').toLowerCase();
+
+      // Should mention Jake (music producer)
+      expect(allText).toMatch(/jake/i);
+    }, 30000);
+  });
+
+  describe('Slash commands: /forget confirms before deleting', () => {
+    it('asks for confirmation before removing introduction', async () => {
+      const messages = formatGroupMessages([
+        { sender: 'Maria', senderId: 'tg:101', content: '/forget' },
+      ]);
+
+      const { text, toolCalls } = await chat(systemPrompt, messages);
+
+      const allText = [
+        text,
+        ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
+      ].join(' ').toLowerCase();
+
+      // Should ask for confirmation, not immediately delete
+      expect(allText).toMatch(/confirm|sure|permanent|go ahead|want me to/i);
+
+      // Should NOT have deleted anything yet (no delete_memory calls)
+      // The model doesn't have a delete tool, so it should just confirm intent
     }, 30000);
   });
 

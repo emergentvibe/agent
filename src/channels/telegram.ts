@@ -60,6 +60,18 @@ export class TelegramChannel implements Channel {
       },
     });
 
+    // Register all commands for Telegram autocomplete menu
+    await this.bot.api.setMyCommands([
+      { command: 'today', description: "Today's events and schedule" },
+      { command: 'where', description: 'Find a place — /where kitchen' },
+      { command: 'recall', description: 'Search community memory — /recall yoga' },
+      { command: 'hello', description: 'Introduce yourself to the community' },
+      { command: 'connect', description: 'Find people with shared interests' },
+      { command: 'forget', description: 'Remove your introduction from memory' },
+      { command: 'chatid', description: 'Get this chat ID' },
+      { command: 'ping', description: 'Check if bot is online' },
+    ]);
+
     // Command to get chat ID (useful for registration)
     this.bot.command('chatid', (ctx) => {
       const chatId = ctx.chat.id;
@@ -85,7 +97,14 @@ export class TelegramChannel implements Channel {
     const TELEGRAM_BOT_COMMANDS = new Set(['chatid', 'ping']);
 
     this.bot.on('message:text', async (ctx) => {
-      logger.debug({ chatId: ctx.chat.id, chatType: ctx.chat.type, text: ctx.message.text.slice(0, 50) }, 'Telegram message:text event received');
+      logger.debug(
+        {
+          chatId: ctx.chat.id,
+          chatType: ctx.chat.type,
+          text: ctx.message.text.slice(0, 50),
+        },
+        'Telegram message:text event received',
+      );
       if (ctx.message.text.startsWith('/')) {
         const cmd = ctx.message.text.slice(1).split(/[\s@]/)[0].toLowerCase();
         if (TELEGRAM_BOT_COMMANDS.has(cmd)) return;

@@ -19,7 +19,12 @@ export function formatMessages(
     return `<message sender="${escapeXml(m.sender_name)}" sender_id="${escapeXml(m.sender)}" time="${escapeXml(displayTime)}">${escapeXml(m.content)}</message>`;
   });
 
-  const header = `<context timezone="${escapeXml(timezone)}" />\n`;
+  // Compute current date/day in the community's timezone
+  const now = new Date();
+  const currentDate = now.toLocaleDateString('en-CA', { timeZone: timezone }); // YYYY-MM-DD
+  const currentDay = now.toLocaleDateString('en-US', { timeZone: timezone, weekday: 'long' });
+
+  const header = `<context timezone="${escapeXml(timezone)}" current_date="${escapeXml(currentDate)}" current_day="${escapeXml(currentDay)}" />\n`;
 
   return `${header}<messages>\n${lines.join('\n')}\n</messages>`;
 }
