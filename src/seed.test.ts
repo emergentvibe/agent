@@ -28,7 +28,7 @@ The garden has a fire pit.`;
     expect(chunks[1].text).toBe('Garden: The garden has a fire pit.');
   });
 
-  it('combines list items into one chunk per section', () => {
+  it('splits list items into separate chunks', () => {
     const md = `# People
 
 ## Who's Here
@@ -36,10 +36,13 @@ The garden has a fire pit.`;
 - Marco — developer
 - Jin — yoga teacher`;
     const chunks = parseMarkdown(md, 'people.md');
-    expect(chunks).toHaveLength(1);
+    expect(chunks).toHaveLength(3);
     expect(chunks[0].text).toContain('Alice');
-    expect(chunks[0].text).toContain('Marco');
-    expect(chunks[0].text).toContain('Jin');
+    expect(chunks[1].text).toContain('Marco');
+    expect(chunks[2].text).toContain('Jin');
+    // Each should have heading context
+    expect(chunks[0].text).toMatch(/Who's Here/);
+    expect(chunks[1].text).toMatch(/Who's Here/);
   });
 
   it('sets metadata from filename', () => {
@@ -127,13 +130,17 @@ describe('parseEventMetadata', () => {
 
   it('extracts location after "at"', () => {
     const result = parseEventMetadata('Morning yoga at The Garden Pavilion');
-    expect(result.location).toBe('The Garden Pavilion');
+    expect(result.location).toBe('Garden Pavilion');
   });
 
   it('extracts recurrence patterns', () => {
-    expect(parseEventMetadata('Happens every Tuesday').recurrence).toBe('every tuesday');
+    expect(parseEventMetadata('Happens every Tuesday').recurrence).toBe(
+      'every tuesday',
+    );
     expect(parseEventMetadata('Daily standup at 9am').recurrence).toBe('daily');
-    expect(parseEventMetadata('Weekly sync on Friday').recurrence).toBe('weekly');
+    expect(parseEventMetadata('Weekly sync on Friday').recurrence).toBe(
+      'weekly',
+    );
   });
 
   it('returns empty object for text without metadata', () => {
@@ -164,7 +171,7 @@ Open mic night on Friday at 8pm at The Stage
     expect(yoga).toBeDefined();
     expect(yoga!.metadata.day_of_week).toBe('Monday');
     expect(yoga!.metadata.time).toBe('7am');
-    expect(yoga!.metadata.location).toBe('The Garden');
+    expect(yoga!.metadata.location).toBe('Garden');
     expect(yoga!.metadata.recurrence).toBe('every monday');
 
     const openMic = chunks.find((c) => c.text.includes('Open mic'));
@@ -182,6 +189,24 @@ Open Monday-Friday at 7am at The Main Building
     const chunks = parseMarkdown(content, 'spaces.md');
     expect(chunks[0].metadata.day_of_week).toBeUndefined();
     expect(chunks[0].metadata.topic).toBe('spaces');
+  });
+
+  it('splits schedule-style day lines into separate chunks', () => {
+    const content = `# Schedule
+
+## Weekly Schedule
+Monday: yoga, co-working, community dinner
+Tuesday: yoga, co-working, open evening
+Wednesday: yoga, co-working, jam session
+`;
+
+    const chunks = parseMarkdown(content, 'events.md');
+    expect(chunks).toHaveLength(3);
+    expect(chunks[0].text).toContain('Monday');
+    expect(chunks[1].text).toContain('Tuesday');
+    expect(chunks[2].text).toContain('Wednesday');
+    // Each should be individually searchable
+    expect(chunks[1].text).not.toContain('Monday');
   });
 
   it('maps introductions.md to introduction type', () => {

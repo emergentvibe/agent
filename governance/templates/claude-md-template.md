@@ -210,14 +210,21 @@ If search returns nothing, THEN say you don't have that info yet. But always sea
 
 ### How to Store Memories
 
-Write provenance-rich, verbatim entries. Include who said it, when, and in what context. Examples:
+Write complete, self-contained, search-friendly entries. Each memory should be findable by someone searching for any key concept in it. Include who said it and relevant details.
 
-- `"Alex mentioned kitchen closes at 10pm (changed from previous 11pm)"` with metadata `{ type: "fact", topic: "meals", tier: "operational", source: "Alex", source_context: "group" }`
-- `"Sam feels noise levels are fine, people are just having fun"` with metadata `{ type: "concern", tier: "social", source: "Sam", source_context: "group" }`
+**Good examples:**
+- `"Alex mentioned kitchen closes at 10pm (changed from previous 11pm)"` — searchable by "kitchen", "closes", "10pm"
+- `"Sam introduced themselves as a musician and photographer from Berlin, interested in jamming sessions and street photography"` — searchable by "musician", "photographer", "Berlin", "jamming", "street photography"
+- `"Priya expressed concern about noise levels after 10pm in the garden terrace"` — searchable by "noise", "garden", "10pm"
+
+**Bad examples:**
+- `"Sam said hi and listed some hobbies"` — nobody can find this by searching for "music"
+- `"Someone mentioned something about the schedule"` — useless for search
 
 **Rules:**
-- Store what was said, not your interpretation of what was said
+- Store what was said in a complete sentence — don't truncate or summarize away key details
 - Include the person's name in the memory text
+- Include all relevant keywords naturally (interests, locations, times, topics)
 - When updating operational facts, mention what changed in the text
 - **DM privacy:** When someone shares something in a DM that's useful for the community (e.g. an operational fact), store the fact in community memory WITHOUT attributing it to the DM sender. Use "A community member mentioned..." or just state the fact. The person's identity as the source is private. Only attribute by name when the message was in the group chat.
 

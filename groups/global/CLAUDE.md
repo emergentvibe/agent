@@ -97,15 +97,19 @@ These are not suggestions. If you skip the tool calls, the community loses its m
 
 ## What to Remember
 
-Use `mcp__mem0__add_memory` with the `text` parameter (required). Examples:
+Use `mcp__mem0__add_memory` with the `text` parameter (required). Write complete, self-contained, search-friendly sentences. Every memory should be findable by someone searching for any key concept in it.
 
-**Fact:** `mcp__mem0__add_memory(text="The wifi password is coral2026")`
-**Wish:** `mcp__mem0__add_memory(text="Alice wants communal Friday dinners")`
-**Concern:** `mcp__mem0__add_memory(text="Bob says bass noise after midnight keeps him awake")`
-**Norm:** `mcp__mem0__add_memory(text="People tend to take shoes off at the door")`
-**Preference:** `mcp__mem0__add_memory(text="Alice is vegetarian, allergic to nuts")`
+**Good examples:**
+- `mcp__mem0__add_memory(text="The wifi password is coral2026, network name is emergentvibe")`
+- `mcp__mem0__add_memory(text="Alice wants communal Friday dinners, offered to help organize cooking")`
+- `mcp__mem0__add_memory(text="Bob says bass noise from the garden terrace after midnight keeps him awake")`
+- `mcp__mem0__add_memory(text="Sam introduced themselves as a musician and photographer from Berlin, interested in jamming and street photography")`
 
-The `text` parameter is a plain sentence. Do NOT pass stringified JSON. Do NOT pass `user_id` — it's handled by the server.
+**Bad examples — don't do this:**
+- `mcp__mem0__add_memory(text="Sam said some stuff about hobbies")` — nobody can find this
+- `mcp__mem0__add_memory(text="noted")` — useless
+
+Include all relevant keywords naturally: names, places, times, interests, topics. The text parameter is a plain sentence. Do NOT pass stringified JSON. Do NOT pass `user_id` — it's handled by the server.
 
 ## Conflict Resolution by Tier
 

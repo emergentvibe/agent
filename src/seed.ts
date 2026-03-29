@@ -47,7 +47,11 @@ interface SeededMemory {
 // ── Markdown Parsing ───────────────────────────────────────────────
 
 /** Map filename to knowledge topic and type */
-function fileToMeta(filename: string): { topic: string; type: string; tier: string } {
+function fileToMeta(filename: string): {
+  topic: string;
+  type: string;
+  tier: string;
+} {
   const base = path.basename(filename, '.md').toLowerCase();
   const map: Record<string, { topic: string; type: string; tier: string }> = {
     spaces: { topic: 'spaces', type: 'fact', tier: 'operational' },
@@ -63,7 +67,11 @@ function fileToMeta(filename: string): { topic: string; type: string; tier: stri
     norms: { topic: 'norms', type: 'norm', tier: 'social' },
     decisions: { topic: 'decisions', type: 'fact', tier: 'constitutional' },
     schedule: { topic: 'events', type: 'fact', tier: 'operational' },
-    introductions: { topic: 'introductions', type: 'introduction', tier: 'social' },
+    introductions: {
+      topic: 'introductions',
+      type: 'introduction',
+      tier: 'social',
+    },
   };
   return map[base] ?? { topic: base, type: 'fact', tier: 'operational' };
 }
@@ -81,19 +89,30 @@ export function parseEventMetadata(text: string): {
   const result: ReturnType<typeof parseEventMetadata> = {};
 
   // Day of week
-  const dayMatch = text.match(/\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)s?\b/i);
-  if (dayMatch) result.day_of_week = dayMatch[1].charAt(0).toUpperCase() + dayMatch[1].slice(1).toLowerCase();
+  const dayMatch = text.match(
+    /\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)s?\b/i,
+  );
+  if (dayMatch)
+    result.day_of_week =
+      dayMatch[1].charAt(0).toUpperCase() + dayMatch[1].slice(1).toLowerCase();
 
   // Time patterns: "7pm", "7:30pm", "7:30 PM", "19:00", "7-9pm", "7pm-9pm"
-  const timeMatch = text.match(/\b(\d{1,2}(?::\d{2})?\s*(?:am|pm)(?:\s*-\s*\d{1,2}(?::\d{2})?\s*(?:am|pm))?|\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2})\b/i);
+  const timeMatch = text.match(
+    /\b(\d{1,2}(?::\d{2})?\s*(?:am|pm)(?:\s*-\s*\d{1,2}(?::\d{2})?\s*(?:am|pm))?|\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2})\b/i,
+  );
   if (timeMatch) result.time = timeMatch[1].trim();
 
-  // Location: after "at", "in", "@", or "Location:"
-  const locMatch = text.match(/(?:(?:^|\s)(?:at|in|@)\s+([A-Z][^\n,.)]+)|Location:\s*([^\n,.)]+))/i);
+  // Location: after "in" or "at" followed by a capitalized place name
+  // Stop at sentence boundaries, time patterns, or parentheses
+  const locMatch = text.match(
+    /(?:(?:^|\s)(?:at|in)\s+(?:the\s+)?([A-Z][a-zA-Z\s]*?)(?:\s*[.,()\n]|\s+at\s+\d|\s+\d+(?::\d{2})?\s*(?:am|pm)|$))|Location:\s*([^\n,.)]+)/i,
+  );
   if (locMatch) result.location = (locMatch[1] || locMatch[2]).trim();
 
   // Recurrence: "every", "daily", "weekly"
-  const recurMatch = text.match(/\b(every\s+\w+|daily|weekly|bi-?weekly|monthly)\b/i);
+  const recurMatch = text.match(
+    /\b(every\s+\w+|daily|weekly|bi-?weekly|monthly)\b/i,
+  );
   if (recurMatch) result.recurrence = recurMatch[1].toLowerCase();
 
   return result;
@@ -106,7 +125,10 @@ export function parseEventMetadata(text: string): {
  * one memory. Headings are prepended as context to the following
  * paragraphs. Lines that are just headings or HTML comments are skipped.
  */
-export function parseMarkdown(content: string, filename: string): MemoryChunk[] {
+export function parseMarkdown(
+  content: string,
+  filename: string,
+): MemoryChunk[] {
   const { topic, type, tier } = fileToMeta(filename);
   const lines = content.split('\n');
   const chunks: MemoryChunk[] = [];
@@ -114,10 +136,7 @@ export function parseMarkdown(content: string, filename: string): MemoryChunk[] 
   let currentParagraph: string[] = [];
 
   const flush = () => {
-    const text = currentParagraph
-      .join(' ')
-      .replace(/\s+/g, ' ')
-      .trim();
+    const text = currentParagraph.join(' ').replace(/\s+/g, ' ').trim();
     if (text && text.length > 5) {
       // Prepend heading context if we have one
       const fullText = currentHeading ? `${currentHeading}: ${text}` : text;
@@ -163,10 +182,25 @@ export function parseMarkdown(content: string, filename: string): MemoryChunk[] 
       continue;
     }
 
-    // List items and regular text — accumulate
-    // Strip leading bullet/dash
-    const cleaned = trimmed.replace(/^[-*•]\s+/, '');
-    currentParagraph.push(cleaned);
+    // List items: each becomes its own chunk (flush before and after)
+    if (/^[-*•]\s+/.test(trimmed)) {
+      flush(); // flush any preceding prose
+      const cleaned = trimmed.replace(/^[-*•]\s+/, '');
+      currentParagraph.push(cleaned);
+      flush(); // emit this list item as its own chunk
+      continue;
+    }
+
+    // Schedule-style lines ("Monday: ...", "Tuesday: ...") — each is its own chunk
+    if (/^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s*:/i.test(trimmed)) {
+      flush();
+      currentParagraph.push(trimmed);
+      flush();
+      continue;
+    }
+
+    // Regular text — accumulate into paragraph
+    currentParagraph.push(trimmed);
   }
 
   flush();
@@ -201,7 +235,10 @@ async function addMemory(
   }
 }
 
-async function listMemories(apiKey: string, userId: string): Promise<SeededMemory[]> {
+async function listMemories(
+  apiKey: string,
+  userId: string,
+): Promise<SeededMemory[]> {
   const res = await fetch(
     `${MEM0_API_URL}/memories/?user_id=${encodeURIComponent(userId)}`,
     {
@@ -417,7 +454,9 @@ async function main() {
     console.log(`  ${file}: ${chunks.length} chunks`);
   }
 
-  console.log(`\nTotal: ${allChunks.length} memories from ${files.length} files`);
+  console.log(
+    `\nTotal: ${allChunks.length} memories from ${files.length} files`,
+  );
 
   if (opts.dryRun) {
     console.log('\n── Dry Run ──\n');
@@ -453,9 +492,7 @@ async function main() {
     const sample = allChunks[0];
     const keyword = sample.metadata.topic;
     const results = await searchMemories(apiKey, userId, keyword);
-    console.log(
-      `  Search for "${keyword}": ${results.length} results`,
-    );
+    console.log(`  Search for "${keyword}": ${results.length} results`);
     if (results.length > 0) {
       console.log(`  Top result: ${results[0].memory}`);
     }
