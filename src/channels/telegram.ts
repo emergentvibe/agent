@@ -47,6 +47,9 @@ export class TelegramChannel implements Channel {
   private bot: Bot | null = null;
   private opts: TelegramChannelOpts;
   private botToken: string;
+  // Telegram's typing state only lasts ~5s; refresh just under that.
+  private typingIntervals = new Map<string, ReturnType<typeof setInterval>>();
+  private readonly TYPING_REFRESH_MS = 4000;
 
   constructor(botToken: string, opts: TelegramChannelOpts) {
     this.botToken = botToken;
@@ -60,17 +63,42 @@ export class TelegramChannel implements Channel {
       },
     });
 
-    // Register all commands for Telegram autocomplete menu
-    await this.bot.api.setMyCommands([
+    // Single source of truth for all slash commands.
+    // local: handled inside TelegramChannel, NOT forwarded to the agent.
+    // agent (the default): forwarded to the agent and rewritten with the
+    // trigger prefix so they match TRIGGER_PATTERN in groups.
+    const COMMANDS: Array<{
+      command: string;
+      description: string;
+      local?: boolean;
+    }> = [
       { command: 'today', description: "Today's events and schedule" },
       { command: 'where', description: 'Find a place — /where kitchen' },
-      { command: 'recall', description: 'Search community memory — /recall yoga' },
+      {
+        command: 'recall',
+        description: 'Search community memory — /recall yoga',
+      },
       { command: 'hello', description: 'Introduce yourself to the community' },
       { command: 'connect', description: 'Find people with shared interests' },
-      { command: 'forget', description: 'Remove your introduction from memory' },
-      { command: 'chatid', description: 'Get this chat ID' },
-      { command: 'ping', description: 'Check if bot is online' },
-    ]);
+      {
+        command: 'forget',
+        description: 'Remove your introduction from memory',
+      },
+      { command: 'chatid', description: 'Get this chat ID', local: true },
+      { command: 'ping', description: 'Check if bot is online', local: true },
+    ];
+
+    // Register all commands for Telegram autocomplete menu
+    await this.bot.api.setMyCommands(
+      COMMANDS.map(({ command, description }) => ({ command, description })),
+    );
+
+    const LOCAL_COMMANDS = new Set(
+      COMMANDS.filter((c) => c.local).map((c) => c.command),
+    );
+    const AGENT_COMMANDS = new Set(
+      COMMANDS.filter((c) => !c.local).map((c) => c.command),
+    );
 
     // Command to get chat ID (useful for registration)
     this.bot.command('chatid', (ctx) => {
@@ -92,10 +120,6 @@ export class TelegramChannel implements Channel {
       ctx.reply(`${ASSISTANT_NAME} is online.`);
     });
 
-    // Telegram bot commands handled above — skip them in the general handler
-    // so they don't also get stored as messages. All other /commands flow through.
-    const TELEGRAM_BOT_COMMANDS = new Set(['chatid', 'ping']);
-
     this.bot.on('message:text', async (ctx) => {
       logger.debug(
         {
@@ -105,9 +129,18 @@ export class TelegramChannel implements Channel {
         },
         'Telegram message:text event received',
       );
+
+      // Parse /cmd or /cmd@botname — LOCAL commands are handled by
+      // bot.command() above, skip them here so they aren't also stored.
+      // AGENT commands fall through and are rewritten below with the
+      // trigger prefix so they match TRIGGER_PATTERN in non-main groups.
+      let parsedCmd: string | null = null;
       if (ctx.message.text.startsWith('/')) {
-        const cmd = ctx.message.text.slice(1).split(/[\s@]/)[0].toLowerCase();
-        if (TELEGRAM_BOT_COMMANDS.has(cmd)) return;
+        parsedCmd = ctx.message.text
+          .slice(1)
+          .split(/[\s@]/)[0]
+          .toLowerCase();
+        if (LOCAL_COMMANDS.has(parsedCmd)) return;
       }
 
       const chatJid = `tg:${ctx.chat.id}`;
@@ -145,6 +178,18 @@ export class TelegramChannel implements Channel {
         if (isBotMentioned && !TRIGGER_PATTERN.test(content)) {
           content = `@${ASSISTANT_NAME} ${content}`;
         }
+      }
+
+      // Rewrite registered agent slash commands so they match TRIGGER_PATTERN
+      // in groups where the agent requires an @mention / trigger prefix.
+      // Without this, /today etc. show up in Telegram autocomplete but
+      // silently fail the trigger check at index.ts:461-469.
+      if (
+        parsedCmd &&
+        AGENT_COMMANDS.has(parsedCmd) &&
+        !TRIGGER_PATTERN.test(content)
+      ) {
+        content = `@${ASSISTANT_NAME} ${content}`;
       }
 
       // Store chat metadata for discovery
@@ -259,31 +304,29 @@ export class TelegramChannel implements Channel {
   }
 
   async sendMessage(jid: string, text: string): Promise<void> {
+    // Throw on failure so callers can distinguish "delivered" from "lost".
+    // The caller in index.ts:processGroupMessages relies on this to decide
+    // whether to roll back the message cursor and retry.
     if (!this.bot) {
-      logger.warn('Telegram bot not initialized');
-      return;
+      throw new Error('Telegram bot not initialized');
     }
 
-    try {
-      const numericId = jid.replace(/^tg:/, '');
+    const numericId = jid.replace(/^tg:/, '');
 
-      // Telegram has a 4096 character limit per message — split if needed
-      const MAX_LENGTH = 4096;
-      if (text.length <= MAX_LENGTH) {
-        await sendTelegramMessage(this.bot.api, numericId, text);
-      } else {
-        for (let i = 0; i < text.length; i += MAX_LENGTH) {
-          await sendTelegramMessage(
-            this.bot.api,
-            numericId,
-            text.slice(i, i + MAX_LENGTH),
-          );
-        }
+    // Telegram has a 4096 character limit per message — split if needed
+    const MAX_LENGTH = 4096;
+    if (text.length <= MAX_LENGTH) {
+      await sendTelegramMessage(this.bot.api, numericId, text);
+    } else {
+      for (let i = 0; i < text.length; i += MAX_LENGTH) {
+        await sendTelegramMessage(
+          this.bot.api,
+          numericId,
+          text.slice(i, i + MAX_LENGTH),
+        );
       }
-      logger.info({ jid, length: text.length }, 'Telegram message sent');
-    } catch (err) {
-      logger.error({ jid, err }, 'Failed to send Telegram message');
     }
+    logger.info({ jid, length: text.length }, 'Telegram message sent');
   }
 
   isConnected(): boolean {
@@ -295,6 +338,8 @@ export class TelegramChannel implements Channel {
   }
 
   async disconnect(): Promise<void> {
+    for (const handle of this.typingIntervals.values()) clearInterval(handle);
+    this.typingIntervals.clear();
     if (this.bot) {
       this.bot.stop();
       this.bot = null;
@@ -303,13 +348,31 @@ export class TelegramChannel implements Channel {
   }
 
   async setTyping(jid: string, isTyping: boolean): Promise<void> {
-    if (!this.bot || !isTyping) return;
-    try {
-      const numericId = jid.replace(/^tg:/, '');
-      await this.bot.api.sendChatAction(numericId, 'typing');
-    } catch (err) {
-      logger.debug({ jid, err }, 'Failed to send Telegram typing indicator');
+    if (!this.bot) return;
+    const numericId = jid.replace(/^tg:/, '');
+
+    // Always clear any existing interval first — idempotent, prevents duplicates
+    const existing = this.typingIntervals.get(jid);
+    if (existing) {
+      clearInterval(existing);
+      this.typingIntervals.delete(jid);
     }
+    if (!isTyping) return;
+
+    const bot = this.bot;
+    const fire = async () => {
+      try {
+        await bot.api.sendChatAction(numericId, 'typing');
+      } catch (err) {
+        logger.debug({ jid, err }, 'Failed to send Telegram typing indicator');
+      }
+    };
+
+    // Fire once immediately, then refresh on interval
+    await fire();
+    const handle = setInterval(fire, this.TYPING_REFRESH_MS);
+    if (typeof handle.unref === 'function') handle.unref();
+    this.typingIntervals.set(jid, handle);
   }
 }
 

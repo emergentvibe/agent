@@ -552,6 +552,96 @@ describe('TelegramChannel', () => {
     });
   });
 
+  // --- Agent slash command rewriting ---
+
+  describe('agent slash command rewriting', () => {
+    it('prepends @Andy to /today in a registered group', async () => {
+      const opts = createTestOpts();
+      const channel = new TelegramChannel('test-token', opts);
+      await channel.connect();
+
+      const ctx = createTextCtx({ text: '/today' });
+      await triggerTextMessage(ctx);
+
+      expect(opts.onMessage).toHaveBeenCalledWith(
+        'tg:100200300',
+        expect.objectContaining({ content: '@Andy /today' }),
+      );
+    });
+
+    it('rewrites /today@andy_ai_bot (bot suffix variant)', async () => {
+      const opts = createTestOpts();
+      const channel = new TelegramChannel('test-token', opts);
+      await channel.connect();
+
+      const ctx = createTextCtx({ text: '/today@andy_ai_bot' });
+      await triggerTextMessage(ctx);
+
+      expect(opts.onMessage).toHaveBeenCalledWith(
+        'tg:100200300',
+        expect.objectContaining({ content: '@Andy /today@andy_ai_bot' }),
+      );
+    });
+
+    it('rewrites each agent command (/where, /recall, /hello, /connect, /forget)', async () => {
+      const opts = createTestOpts();
+      const channel = new TelegramChannel('test-token', opts);
+      await channel.connect();
+
+      for (const cmd of ['where', 'recall', 'hello', 'connect', 'forget']) {
+        (opts.onMessage as any).mockClear();
+        const ctx = createTextCtx({ text: `/${cmd} something` });
+        await triggerTextMessage(ctx);
+        expect(opts.onMessage).toHaveBeenCalledWith(
+          'tg:100200300',
+          expect.objectContaining({ content: `@Andy /${cmd} something` }),
+        );
+      }
+    });
+
+    it('does NOT double-prefix when message already starts with @Andy', async () => {
+      const opts = createTestOpts();
+      const channel = new TelegramChannel('test-token', opts);
+      await channel.connect();
+
+      const ctx = createTextCtx({ text: '@Andy /today please' });
+      await triggerTextMessage(ctx);
+
+      expect(opts.onMessage).toHaveBeenCalledWith(
+        'tg:100200300',
+        expect.objectContaining({ content: '@Andy /today please' }),
+      );
+    });
+
+    it('does NOT rewrite unknown slash commands like /remote-control', async () => {
+      const opts = createTestOpts();
+      const channel = new TelegramChannel('test-token', opts);
+      await channel.connect();
+
+      const ctx = createTextCtx({ text: '/remote-control' });
+      await triggerTextMessage(ctx);
+
+      expect(opts.onMessage).toHaveBeenCalledWith(
+        'tg:100200300',
+        expect.objectContaining({ content: '/remote-control' }),
+      );
+    });
+
+    it('rewrites /today in a private chat too (harmless, consistent)', async () => {
+      const opts = createTestOpts();
+      const channel = new TelegramChannel('test-token', opts);
+      await channel.connect();
+
+      const ctx = createTextCtx({ text: '/today', chatType: 'private' });
+      await triggerTextMessage(ctx);
+
+      expect(opts.onMessage).toHaveBeenCalledWith(
+        'tg:100200300',
+        expect.objectContaining({ content: '@Andy /today' }),
+      );
+    });
+  });
+
   // --- Non-text messages ---
 
   describe('non-text messages', () => {
@@ -776,29 +866,45 @@ describe('TelegramChannel', () => {
       expect(currentBot().api.sendMessage).toHaveBeenCalledTimes(1);
     });
 
-    it('handles send failure gracefully', async () => {
+    it('propagates send failures so callers can detect them', async () => {
       const opts = createTestOpts();
       const channel = new TelegramChannel('test-token', opts);
       await channel.connect();
 
-      currentBot().api.sendMessage.mockRejectedValueOnce(
+      // Both Markdown and plain-text fallback fail
+      currentBot().api.sendMessage.mockRejectedValue(
         new Error('Network error'),
       );
 
-      // Should not throw
       await expect(
         channel.sendMessage('tg:100200300', 'Will fail'),
-      ).resolves.toBeUndefined();
+      ).rejects.toThrow('Network error');
     });
 
-    it('does nothing when bot is not initialized', async () => {
+    it('recovers when Markdown fails but plain-text fallback succeeds', async () => {
+      const opts = createTestOpts();
+      const channel = new TelegramChannel('test-token', opts);
+      await channel.connect();
+
+      // First call (Markdown) rejects, second call (plain text) resolves
+      currentBot().api.sendMessage.mockRejectedValueOnce(
+        new Error("can't parse entities"),
+      );
+
+      await expect(
+        channel.sendMessage('tg:100200300', '*broken* _markdown'),
+      ).resolves.toBeUndefined();
+      expect(currentBot().api.sendMessage).toHaveBeenCalledTimes(2);
+    });
+
+    it('throws when bot is not initialized', async () => {
       const opts = createTestOpts();
       const channel = new TelegramChannel('test-token', opts);
 
       // Don't connect — bot is null
-      await channel.sendMessage('tg:100200300', 'No bot');
-
-      // No error, no API call
+      await expect(
+        channel.sendMessage('tg:100200300', 'No bot'),
+      ).rejects.toThrow(/not initialized/);
     });
   });
 
@@ -834,27 +940,133 @@ describe('TelegramChannel', () => {
   // --- setTyping ---
 
   describe('setTyping', () => {
-    it('sends typing action when isTyping is true', async () => {
+    it('fires sendChatAction immediately when setTyping(true)', async () => {
       const opts = createTestOpts();
       const channel = new TelegramChannel('test-token', opts);
       await channel.connect();
 
       await channel.setTyping('tg:100200300', true);
 
+      expect(currentBot().api.sendChatAction).toHaveBeenCalledTimes(1);
       expect(currentBot().api.sendChatAction).toHaveBeenCalledWith(
         '100200300',
         'typing',
       );
+
+      // Clean up the interval we just created
+      await channel.setTyping('tg:100200300', false);
     });
 
-    it('does nothing when isTyping is false', async () => {
-      const opts = createTestOpts();
-      const channel = new TelegramChannel('test-token', opts);
-      await channel.connect();
+    it('refreshes every ~4 seconds until cleared', async () => {
+      vi.useFakeTimers();
+      try {
+        const opts = createTestOpts();
+        const channel = new TelegramChannel('test-token', opts);
+        await channel.connect();
 
-      await channel.setTyping('tg:100200300', false);
+        await channel.setTyping('tg:100200300', true);
+        expect(currentBot().api.sendChatAction).toHaveBeenCalledTimes(1);
 
-      expect(currentBot().api.sendChatAction).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(12_000);
+        // 1 immediate + 3 from interval ticks at 4s, 8s, 12s
+        expect(currentBot().api.sendChatAction).toHaveBeenCalledTimes(4);
+
+        await channel.setTyping('tg:100200300', false);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('setTyping(false) clears the interval', async () => {
+      vi.useFakeTimers();
+      try {
+        const opts = createTestOpts();
+        const channel = new TelegramChannel('test-token', opts);
+        await channel.connect();
+
+        await channel.setTyping('tg:100200300', true);
+        await channel.setTyping('tg:100200300', false);
+
+        const callsBefore = currentBot().api.sendChatAction.mock.calls.length;
+        await vi.advanceTimersByTimeAsync(20_000);
+        expect(currentBot().api.sendChatAction).toHaveBeenCalledTimes(
+          callsBefore,
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('calling setTyping(true) twice does not create duplicate intervals', async () => {
+      vi.useFakeTimers();
+      try {
+        const opts = createTestOpts();
+        const channel = new TelegramChannel('test-token', opts);
+        await channel.connect();
+
+        await channel.setTyping('tg:100200300', true);
+        await channel.setTyping('tg:100200300', true);
+        // 2 immediate fires from the two setTyping(true) calls
+        expect(currentBot().api.sendChatAction).toHaveBeenCalledTimes(2);
+
+        await vi.advanceTimersByTimeAsync(4_000);
+        // Only one interval should tick: +1 call
+        expect(currentBot().api.sendChatAction).toHaveBeenCalledTimes(3);
+
+        await channel.setTyping('tg:100200300', false);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('disconnect() clears all active typing intervals', async () => {
+      vi.useFakeTimers();
+      try {
+        const opts = createTestOpts();
+        const channel = new TelegramChannel('test-token', opts);
+        await channel.connect();
+
+        await channel.setTyping('tg:100200300', true);
+        await channel.setTyping('tg:999888', true);
+        const callsAfterSetup =
+          currentBot().api.sendChatAction.mock.calls.length;
+
+        await channel.disconnect();
+
+        await vi.advanceTimersByTimeAsync(20_000);
+        expect(currentBot().api.sendChatAction).toHaveBeenCalledTimes(
+          callsAfterSetup,
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('interval survives a single sendChatAction rejection', async () => {
+      vi.useFakeTimers();
+      try {
+        const opts = createTestOpts();
+        const channel = new TelegramChannel('test-token', opts);
+        await channel.connect();
+
+        currentBot().api.sendChatAction.mockRejectedValueOnce(
+          new Error('Rate limited'),
+        );
+
+        await expect(
+          channel.setTyping('tg:100200300', true),
+        ).resolves.toBeUndefined();
+        // First immediate call rejected but was caught
+        expect(currentBot().api.sendChatAction).toHaveBeenCalledTimes(1);
+
+        // Subsequent interval tick should still fire
+        await vi.advanceTimersByTimeAsync(4_000);
+        expect(currentBot().api.sendChatAction).toHaveBeenCalledTimes(2);
+
+        await channel.setTyping('tg:100200300', false);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('does nothing when bot is not initialized', async () => {
@@ -864,21 +1076,7 @@ describe('TelegramChannel', () => {
       // Don't connect
       await channel.setTyping('tg:100200300', true);
 
-      // No error, no API call
-    });
-
-    it('handles typing indicator failure gracefully', async () => {
-      const opts = createTestOpts();
-      const channel = new TelegramChannel('test-token', opts);
-      await channel.connect();
-
-      currentBot().api.sendChatAction.mockRejectedValueOnce(
-        new Error('Rate limited'),
-      );
-
-      await expect(
-        channel.setTyping('tg:100200300', true),
-      ).resolves.toBeUndefined();
+      // No error, no API call (bot is null, currentBot() returns the mock from prior test)
     });
   });
 

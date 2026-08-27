@@ -22,7 +22,10 @@ export function formatMessages(
   // Compute current date/day in the community's timezone
   const now = new Date();
   const currentDate = now.toLocaleDateString('en-CA', { timeZone: timezone }); // YYYY-MM-DD
-  const currentDay = now.toLocaleDateString('en-US', { timeZone: timezone, weekday: 'long' });
+  const currentDay = now.toLocaleDateString('en-US', {
+    timeZone: timezone,
+    weekday: 'long',
+  });
 
   const header = `<context timezone="${escapeXml(timezone)}" current_date="${escapeXml(currentDate)}" current_day="${escapeXml(currentDay)}" />\n`;
 

@@ -190,7 +190,9 @@ describe('formatMessages date injection', () => {
     const result = formatMessages(messages, 'Europe/Athens');
 
     expect(result).toMatch(/current_date="\d{4}-\d{2}-\d{2}"/);
-    expect(result).toMatch(/current_day="(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)"/);
+    expect(result).toMatch(
+      /current_day="(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)"/,
+    );
   });
 
   it('respects timezone for date calculation', () => {

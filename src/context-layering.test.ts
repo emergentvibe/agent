@@ -80,16 +80,16 @@ describe('Global CLAUDE.md (Layer 1)', () => {
   });
 
   it('contains memory metadata type tags including norm', () => {
-    expect(GLOBAL_CLAUDE_MD).toContain('"type": "wish"');
-    expect(GLOBAL_CLAUDE_MD).toContain('"type": "concern"');
-    expect(GLOBAL_CLAUDE_MD).toContain('"type": "fact"');
-    expect(GLOBAL_CLAUDE_MD).toContain('"type": "connection"');
-    expect(GLOBAL_CLAUDE_MD).toContain('"type": "norm"');
+    expect(GLOBAL_CLAUDE_MD).toContain('`wish`');
+    expect(GLOBAL_CLAUDE_MD).toContain('`concern`');
+    expect(GLOBAL_CLAUDE_MD).toContain('`fact`');
+    expect(GLOBAL_CLAUDE_MD).toContain('`connection`');
+    expect(GLOBAL_CLAUDE_MD).toContain('`norm`');
   });
 
   it('contains tier metadata and conflict resolution', () => {
-    expect(GLOBAL_CLAUDE_MD).toContain('"tier": "operational"');
-    expect(GLOBAL_CLAUDE_MD).toContain('"tier": "social"');
+    expect(GLOBAL_CLAUDE_MD).toContain('`operational`');
+    expect(GLOBAL_CLAUDE_MD).toContain('`social`');
     expect(GLOBAL_CLAUDE_MD).toContain('Conflict Resolution by Tier');
     expect(GLOBAL_CLAUDE_MD).toContain('Last-writer-wins');
     expect(GLOBAL_CLAUDE_MD).toContain('Hold both sides');
@@ -97,7 +97,8 @@ describe('Global CLAUDE.md (Layer 1)', () => {
   });
 
   it('contains source_context metadata', () => {
-    expect(GLOBAL_CLAUDE_MD).toContain('"source_context": "group"');
+    expect(GLOBAL_CLAUDE_MD).toContain('`source_context`');
+    expect(GLOBAL_CLAUDE_MD).toContain('`group`');
   });
 
   it('does NOT contain community-specific content', () => {

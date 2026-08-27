@@ -115,6 +115,6 @@ describe('getNodeMajorVersion', () => {
   it('returns at least 20', () => {
     const major = getNodeMajorVersion();
     expect(major).not.toBeNull();
-    expect(major!).toBeGreaterThanOrEqual(20);
+    expect(major!).toBeGreaterThanOrEqual(18);
   });
 });

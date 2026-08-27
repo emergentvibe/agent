@@ -42,6 +42,7 @@ export interface ContainerInput {
   isMain: boolean;
   isScheduledTask?: boolean;
   assistantName?: string;
+  model?: string;
   mcpServers?: Record<string, import('./types.js').McpServerConfig>;
 }
 
@@ -222,6 +223,7 @@ function buildVolumeMounts(
 function buildContainerArgs(
   mounts: VolumeMount[],
   containerName: string,
+  model?: string,
 ): string[] {
   const args: string[] = ['run', '-i', '--rm', '--name', containerName];
 
@@ -245,9 +247,10 @@ function buildContainerArgs(
     args.push('-e', 'CLAUDE_CODE_OAUTH_TOKEN=placeholder');
   }
 
-  // Pass model override if configured (e.g., CLAUDE_MODEL=claude-haiku-4-5-20251001 for cost savings)
-  if (process.env.CLAUDE_MODEL) {
-    args.push('-e', `CLAUDE_MODEL=${process.env.CLAUDE_MODEL}`);
+  // Pass model override: per-container model takes priority, then global CLAUDE_MODEL env
+  const effectiveModel = model || process.env.CLAUDE_MODEL;
+  if (effectiveModel) {
+    args.push('-e', `CLAUDE_MODEL=${effectiveModel}`);
   }
 
   // Pass Mem0 config if set (check both process.env and .env file)
@@ -301,7 +304,7 @@ export async function runContainerAgent(
   const mounts = buildVolumeMounts(group, input.isMain);
   const safeName = group.folder.replace(/[^a-zA-Z0-9-]/g, '-');
   const containerName = `nanoclaw-${safeName}-${Date.now()}`;
-  const containerArgs = buildContainerArgs(mounts, containerName);
+  const containerArgs = buildContainerArgs(mounts, containerName, input.model);
 
   logger.debug(
     {

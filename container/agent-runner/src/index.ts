@@ -41,6 +41,7 @@ interface ContainerInput {
   isMain: boolean;
   isScheduledTask?: boolean;
   assistantName?: string;
+  model?: string;
   mcpServers?: Record<string, McpServerConfig>; // Per-group MCP servers
 }
 

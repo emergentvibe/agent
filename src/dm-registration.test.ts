@@ -209,7 +209,7 @@ describe('findCommunityForUser', () => {
     expect(result!.group).toBe(baseGroup);
   });
 
-  it('skips main group', () => {
+  it('does not skip main group (main can also be a community)', () => {
     const groups: Record<string, RegisteredGroup> = {
       'tg:main': { ...baseGroup, isMain: true },
       'tg:community': { ...baseGroup, folder: 'community' },
@@ -220,8 +220,8 @@ describe('findCommunityForUser', () => {
 
     const result = findCommunityForUser('tg:user1', groups, findSender);
     expect(result!.jid).toBe('tg:community');
-    // Should not have checked main group
-    expect(findSender).not.toHaveBeenCalledWith('tg:main', 'tg:user1');
+    // Main group IS checked (it can also be a community)
+    expect(findSender).toHaveBeenCalledWith('tg:main', 'tg:user1');
   });
 
   it('skips existing DM folders', () => {

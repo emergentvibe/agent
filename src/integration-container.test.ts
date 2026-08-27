@@ -420,8 +420,8 @@ describe('Mem0 MCP config construction', () => {
     if (env.MEM0_API_KEY) {
       return {
         mem0: {
-          command: 'uvx',
-          args: ['mem0-mcp-server'],
+          command: '/home/node/.local/bin/mem0-mcp-server',
+          args: [],
           env: {
             MEM0_API_KEY: env.MEM0_API_KEY,
           },
@@ -448,8 +448,10 @@ describe('Mem0 MCP config construction', () => {
     });
 
     expect(config.mem0).toBeDefined();
-    expect((config.mem0 as any).command).toBe('uvx');
-    expect((config.mem0 as any).args).toEqual(['mem0-mcp-server']);
+    expect((config.mem0 as any).command).toBe(
+      '/home/node/.local/bin/mem0-mcp-server',
+    );
+    expect((config.mem0 as any).args).toEqual([]);
     expect((config.mem0 as any).env).toEqual({
       MEM0_API_KEY: 'mem0-key-abc123',
     });
@@ -499,9 +501,11 @@ describe('Mem0 MCP config construction', () => {
     expect(source).toContain("type: 'sse'");
     expect(source).toContain('url: process.env.MEM0_SSE_URL');
 
-    // Verify stdio uses uvx
-    expect(source).toContain("command: 'uvx'");
-    expect(source).toContain("args: ['mem0-mcp-server']");
+    // Verify stdio uses mem0-mcp-server binary
+    expect(source).toContain(
+      "command: '/home/node/.local/bin/mem0-mcp-server'",
+    );
+    expect(source).toContain('args: []');
 
     // Verify priority: SSE check comes before API key check
     const sseIndex = source.indexOf('process.env.MEM0_SSE_URL');

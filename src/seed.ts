@@ -192,7 +192,11 @@ export function parseMarkdown(
     }
 
     // Schedule-style lines ("Monday: ...", "Tuesday: ...") — each is its own chunk
-    if (/^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s*:/i.test(trimmed)) {
+    if (
+      /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s*:/i.test(
+        trimmed,
+      )
+    ) {
       flush();
       currentParagraph.push(trimmed);
       flush();

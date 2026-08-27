@@ -68,6 +68,8 @@ import { syncAll } from '../governance/sync/constitution-sync.js';
 import { startSchedulerLoop } from './task-scheduler.js';
 import { Channel, NewMessage, RegisteredGroup } from './types.js';
 import { logger } from './logger.js';
+import { triageMessages } from './triage.js';
+import { storeMemory } from './mem0-client.js';
 
 // Re-export for backwards compatibility during refactor
 export { escapeXml, formatMessages } from './router.js';
@@ -188,6 +190,40 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
     if (!hasTrigger) return true;
   }
 
+  // Two-tier triage: classify messages before spawning an expensive container.
+  // Only for main group (always-on, no trigger). Non-main groups already have trigger gating.
+  if (isMainGroup && process.env.TRIAGE_ENABLED !== '0') {
+    try {
+      const communitySlug = group.folder; // folder name as slug fallback
+      const triageResult = await triageMessages(
+        missedMessages,
+        communitySlug,
+        group.name,
+        ASSISTANT_NAME,
+      );
+
+      // Store extracted memories regardless of respond decision
+      for (const mem of triageResult.memories) {
+        storeMemory(mem.text, mem.user_id, mem.metadata).catch((err) =>
+          logger.warn({ err }, 'Failed to store triage memory'),
+        );
+      }
+
+      if (!triageResult.respond) {
+        logger.info(
+          { group: group.name, reason: triageResult.reason, messageCount: missedMessages.length },
+          'Triage: skipping container (silence)',
+        );
+        lastAgentTimestamp[chatJid] = missedMessages[missedMessages.length - 1].timestamp;
+        saveState();
+        return true; // skip container
+      }
+    } catch (err) {
+      // Fail open — if triage breaks, still respond
+      logger.error({ err }, 'Triage error — proceeding to container');
+    }
+  }
+
   const prompt = formatMessages(missedMessages, TIMEZONE);
 
   // Advance cursor so the piping path in startMessageLoop won't re-fetch
@@ -220,60 +256,82 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   let hadError = false;
   let outputSentToUser = false;
 
-  const output = await runAgent(group, prompt, chatJid, async (result) => {
-    // Streaming output callback — called for each agent result
-    if (result.result) {
-      const raw =
-        typeof result.result === 'string'
-          ? result.result
-          : JSON.stringify(result.result);
-      // Strip <internal>...</internal> blocks — agent uses these for internal reasoning
-      const text = raw.replace(/<internal>[\s\S]*?<\/internal>/g, '').trim();
-      // Detect silence indicators — bot should say nothing, not narrate staying quiet
-      const silencePattern = /^(\*?\s*(stays?\s+quiet|stays?\s+silent|silence|says?\s+nothing|no\s+response|\.{3}|🤐|—)\s*\*?\s*){1,2}$/i;
-      const isSilence = silencePattern.test(text);
-      logger.info({ group: group.name, isSilence }, `Agent output: ${raw.slice(0, 200)}`);
-      if (text && !isSilence) {
-        await channel.sendMessage(chatJid, text);
-        outputSentToUser = true;
+  try {
+    const output = await runAgent(group, prompt, chatJid, async (result) => {
+      // Streaming output callback — called for each agent result
+      if (result.result) {
+        const raw =
+          typeof result.result === 'string'
+            ? result.result
+            : JSON.stringify(result.result);
+        // Strip <internal>...</internal> blocks — agent uses these for internal reasoning
+        const text = raw.replace(/<internal>[\s\S]*?<\/internal>/g, '').trim();
+        // Detect silence indicators — bot should say nothing, not narrate staying quiet
+        const silencePattern =
+          /^(\*?\s*(stays?\s+quiet|stays?\s+silent|silence|listening|says?\s+nothing|no\s+response|\.{3}|🤐|—)\s*\*?\s*){1,2}$/i;
+        const bracketSilence =
+          /^\[.*?(no response|silence|listening|not respond|casual).*?\]$/is;
+        const isSilence =
+          silencePattern.test(text) || bracketSilence.test(text);
+        logger.info(
+          { group: group.name, isSilence },
+          `Agent output: ${raw.slice(0, 200)}`,
+        );
+        if (text && !isSilence) {
+          try {
+            await channel.sendMessage(chatJid, text);
+            outputSentToUser = true;
+          } catch (err) {
+            // Channel rejected the send — don't mark as delivered.
+            // hadError triggers the rollback path below so retries can
+            // re-run this batch of messages.
+            logger.error(
+              { err, group: group.name },
+              'Failed to deliver agent output to channel',
+            );
+            hadError = true;
+          }
+        }
+        // Only reset idle timer on actual results, not session-update markers (result: null)
+        resetIdleTimer();
       }
-      // Only reset idle timer on actual results, not session-update markers (result: null)
-      resetIdleTimer();
-    }
 
-    if (result.status === 'success') {
-      queue.notifyIdle(chatJid);
-    }
+      if (result.status === 'success') {
+        queue.notifyIdle(chatJid);
+      }
 
-    if (result.status === 'error') {
-      hadError = true;
-    }
-  });
+      if (result.status === 'error') {
+        hadError = true;
+      }
+    });
 
-  await channel.setTyping?.(chatJid, false);
-  if (idleTimer) clearTimeout(idleTimer);
-
-  if (output === 'error' || hadError) {
-    // If we already sent output to the user, don't roll back the cursor —
-    // the user got their response and re-processing would send duplicates.
-    if (outputSentToUser) {
+    if (output === 'error' || hadError) {
+      // If we already sent output to the user, don't roll back the cursor —
+      // the user got their response and re-processing would send duplicates.
+      if (outputSentToUser) {
+        logger.warn(
+          { group: group.name },
+          'Agent error after output was sent, skipping cursor rollback to prevent duplicates',
+        );
+        return true;
+      }
+      // Roll back cursor so retries can re-process these messages
+      lastAgentTimestamp[chatJid] = previousCursor;
+      saveState();
       logger.warn(
         { group: group.name },
-        'Agent error after output was sent, skipping cursor rollback to prevent duplicates',
+        'Agent error, rolled back message cursor for retry',
       );
-      return true;
+      return false;
     }
-    // Roll back cursor so retries can re-process these messages
-    lastAgentTimestamp[chatJid] = previousCursor;
-    saveState();
-    logger.warn(
-      { group: group.name },
-      'Agent error, rolled back message cursor for retry',
-    );
-    return false;
-  }
 
-  return true;
+    return true;
+  } finally {
+    // Always clear typing indicator and idle timer, even if runAgent throws.
+    // setTyping(false) also cancels the typing refresh interval from Fix #3.
+    await channel.setTyping?.(chatJid, false).catch(() => {});
+    if (idleTimer) clearTimeout(idleTimer);
+  }
 }
 
 async function runAgent(
@@ -321,6 +379,12 @@ async function runAgent(
       }
     : undefined;
 
+  // Select model: DMs get DM_MODEL (default Sonnet), groups get GROUP_MODEL (default Haiku)
+  const isDm = !isMain && group.folder.includes('-dm-');
+  const model = isDm
+    ? (process.env.DM_MODEL || process.env.CLAUDE_MODEL)
+    : (process.env.GROUP_MODEL || process.env.CLAUDE_MODEL);
+
   try {
     const output = await runContainerAgent(
       group,
@@ -331,6 +395,7 @@ async function runAgent(
         chatJid,
         isMain,
         assistantName: ASSISTANT_NAME,
+        model: model || undefined,
         mcpServers: group.containerConfig?.mcpServers,
       },
       (proc, containerName) =>

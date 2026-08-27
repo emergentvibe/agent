@@ -425,7 +425,7 @@ describe('memory namespace conventions', () => {
     );
     expect(globalMd).toContain('user_id="tg:');
     expect(globalMd).toContain('user_id="community:');
-    expect(globalMd).toContain('"type": "wish"');
-    expect(globalMd).toContain('"type": "concern"');
+    expect(globalMd).toContain('`wish`');
+    expect(globalMd).toContain('`concern`');
   });
 });
