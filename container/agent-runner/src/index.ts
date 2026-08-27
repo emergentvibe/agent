@@ -39,6 +39,7 @@ interface ContainerInput {
   groupFolder: string;
   chatJid: string;
   isMain: boolean;
+  isDm?: boolean;
   isScheduledTask?: boolean;
   assistantName?: string;
   model?: string;
@@ -424,7 +425,10 @@ async function runQuery(
         'TodoWrite', 'ToolSearch', 'Skill',
         'NotebookEdit',
         'mcp__nanoclaw__*',
-        'mcp__mem0__*'
+        // DM containers: search-only (privacy wall — nothing in DMs enters shared memory)
+        ...(containerInput.isDm
+          ? ['mcp__mem0__search_memories', 'mcp__mem0__delete_memory']
+          : ['mcp__mem0__*']),
       ],
       env: sdkEnv,
       permissionMode: 'bypassPermissions',

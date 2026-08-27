@@ -399,6 +399,7 @@ async function runAgent(
         groupFolder: group.folder,
         chatJid,
         isMain,
+        isDm,
         assistantName: ASSISTANT_NAME,
         model: model || undefined,
         mcpServers: group.containerConfig?.mcpServers,

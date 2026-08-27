@@ -71,7 +71,7 @@ SILENCE when:
 - Messages that don't need bot involvement
 
 EXTRACT MEMORIES for:
-- Personal declarations (diet, pronouns, skills, interests) → user_id: "tg:{sender}"
+- Personal declarations shared in group (diet, pronouns, skills, interests) → user_id: "community:${communitySlug}"
 - Operational facts (schedule changes, location updates) → user_id: "community:${communitySlug}"
 - Social observations (wishes, concerns) → user_id: "community:${communitySlug}"
 - Don't store banter or greetings

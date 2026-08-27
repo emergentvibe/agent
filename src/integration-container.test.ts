@@ -389,8 +389,8 @@ describe('Context file verification', () => {
 
     // DM template references community memory via Mem0 namespace
     expect(rendered).toContain('community:edge-esmeralda');
-    // Has personal memory namespace
-    expect(rendered).toContain('tg:tg:67890');
+    // No personal namespace — DMs use community namespace only
+    expect(rendered).toContain('NEVER call add_memory from a DM');
     // No unreplaced placeholders
     expect(rendered.match(/\{\{[^}]+\}\}/g)).toBeNull();
   });

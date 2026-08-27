@@ -289,7 +289,7 @@ describe('DM template (Layer 3)', () => {
   it('includes onboarding for bootstrapper only', () => {
     expect(rendered).toContain('Onboarding');
     expect(rendered).toContain('Bootstrapper Only');
-    expect(rendered).toContain('operational categories');
+    expect(rendered).toContain('seed knowledge');
   });
 
   it('includes privacy rules', () => {

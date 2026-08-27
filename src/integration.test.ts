@@ -151,8 +151,8 @@ describe('Integration: community intelligence message flow', () => {
     expect(content).toContain(senderName);
     // Has community name
     expect(content).toContain(communityName);
-    // Has correct personal memory namespace
-    expect(content).toContain('tg:user123');
+    // DMs have no-add_memory privacy rule
+    expect(content).toContain('NEVER call add_memory from a DM');
     // Has correct community memory namespace
     expect(content).toContain(`community:${slug}`);
     // No unreplaced placeholders
@@ -277,9 +277,9 @@ describe('Integration: community intelligence message flow', () => {
 
     // Has "always respond"
     expect(dmContent).toContain('Always respond');
-    // Has correct namespaces
-    expect(dmContent).toContain('tg:user123');
+    // Has community namespace and no-add_memory rule
     expect(dmContent).toContain('community:test-community');
+    expect(dmContent).toContain('NEVER call add_memory from a DM');
     // Does NOT have listening mode (group-only)
     expect(dmContent).not.toContain('Listening Mode');
     // Does NOT have pattern sensing (group-only)

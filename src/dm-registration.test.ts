@@ -74,14 +74,14 @@ describe('buildDmClaudeMd', () => {
     expect(result).toContain('Test Village');
   });
 
-  it('includes correct personal memory namespace', () => {
+  it('includes no-add_memory DM privacy rule', () => {
     const result = buildDmClaudeMd(
       'Test Village',
       'Alice',
       'tg:123',
       'test-village',
     );
-    expect(result).toContain('tg:123');
+    expect(result).toContain('NEVER call add_memory from a DM');
   });
 
   it('includes correct community memory namespace', () => {

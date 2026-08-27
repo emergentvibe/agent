@@ -88,11 +88,16 @@ describe('triageMessages', () => {
     expect(result.respond).toBe(false);
   });
 
-  it('extracts memories from personal declarations', async () => {
+  it('extracts memories from personal declarations into community namespace', async () => {
     const client = mockClient(
       JSON.stringify({
         respond: false,
-        memories: [{ text: 'Alice is vegan', user_id: 'tg:user1' }],
+        memories: [
+          {
+            text: 'Alice is vegan',
+            user_id: 'community:edge-esmeralda',
+          },
+        ],
         reason: 'personal declaration, no response needed',
       }),
     );
@@ -108,7 +113,7 @@ describe('triageMessages', () => {
     expect(result.respond).toBe(false);
     expect(result.memories).toHaveLength(1);
     expect(result.memories[0].text).toBe('Alice is vegan');
-    expect(result.memories[0].user_id).toBe('tg:user1');
+    expect(result.memories[0].user_id).toBe('community:edge-esmeralda');
   });
 
   it('falls back to respond=true on invalid JSON', async () => {
