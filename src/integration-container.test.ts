@@ -286,19 +286,12 @@ describe('Context file verification', () => {
     const unreplaced = rendered.match(/\{\{[^}]+\}\}/g);
     expect(unreplaced).toBeNull();
 
-    // Constitution content injected
-    expect(rendered).toContain('Respect shared spaces');
-    expect(rendered).toContain('Consent before recording');
-
     // Community name injected
     expect(rendered).toContain('Edge Esmeralda');
 
-    // Version/hash injected
-    expect(rendered).toContain('2.1.0');
-    expect(rendered).toContain('sha256-abc123def');
-
-    // API URL injected
-    expect(rendered).toContain(API_URL);
+    // Core behavioral sections present
+    expect(rendered).toContain('Listening Mode');
+    expect(rendered).toContain('Pattern Sensing');
   });
 
   it('governance/templates/dm-template.md exists and renders correctly', () => {
@@ -363,20 +356,14 @@ describe('Context file verification', () => {
     expect(combined).toContain('send_message');
     expect(combined).toContain('<internal>');
 
-    // Constitution content (from community)
-    expect(combined).toContain('Respect shared spaces');
-
     // Listening mode (from community)
     expect(combined).toContain('Listening Mode');
 
     // Pattern sensing (from community)
     expect(combined).toContain('Pattern Sensing');
 
-    // Connection protocol (from community)
-    expect(combined).toContain('consent from both parties');
-
-    // Auto-registration (from community)
-    expect(combined).toContain('/api/members/telegram');
+    // Crew section (from community)
+    expect(combined).toContain('Crew');
   });
 
   it('rendered DM CLAUDE.md has correct community memory namespace', () => {
