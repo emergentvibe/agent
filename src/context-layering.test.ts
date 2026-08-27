@@ -126,16 +126,6 @@ describe('Community template (Layer 2)', () => {
     'https://emergentvibe.com',
   );
 
-  it('renders with constitution content', () => {
-    expect(rendered).toContain('1. Do no harm');
-    expect(rendered).toContain('2. Be excellent to each other');
-  });
-
-  it('frames constitution as reference principles', () => {
-    expect(rendered).toContain('These principles guide your values');
-    expect(rendered).toContain('written by the community');
-  });
-
   it('contains listening mode', () => {
     expect(rendered).toContain('Listening Mode');
     expect(rendered).toContain('silence');
@@ -144,11 +134,6 @@ describe('Community template (Layer 2)', () => {
   it('contains pattern sensing', () => {
     expect(rendered).toContain('Pattern Sensing');
     expect(rendered).toContain('3+ people');
-  });
-
-  it('contains connection protocol', () => {
-    expect(rendered).toContain('Connection');
-    expect(rendered).toContain('consent from both parties');
   });
 
   it('contains "What You Never Do" section', () => {
@@ -164,14 +149,10 @@ describe('Community template (Layer 2)', () => {
     expect(rendered).toContain('contacts');
   });
 
-  it('contains bootstrapper phases instead of admin roles', () => {
-    expect(rendered).toContain('Bootstrapper and Phases');
+  it('contains crew section with admin info', () => {
+    expect(rendered).toContain('Crew');
     expect(rendered).toContain('TestAdmin');
     expect(rendered).toContain('tg:admin1');
-    expect(rendered).toContain('2026-03-15');
-    // No permanent admin/organizer hierarchy
-    expect(rendered).not.toContain('## Roles');
-    expect(rendered).not.toMatch(/Organizers.*Delegated/);
   });
 
   it('contains epistemic markers', () => {
@@ -185,7 +166,6 @@ describe('Community template (Layer 2)', () => {
     expect(rendered).toContain('Knowledge Tiers and Conflict Resolution');
     expect(rendered).toContain('operational');
     expect(rendered).toContain('social');
-    expect(rendered).toContain('constitutional');
   });
 
   it('contains first-person authority', () => {
@@ -215,11 +195,9 @@ describe('Community template (Layer 2)', () => {
     expect(rendered).not.toContain('community-knowledge/');
   });
 
-  it('contains auto-registration instructions', () => {
-    expect(rendered).toContain(
-      'POST https://emergentvibe.com/api/members/telegram',
-    );
-    expect(rendered).toContain('constitution_slug: "test-community"');
+  it('does not contain auto-registration (removed for treeweek)', () => {
+    expect(rendered).not.toContain('POST');
+    expect(rendered).not.toContain('Auto-Registration');
   });
 
   it('does NOT contain memory protocol (that is in global)', () => {
@@ -265,20 +243,15 @@ describe('DM template (Layer 3)', () => {
     expect(rendered).toContain('community:test-village');
   });
 
-  it('uses tier-based authority instead of role-based', () => {
+  it('uses tier-based authority', () => {
     expect(rendered).toContain('Knowledge Authority');
     expect(rendered.toLowerCase()).toContain('operational');
     expect(rendered.toLowerCase()).toContain('social');
-    expect(rendered.toLowerCase()).toContain('constitutional');
-    // No old role-based hierarchy
-    expect(rendered).not.toContain('Organizers');
-    expect(rendered).not.toContain('regular member');
   });
 
-  it('includes bootstrapper phase awareness', () => {
-    expect(rendered).toContain('Bootstrapper Phase');
+  it('includes crew info', () => {
+    expect(rendered).toContain('Crew');
     expect(rendered).toContain('tg:admin1');
-    expect(rendered).toContain('2026-03-15');
   });
 
   it('includes first-person authority', () => {
@@ -286,9 +259,9 @@ describe('DM template (Layer 3)', () => {
     expect(rendered).toContain('absolute authority');
   });
 
-  it('includes onboarding for bootstrapper only', () => {
+  it('includes onboarding for crew only', () => {
     expect(rendered).toContain('Onboarding');
-    expect(rendered).toContain('Bootstrapper Only');
+    expect(rendered).toContain('Crew Only');
     expect(rendered).toContain('seed knowledge');
   });
 

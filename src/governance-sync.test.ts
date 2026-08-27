@@ -50,11 +50,7 @@ describe('buildClaudeMd', () => {
     );
 
     expect(result).toContain('# Test Community — Community Intelligence');
-    expect(result).toContain('Version: 1.0.0');
-    expect(result).toContain('Hash: abc123def456');
-    expect(result).toContain('1. Do no harm');
-    expect(result).toContain('2. Be excellent to each other');
-    expect(result).toContain('https://emergentvibe.com/c/test-community');
+    expect(result).toContain('community:test-community');
   });
 
   it('includes community memory namespace with correct slug', () => {
@@ -85,7 +81,7 @@ describe('buildClaudeMd', () => {
     expect(result).not.toMatch(/`\/constitution`/);
   });
 
-  it('includes auto-registration instructions', () => {
+  it('does not contain auto-registration (removed for treeweek)', () => {
     const result = buildClaudeMd(
       TEMPLATE,
       MOCK_GROUP,
@@ -93,36 +89,8 @@ describe('buildClaudeMd', () => {
       'https://emergentvibe.com',
     );
 
-    expect(result).toContain(
-      'POST https://emergentvibe.com/api/members/telegram',
-    );
-    expect(result).toContain('X-Bot-Secret');
-    expect(result).toContain('constitution_slug: "test-community"');
-  });
-
-  it('includes last sync time', () => {
-    const result = buildClaudeMd(
-      TEMPLATE,
-      MOCK_GROUP,
-      MOCK_DATA,
-      'https://emergentvibe.com',
-    );
-
-    expect(result).toContain('Last synced:');
-    // Should contain an ISO date
-    expect(result).toMatch(/Last synced: \d{4}-\d{2}-\d{2}T/);
-  });
-
-  it('handles null content_hash', () => {
-    const data = { ...MOCK_DATA, content_hash: null };
-    const result = buildClaudeMd(
-      TEMPLATE,
-      MOCK_GROUP,
-      data,
-      'https://emergentvibe.com',
-    );
-
-    expect(result).toContain('Hash: unknown');
+    expect(result).not.toContain('Auto-Registration');
+    expect(result).not.toContain('POST');
   });
 
   it('uses custom polis_url when provided', () => {
@@ -150,7 +118,7 @@ describe('buildClaudeMd', () => {
     expect(unreplaced).toBeNull();
   });
 
-  it('defaults to memory-only mode (governance blocks OFF)', () => {
+  it('does not contain building blocks table (removed for treeweek)', () => {
     const result = buildClaudeMd(
       TEMPLATE,
       MOCK_GROUP,
@@ -158,27 +126,8 @@ describe('buildClaudeMd', () => {
       'https://emergentvibe.com',
     );
 
-    // Building blocks table should show OFF for governance functions
-    expect(result).toContain('| **Opinion Landscape** | OFF |');
-    expect(result).toContain('| **Synthesis** | OFF |');
-    expect(result).toContain('| **Consent** | OFF |');
-    // Memory blocks are always ON (hardcoded in template)
-    expect(result).toContain('| **Memory** | ON |');
-    expect(result).toContain('| **Sensing** | ON |');
-  });
-
-  it('enables governance blocks in full mode', () => {
-    const group = { ...MOCK_GROUP, governance_mode: 'full' as const };
-    const result = buildClaudeMd(
-      TEMPLATE,
-      group,
-      MOCK_DATA,
-      'https://emergentvibe.com',
-    );
-
-    expect(result).toContain('| **Opinion Landscape** | ON |');
-    expect(result).toContain('| **Synthesis** | ON |');
-    expect(result).toContain('| **Consent** | ON |');
+    expect(result).not.toContain('Building Blocks');
+    expect(result).not.toContain('Opinion Landscape');
   });
 });
 
@@ -376,9 +325,8 @@ describe('community intelligence template (Phase 0)', () => {
     expect(result).toContain('3+ people');
   });
 
-  it('includes connection protocol', () => {
-    expect(result).toContain('Connection');
-    expect(result).toContain('consent from both parties');
+  it('includes questions & knowledge section', () => {
+    expect(result).toContain('Questions & Knowledge');
   });
 
   it('includes "What You Never Do" section', () => {
