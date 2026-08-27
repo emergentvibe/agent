@@ -211,10 +211,15 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
 
       if (!triageResult.respond) {
         logger.info(
-          { group: group.name, reason: triageResult.reason, messageCount: missedMessages.length },
+          {
+            group: group.name,
+            reason: triageResult.reason,
+            messageCount: missedMessages.length,
+          },
           'Triage: skipping container (silence)',
         );
-        lastAgentTimestamp[chatJid] = missedMessages[missedMessages.length - 1].timestamp;
+        lastAgentTimestamp[chatJid] =
+          missedMessages[missedMessages.length - 1].timestamp;
         saveState();
         return true; // skip container
       }
@@ -382,8 +387,8 @@ async function runAgent(
   // Select model: DMs get DM_MODEL (default Sonnet), groups get GROUP_MODEL (default Haiku)
   const isDm = !isMain && group.folder.includes('-dm-');
   const model = isDm
-    ? (process.env.DM_MODEL || process.env.CLAUDE_MODEL)
-    : (process.env.GROUP_MODEL || process.env.CLAUDE_MODEL);
+    ? process.env.DM_MODEL || process.env.CLAUDE_MODEL
+    : process.env.GROUP_MODEL || process.env.CLAUDE_MODEL;
 
   try {
     const output = await runContainerAgent(

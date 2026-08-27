@@ -70,7 +70,9 @@ describe('storeMemory', () => {
       text: () => Promise.resolve('{}'),
     });
 
-    await storeMemory('schedule changed', 'community:edge', { type: 'operational' });
+    await storeMemory('schedule changed', 'community:edge', {
+      type: 'operational',
+    });
 
     const body = JSON.parse(
       (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body,

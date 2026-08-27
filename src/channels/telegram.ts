@@ -136,10 +136,7 @@ export class TelegramChannel implements Channel {
       // trigger prefix so they match TRIGGER_PATTERN in non-main groups.
       let parsedCmd: string | null = null;
       if (ctx.message.text.startsWith('/')) {
-        parsedCmd = ctx.message.text
-          .slice(1)
-          .split(/[\s@]/)[0]
-          .toLowerCase();
+        parsedCmd = ctx.message.text.slice(1).split(/[\s@]/)[0].toLowerCase();
         if (LOCAL_COMMANDS.has(parsedCmd)) return;
       }
 

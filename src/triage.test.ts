@@ -92,9 +92,7 @@ describe('triageMessages', () => {
     const client = mockClient(
       JSON.stringify({
         respond: false,
-        memories: [
-          { text: 'Alice is vegan', user_id: 'tg:user1' },
-        ],
+        memories: [{ text: 'Alice is vegan', user_id: 'tg:user1' }],
         reason: 'personal declaration, no response needed',
       }),
     );
@@ -177,7 +175,8 @@ describe('triageMessages', () => {
       'Andy',
     );
 
-    const call = (client.messages.create as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    const call = (client.messages.create as ReturnType<typeof vi.fn>).mock
+      .calls[0][0];
     expect(call.messages[0].content).toContain('[Alice]');
     expect(call.messages[0].content).toContain('[Bob]');
   });

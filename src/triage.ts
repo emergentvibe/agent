@@ -116,7 +116,10 @@ export async function triageMessages(
     const parsed = JSON.parse(textBlock.text) as TriageResult;
 
     // Validate shape
-    if (typeof parsed.respond !== 'boolean' || !Array.isArray(parsed.memories)) {
+    if (
+      typeof parsed.respond !== 'boolean' ||
+      !Array.isArray(parsed.memories)
+    ) {
       logger.warn({ parsed }, 'Triage response has invalid shape');
       return FALLBACK_RESULT;
     }
