@@ -65,8 +65,13 @@ export function buildClaudeMd(template: string, group: GroupConfig, data: Consti
   const isFullGovernance = group.governance_mode === 'full';
   const govStatus = isFullGovernance ? 'ON' : 'OFF';
 
+  const crewList = group.crew_list || `${group.admin_name || 'the bootstrapper'} (${group.admin_id || 'unknown'})`;
+  const assistantName = group.assistant_name || process.env.ASSISTANT_NAME || 'Andy';
+
   return template
     .replace(/\{\{community_name\}\}/g, group.community_name)
+    .replace(/\{\{crew_list\}\}/g, crewList)
+    .replace(/\{\{assistant_name\}\}/g, assistantName)
     .replace(/\{\{admin_id\}\}/g, group.admin_id || 'unknown')
     .replace(/\{\{admin_name\}\}/g, group.admin_name || 'the bootstrapper')
     .replace(/\{\{community_start_date\}\}/g, group.community_start_date || new Date().toISOString().split('T')[0])

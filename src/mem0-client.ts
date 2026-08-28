@@ -1,5 +1,5 @@
 /**
- * Lightweight Mem0 API client for storing memories from triage.
+ * Lightweight Mem0 API client for storing community memories.
  * Bypasses MCP — direct HTTP to Mem0 cloud API.
  */
 import { logger } from './logger.js';
@@ -54,5 +54,5 @@ export async function storeMemory(
     throw new Error(`Mem0 API error ${response.status}: ${responseText}`);
   }
 
-  logger.debug({ userId, textLength: text.length }, 'Stored triage memory');
+  logger.debug({ userId, textLength: text.length }, 'Stored memory');
 }

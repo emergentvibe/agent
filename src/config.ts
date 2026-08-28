@@ -67,6 +67,16 @@ export const TRIGGER_PATTERN = new RegExp(
   'i',
 );
 
+// Background memory extraction timing
+export const EXTRACTION_INTERVAL = parseInt(
+  process.env.EXTRACTION_INTERVAL || '300000',
+  10,
+); // 5 min
+export const EXTRACTION_WINDOW = parseInt(
+  process.env.EXTRACTION_WINDOW || '3600000',
+  10,
+); // 60 min sliding context window
+
 // Timezone for scheduled tasks (cron expressions, etc.)
 // Uses system timezone by default
 export const TIMEZONE =

@@ -41,6 +41,8 @@ const MOCK_GROUP: GroupConfig = {
   community_name: 'Test Community',
   admin_id: 'tg:admin1',
   admin_name: 'TestAdmin',
+  crew_list: 'TestAdmin (tg:admin1)',
+  assistant_name: 'Andy',
   community_start_date: '2026-03-15',
 };
 
@@ -126,19 +128,19 @@ describe('Community template (Layer 2)', () => {
     'https://emergentvibe.com',
   );
 
-  it('contains listening mode', () => {
-    expect(rendered).toContain('Listening Mode');
+  it('contains tag-only response model', () => {
+    expect(rendered).toContain('When You Speak');
     expect(rendered).toContain('silence');
   });
 
   it('contains pattern sensing', () => {
     expect(rendered).toContain('Pattern Sensing');
-    expect(rendered).toContain('3+ people');
+    expect(rendered).toContain('2+ people');
   });
 
   it('contains "What You Never Do" section', () => {
     expect(rendered).toContain('What You Never Do');
-    expect(rendered).toContain("Don't respond to every message");
+    expect(rendered).toContain("Don't respond unless addressed");
   });
 
   it('contains onboarding section with operational categories', () => {
@@ -149,10 +151,9 @@ describe('Community template (Layer 2)', () => {
     expect(rendered).toContain('contacts');
   });
 
-  it('contains crew section with admin info', () => {
+  it('contains crew section with crew list', () => {
     expect(rendered).toContain('Crew');
-    expect(rendered).toContain('TestAdmin');
-    expect(rendered).toContain('tg:admin1');
+    expect(rendered).toContain('TestAdmin (tg:admin1)');
   });
 
   it('contains epistemic markers', () => {
@@ -300,9 +301,9 @@ describe('Cross-layer separation', () => {
     expect(DM_TEMPLATE).not.toContain('NEVER use markdown');
   });
 
-  it('listening mode only in community template', () => {
-    expect(COMMUNITY_TEMPLATE).toContain('Listening Mode');
-    expect(GLOBAL_CLAUDE_MD).not.toContain('Listening Mode');
-    expect(DM_TEMPLATE).not.toContain('Listening Mode');
+  it('response model only in community template', () => {
+    expect(COMMUNITY_TEMPLATE).toContain('When You Speak');
+    expect(GLOBAL_CLAUDE_MD).not.toContain('When You Speak');
+    expect(DM_TEMPLATE).not.toContain('When You Speak');
   });
 });

@@ -29,6 +29,8 @@ const MOCK_GROUP: GroupConfig = {
   folder: 'telegram_test',
   slug: 'test-community',
   community_name: 'Test Community',
+  crew_list: 'Jordan (tg:crew1)',
+  assistant_name: 'Andy',
 };
 
 const MOCK_DATA: ConstitutionData = {
@@ -315,23 +317,28 @@ describe('community intelligence template (Phase 0)', () => {
     'https://emergentvibe.com',
   );
 
-  it('defines listening mode as default', () => {
-    expect(result).toContain('Listening Mode');
+  it('defines tag-only response model', () => {
+    expect(result).toContain('When You Speak');
     expect(result).toContain('silence');
+    expect(result).toContain('@Andy');
   });
 
   it('includes pattern sensing instructions', () => {
     expect(result).toContain('Pattern Sensing');
-    expect(result).toContain('3+ people');
+    expect(result).toContain('2+ people');
   });
 
-  it('includes questions & knowledge section', () => {
-    expect(result).toContain('Questions & Knowledge');
+  it('includes operational change history', () => {
+    expect(result).toContain('Was X, now Y per Z');
   });
 
   it('includes "What You Never Do" section', () => {
     expect(result).toContain('What You Never Do');
-    expect(result).toContain("Don't respond to every message");
+    expect(result).toContain("Don't respond unless addressed");
+  });
+
+  it('includes crew list', () => {
+    expect(result).toContain('Jordan (tg:crew1)');
   });
 });
 

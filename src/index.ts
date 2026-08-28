@@ -68,8 +68,8 @@ import { syncAll } from '../governance/sync/constitution-sync.js';
 import { startSchedulerLoop } from './task-scheduler.js';
 import { Channel, NewMessage, RegisteredGroup } from './types.js';
 import { logger } from './logger.js';
-import { triageMessages } from './triage.js';
 import { storeMemory } from './mem0-client.js';
+import { startExtractionLoop } from './extraction.js';
 
 // Re-export for backwards compatibility during refactor
 export { escapeXml, formatMessages } from './router.js';
@@ -179,8 +179,8 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
 
   if (missedMessages.length === 0) return true;
 
-  // For non-main groups, check if trigger is required and present
-  if (!isMainGroup && group.requiresTrigger !== false) {
+  // All groups (except DMs with requiresTrigger:false) need @bot or /slash trigger
+  if (group.requiresTrigger !== false) {
     const allowlistCfg = loadSenderAllowlist();
     const hasTrigger = missedMessages.some(
       (m) =>
@@ -188,45 +188,6 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
         (m.is_from_me || isTriggerAllowed(chatJid, m.sender, allowlistCfg)),
     );
     if (!hasTrigger) return true;
-  }
-
-  // Two-tier triage: classify messages before spawning an expensive container.
-  // Only for main group (always-on, no trigger). Non-main groups already have trigger gating.
-  if (isMainGroup && process.env.TRIAGE_ENABLED !== '0') {
-    try {
-      const communitySlug = group.folder; // folder name as slug fallback
-      const triageResult = await triageMessages(
-        missedMessages,
-        communitySlug,
-        group.name,
-        ASSISTANT_NAME,
-      );
-
-      // Store extracted memories regardless of respond decision
-      for (const mem of triageResult.memories) {
-        storeMemory(mem.text, mem.user_id, mem.metadata).catch((err) =>
-          logger.warn({ err }, 'Failed to store triage memory'),
-        );
-      }
-
-      if (!triageResult.respond) {
-        logger.info(
-          {
-            group: group.name,
-            reason: triageResult.reason,
-            messageCount: missedMessages.length,
-          },
-          'Triage: skipping container (silence)',
-        );
-        lastAgentTimestamp[chatJid] =
-          missedMessages[missedMessages.length - 1].timestamp;
-        saveState();
-        return true; // skip container
-      }
-    } catch (err) {
-      // Fail open — if triage breaks, still respond
-      logger.error({ err }, 'Triage error — proceeding to container');
-    }
   }
 
   const prompt = formatMessages(missedMessages, TIMEZONE);
@@ -476,7 +437,7 @@ async function startMessageLoop(): Promise<void> {
           }
 
           const isMainGroup = group.isMain === true;
-          const needsTrigger = !isMainGroup && group.requiresTrigger !== false;
+          const needsTrigger = group.requiresTrigger !== false;
 
           // For non-main groups, only act on trigger messages.
           // Non-trigger messages accumulate in DB and get pulled as
@@ -793,6 +754,13 @@ async function main(): Promise<void> {
     },
   });
   queue.setProcessMessagesFn(processGroupMessages);
+
+  // Background memory extraction from group chat (runs on interval, no container)
+  startExtractionLoop({
+    registeredGroups: () => registeredGroups,
+    assistantName: ASSISTANT_NAME,
+  });
+
   recoverPendingMessages();
   startMessageLoop().catch((err) => {
     logger.fatal({ err }, 'Message loop crashed unexpectedly');
