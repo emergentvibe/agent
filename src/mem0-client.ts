@@ -56,3 +56,50 @@ export async function storeMemory(
 
   logger.debug({ userId, textLength: text.length }, 'Stored memory');
 }
+
+export interface Mem0Memory {
+  id: string;
+  memory: string;
+  user_id: string;
+  metadata?: Record<string, unknown>;
+  created_at?: string;
+}
+
+export async function searchMemories(
+  query: string,
+  userId: string,
+): Promise<Mem0Memory[]> {
+  const key = getApiKey();
+  if (!key) return [];
+
+  const response = await fetch('https://api.mem0.ai/v1/memories/search/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Token ${key}`,
+    },
+    body: JSON.stringify({ query, user_id: userId }),
+  });
+
+  if (!response.ok) return [];
+
+  const data = (await response.json()) as { results?: Mem0Memory[] };
+  return data.results || [];
+}
+
+export async function deleteMemoriesByUser(userId: string): Promise<void> {
+  const key = getApiKey();
+  if (!key) return;
+
+  const response = await fetch(
+    `https://api.mem0.ai/v1/memories/?user_id=${encodeURIComponent(userId)}`,
+    {
+      method: 'DELETE',
+      headers: { Authorization: `Token ${key}` },
+    },
+  );
+
+  if (!response.ok) {
+    logger.warn({ userId, status: response.status }, 'Failed to delete memories');
+  }
+}

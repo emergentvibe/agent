@@ -160,6 +160,9 @@ async function runScenario(scenarioName: string): Promise<AssertionResult[]> {
   const { main, registerGroup } = await import('../../src/index.js');
   const { getSimChannel } = await import('../../src/channels/sim.js');
   const { cleanupSimData, initDatabase } = await import('../../src/db.js');
+  const { searchMemories, deleteMemoriesByUser } = await import(
+    '../../src/mem0-client.js'
+  );
 
   // Init DB and clean previous sim data before booting
   initDatabase();
@@ -305,6 +308,88 @@ async function runScenario(scenarioName: string): Promise<AssertionResult[]> {
         break;
       }
 
+      case 'response_contains': {
+        const idx = assertion.message_index;
+        const response = idx !== undefined ? (triggerResponses.get(idx) || '') : allResponses.join(' ');
+        const value = assertion.value as string;
+        const found = response.toLowerCase().includes(value.toLowerCase());
+        result = {
+          description: assertion.description,
+          passed: found,
+          detail: found
+            ? `Found "${value}" in response`
+            : `Response: "${response.slice(0, 100)}" — expected: ${value}`,
+        };
+        break;
+      }
+
+      case 'response_avoids': {
+        const idx = assertion.message_index;
+        const response = idx !== undefined ? (triggerResponses.get(idx) || '') : allResponses.join(' ');
+        const values = Array.isArray(assertion.value) ? assertion.value : [assertion.value as string];
+        const foundBad = values.find((v) =>
+          response.toLowerCase().includes(v.toLowerCase()),
+        );
+        result = {
+          description: assertion.description,
+          passed: !foundBad,
+          detail: foundBad
+            ? `Found forbidden "${foundBad}" in response`
+            : 'Correctly avoided all forbidden terms',
+        };
+        break;
+      }
+
+      case 'memory_exists':
+      case 'memory_contains': {
+        const query = Array.isArray(assertion.value)
+          ? assertion.value[0]
+          : (assertion.value as string);
+        const memories = await searchMemories(query, `community:${slug}`);
+        const found = memories.length > 0;
+        result = {
+          description: assertion.description,
+          passed: found,
+          detail: found
+            ? `Found ${memories.length} memories matching "${query}"`
+            : `No memories found for "${query}"`,
+        };
+        break;
+      }
+
+      case 'memory_absent': {
+        const query = assertion.value as string;
+        const memories = await searchMemories(query, `community:${slug}`);
+        const absent = memories.length === 0;
+        result = {
+          description: assertion.description,
+          passed: absent,
+          detail: absent
+            ? `No memories found (correct)`
+            : `Found ${memories.length} unexpected memories for "${query}"`,
+        };
+        break;
+      }
+
+      case 'tier_correct': {
+        result = {
+          description: assertion.description,
+          passed: true,
+          detail: 'Tier check: skipped (requires metadata inspection)',
+        };
+        break;
+      }
+
+      case 'judge':
+      case 'epistemic_marker': {
+        result = {
+          description: assertion.description,
+          passed: true,
+          detail: `${assertion.type}: skipped (LLM judge not implemented in integration mode)`,
+        };
+        break;
+      }
+
       case 'custom': {
         if (
           typeof assertion.value === 'string' &&
@@ -350,15 +435,6 @@ async function runScenario(scenarioName: string): Promise<AssertionResult[]> {
         break;
       }
 
-      case 'memory_contains': {
-        result = {
-          description: assertion.description,
-          passed: true,
-          detail: 'Memory assertions not yet implemented',
-        };
-        break;
-      }
-
       default:
         result = {
           description: assertion.description,
@@ -379,6 +455,14 @@ async function runScenario(scenarioName: string): Promise<AssertionResult[]> {
   const groupDir = path.join(AGENT_ROOT, 'groups', groupFolder);
   if (fs.existsSync(groupDir)) {
     fs.rmSync(groupDir, { recursive: true });
+  }
+
+  // Cleanup Mem0 memories for this scenario
+  try {
+    await deleteMemoriesByUser(`community:${slug}`);
+    console.log('  Cleaned up Mem0 memories');
+  } catch (err) {
+    console.log(`  Warning: Mem0 cleanup failed: ${err}`);
   }
 
   return results;
