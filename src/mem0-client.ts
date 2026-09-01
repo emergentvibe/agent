@@ -83,8 +83,8 @@ export async function searchMemories(
 
   if (!response.ok) return [];
 
-  const data = (await response.json()) as { results?: Mem0Memory[] };
-  return data.results || [];
+  const data = (await response.json()) as Mem0Memory[] | { results?: Mem0Memory[] };
+  return Array.isArray(data) ? data : data.results || [];
 }
 
 export async function deleteMemoriesByUser(userId: string): Promise<void> {
@@ -100,6 +100,9 @@ export async function deleteMemoriesByUser(userId: string): Promise<void> {
   );
 
   if (!response.ok) {
-    logger.warn({ userId, status: response.status }, 'Failed to delete memories');
+    logger.warn(
+      { userId, status: response.status },
+      'Failed to delete memories',
+    );
   }
 }

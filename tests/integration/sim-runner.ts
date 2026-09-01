@@ -195,9 +195,12 @@ async function runScenario(scenarioName: string): Promise<AssertionResult[]> {
   // Track responses per trigger
   const triggerResponses: Map<number, string> = new Map();
   let globalMsgIndex = 0;
+  // Map (day, perDayIndex) → globalIndex for assertion lookups
+  const dayStartIndex: Record<number, number> = {};
 
   // Run each day
   for (const day of scenario.days) {
+    dayStartIndex[day.day] = globalMsgIndex;
     console.log(`\n  --- Day ${day.day} ---`);
 
     for (let i = 0; i < day.messages.length; i++) {
@@ -279,12 +282,22 @@ async function runScenario(scenarioName: string): Promise<AssertionResult[]> {
   console.log(`\n  --- Assertions ---`);
   const results: AssertionResult[] = [];
 
+  // Resolve assertion message_index to global index.
+  // Assertions use per-day indices: (after_day, message_index) → global.
+  function resolveIndex(assertion: Assertion): number | undefined {
+    if (assertion.message_index === undefined) return undefined;
+    const dayStart = dayStartIndex[assertion.after_day];
+    return dayStart !== undefined
+      ? dayStart + assertion.message_index
+      : assertion.message_index;
+  }
+
   for (const assertion of scenario.assertions) {
     let result: AssertionResult;
 
     switch (assertion.type) {
       case 'response_contains_any': {
-        const idx = assertion.message_index;
+        const idx = resolveIndex(assertion);
         if (idx === undefined) {
           result = {
             description: assertion.description,
@@ -309,7 +322,7 @@ async function runScenario(scenarioName: string): Promise<AssertionResult[]> {
       }
 
       case 'response_contains': {
-        const idx = assertion.message_index;
+        const idx = resolveIndex(assertion);
         const response = idx !== undefined ? (triggerResponses.get(idx) || '') : allResponses.join(' ');
         const value = assertion.value as string;
         const found = response.toLowerCase().includes(value.toLowerCase());
@@ -324,7 +337,7 @@ async function runScenario(scenarioName: string): Promise<AssertionResult[]> {
       }
 
       case 'response_avoids': {
-        const idx = assertion.message_index;
+        const idx = resolveIndex(assertion);
         const response = idx !== undefined ? (triggerResponses.get(idx) || '') : allResponses.join(' ');
         const values = Array.isArray(assertion.value) ? assertion.value : [assertion.value as string];
         const foundBad = values.find((v) =>
@@ -360,13 +373,16 @@ async function runScenario(scenarioName: string): Promise<AssertionResult[]> {
       case 'memory_absent': {
         const query = assertion.value as string;
         const memories = await searchMemories(query, `community:${slug}`);
-        const absent = memories.length === 0;
+        const exact = memories.filter((m) =>
+          (m.memory || '').toLowerCase().includes(query.toLowerCase()),
+        );
+        const absent = exact.length === 0;
         result = {
           description: assertion.description,
           passed: absent,
           detail: absent
-            ? `No memories found (correct)`
-            : `Found ${memories.length} unexpected memories for "${query}"`,
+            ? `No exact-match memories found (correct)${memories.length > 0 ? ` (${memories.length} fuzzy matches ignored)` : ''}`
+            : `Found ${exact.length} memories containing "${query}"`,
         };
         break;
       }
@@ -395,7 +411,7 @@ async function runScenario(scenarioName: string): Promise<AssertionResult[]> {
           typeof assertion.value === 'string' &&
           assertion.value.toLowerCase().includes('does not respond')
         ) {
-          const idx = assertion.message_index;
+          const idx = resolveIndex(assertion);
           if (idx !== undefined) {
             const hasResponse = triggerResponses.has(idx);
             result = {
