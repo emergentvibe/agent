@@ -26,7 +26,7 @@ export async function fetchConstitution(apiUrl: string, slug: string): Promise<C
       console.error(`Failed to fetch constitution ${slug}: ${res.status}`);
       return null;
     }
-    return await res.json();
+    return await res.json() as ConstitutionData;
   } catch (err) {
     console.error(`Error fetching constitution ${slug}:`, err);
     return null;

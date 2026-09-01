@@ -168,8 +168,8 @@ describe('extractMemories', () => {
 
     await extractMemories(newMsgs, contextMsgs, 'test-slug', 'Test Group');
 
-    const createCall = (client.messages.create as ReturnType<typeof vi.fn>)
-      .mock.calls[0][0];
+    const createCall = (client.messages.create as ReturnType<typeof vi.fn>).mock
+      .calls[0][0];
     const promptContent = createCall.messages[0].content;
     expect(promptContent).toContain('CONTEXT');
     expect(promptContent).toContain('Context from earlier');

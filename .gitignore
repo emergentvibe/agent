@@ -5,8 +5,8 @@ node_modules/
 dist/
 governance/sync/*.d.ts
 governance/sync/*.d.ts.map
+governance/sync/*.js
 governance/sync/*.js.map
-governance/sync/config.js
 
 # Local data & auth
 store/

@@ -255,7 +255,7 @@ async function listMemories(
     throw new Error(`Mem0 list failed (${res.status}): ${body}`);
   }
 
-  const data = await res.json();
+  const data: any = await res.json();
   return (data.results || data || []).map((r: any) => ({
     id: r.id,
     memory: r.memory,
@@ -296,7 +296,7 @@ async function searchMemories(
     throw new Error(`Mem0 search failed (${res.status}): ${body}`);
   }
 
-  const data = await res.json();
+  const data: any = await res.json();
   return (data.results || data || []).map((r: any) => ({
     id: r.id,
     memory: r.memory,
