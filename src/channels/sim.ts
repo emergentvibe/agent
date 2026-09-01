@@ -80,7 +80,12 @@ class SimChannel implements Channel {
   waitForResponse(jid: string, timeoutMs: number = 120_000): Promise<string> {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(
-        () => reject(new Error(`SimChannel: no response on ${jid} within ${timeoutMs}ms`)),
+        () =>
+          reject(
+            new Error(
+              `SimChannel: no response on ${jid} within ${timeoutMs}ms`,
+            ),
+          ),
         timeoutMs,
       );
       if (!this.waiters.has(jid)) this.waiters.set(jid, []);

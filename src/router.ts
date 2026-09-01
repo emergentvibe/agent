@@ -23,7 +23,9 @@ export function formatMessages(
   // header is consistent with message timestamps.
   const latest = messages[messages.length - 1];
   const refDate = latest ? new Date(latest.timestamp) : new Date();
-  const currentDate = refDate.toLocaleDateString('en-CA', { timeZone: timezone }); // YYYY-MM-DD
+  const currentDate = refDate.toLocaleDateString('en-CA', {
+    timeZone: timezone,
+  }); // YYYY-MM-DD
   const currentDay = refDate.toLocaleDateString('en-US', {
     timeZone: timezone,
     weekday: 'long',
