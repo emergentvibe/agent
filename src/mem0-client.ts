@@ -83,7 +83,9 @@ export async function searchMemories(
 
   if (!response.ok) return [];
 
-  const data = (await response.json()) as Mem0Memory[] | { results?: Mem0Memory[] };
+  const data = (await response.json()) as
+    | Mem0Memory[]
+    | { results?: Mem0Memory[] };
   return Array.isArray(data) ? data : data.results || [];
 }
 

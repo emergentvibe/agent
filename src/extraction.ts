@@ -146,7 +146,9 @@ export async function extractMemories(
     try {
       parsed = JSON.parse(jsonMatch[0]) as ExtractionMemory[];
     } catch {
-      const codeBlock = textBlock.text.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+      const codeBlock = textBlock.text.match(
+        /```(?:json)?\s*(\[[\s\S]*?\])\s*```/,
+      );
       if (codeBlock) {
         parsed = JSON.parse(codeBlock[1]) as ExtractionMemory[];
       } else {

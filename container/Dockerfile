@@ -70,7 +70,7 @@ USER node
 
 # Pre-install mem0-mcp-server as node user so uvx/uv tool doesn't download on every run
 # This puts the binary at /home/node/.local/bin/mem0-mcp-server
-RUN uv tool install mem0-mcp-server
+RUN uv tool install 'mem0-mcp-server' --with 'mcp<2'
 ENV PATH="/home/node/.local/bin:$PATH"
 
 # Set working directory to group workspace

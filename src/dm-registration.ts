@@ -107,8 +107,8 @@ export function findCommunityForUser(
   findSenderInGroup: (chatJid: string, senderJid: string) => boolean,
 ): CommunityMatch | null {
   for (const [jid, group] of Object.entries(registeredGroups)) {
-    // Skip DM folders (but not main group — it can also be a community)
-    if (group.folder.includes('-dm-')) continue;
+    // Only community (main) groups are valid matches — skip DMs and sub-groups
+    if (group.isMain !== true) continue;
 
     if (findSenderInGroup(jid, senderJid)) {
       // Extract slug from the community CLAUDE.md if it exists
