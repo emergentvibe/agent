@@ -5,7 +5,7 @@ export interface GroupConfig {
   polis_url?: string;
   admin_id?: string;
   admin_name?: string;
-  /** Crew list rendered into templates. Falls back to admin_name (admin_id). */
+  /** Crew members rendered into templates. Separate from admin — crew are event organizers. */
   crew_list?: string;
   /** Bot name used for @mentions. Falls back to ASSISTANT_NAME env var. */
   assistant_name?: string;

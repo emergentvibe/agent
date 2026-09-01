@@ -172,7 +172,6 @@ describe('writeDmClaudeMd', () => {
     );
     expect(content).toContain('Bob');
     expect(content).toContain('My Community');
-    expect(content).toContain('tg:456');
     expect(content).toContain('community:my-community');
   });
 });

@@ -383,7 +383,13 @@ export function getMessagesInTimeRange(
   `;
   return db
     .prepare(sql)
-    .all(chatJid, fromTimestamp, toTimestamp, `${botPrefix}:%`, limit) as NewMessage[];
+    .all(
+      chatJid,
+      fromTimestamp,
+      toTimestamp,
+      `${botPrefix}:%`,
+      limit,
+    ) as NewMessage[];
 }
 
 export function createTask(

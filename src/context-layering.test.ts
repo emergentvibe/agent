@@ -239,8 +239,7 @@ describe('DM template (Layer 3)', () => {
     expect(rendered).toContain('Always respond');
   });
 
-  it('includes personal + community memory search', () => {
-    expect(rendered).toContain('tg:123');
+  it('includes community memory search', () => {
     expect(rendered).toContain('community:test-village');
   });
 

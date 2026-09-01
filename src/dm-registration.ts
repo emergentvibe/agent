@@ -43,7 +43,7 @@ export function buildDmClaudeMd(
   userName: string,
   userId: string,
   slug: string,
-  adminId?: string,
+  crewList?: string,
   communityStartDate?: string,
 ): string {
   const template = fs.readFileSync(DM_TEMPLATE_PATH, 'utf-8');
@@ -52,7 +52,7 @@ export function buildDmClaudeMd(
     .replace(/\{\{user_name\}\}/g, userName)
     .replace(/\{\{user_id\}\}/g, userId)
     .replace(/\{\{slug\}\}/g, slug)
-    .replace(/\{\{admin_id\}\}/g, adminId || 'unknown')
+    .replace(/\{\{crew_list\}\}/g, crewList || 'the crew')
     .replace(
       /\{\{community_start_date\}\}/g,
       communityStartDate || new Date().toISOString().split('T')[0],
@@ -68,7 +68,7 @@ export function writeDmClaudeMd(
   userName: string,
   userId: string,
   slug: string,
-  adminId?: string,
+  crewList?: string,
   communityStartDate?: string,
 ): void {
   const dmDir = resolveGroupFolderPath(dmFolder);
@@ -79,7 +79,7 @@ export function writeDmClaudeMd(
     userName,
     userId,
     slug,
-    adminId,
+    crewList,
     communityStartDate,
   );
   fs.writeFileSync(path.join(dmDir, 'CLAUDE.md'), content, 'utf-8');

@@ -65,7 +65,7 @@ export function buildClaudeMd(template: string, group: GroupConfig, data: Consti
   const isFullGovernance = group.governance_mode === 'full';
   const govStatus = isFullGovernance ? 'ON' : 'OFF';
 
-  const crewList = group.crew_list || `${group.admin_name || 'the bootstrapper'} (${group.admin_id || 'unknown'})`;
+  const crewList = group.crew_list || 'the crew';
   const assistantName = group.assistant_name || process.env.ASSISTANT_NAME || 'Andy';
 
   return template

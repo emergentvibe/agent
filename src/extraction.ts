@@ -61,9 +61,10 @@ function buildExtractionPrompt(
   contextMessages: NewMessage[],
   newMessages: NewMessage[],
 ): string {
-  const contextBlock = contextMessages.length > 0
-    ? `## CONTEXT (recent messages for reference — do NOT extract from these)\n${formatMessagesForExtraction(contextMessages)}\n\n`
-    : '';
+  const contextBlock =
+    contextMessages.length > 0
+      ? `## CONTEXT (recent messages for reference — do NOT extract from these)\n${formatMessagesForExtraction(contextMessages)}\n\n`
+      : '';
 
   return `You extract community knowledge from group chat messages for "${groupName}".
 Your output will be stored in a semantic search database for future retrieval.
