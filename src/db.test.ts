@@ -6,6 +6,7 @@ import {
   deleteTask,
   getAllChats,
   getAllRegisteredGroups,
+  getMessagesBefore,
   getMessagesSince,
   getNewMessages,
   getTaskById,
@@ -446,6 +447,31 @@ describe('message query LIMIT', () => {
       50,
     );
     expect(messages).toHaveLength(10);
+  });
+
+  it('getMessagesBefore returns N most recent messages before timestamp', () => {
+    const messages = getMessagesBefore(
+      'group@g.us',
+      '2024-01-01T00:00:06.000Z',
+      'Andy',
+      3,
+    );
+    expect(messages).toHaveLength(3);
+    expect(messages[0].content).toBe('message 4');
+    expect(messages[2].content).toBe('message 6');
+    expect(messages[0].timestamp < messages[1].timestamp).toBe(true);
+  });
+
+  it('getMessagesBefore returns all when fewer than limit exist', () => {
+    const messages = getMessagesBefore(
+      'group@g.us',
+      '2024-01-01T00:00:03.000Z',
+      'Andy',
+      10,
+    );
+    expect(messages).toHaveLength(3);
+    expect(messages[0].content).toBe('message 1');
+    expect(messages[2].content).toBe('message 3');
   });
 });
 

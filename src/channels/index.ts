@@ -7,6 +7,9 @@
 
 // slack
 
+// sim (integration testing — activated by SIM_MODE=1)
+import './sim.js';
+
 // telegram
 import './telegram.js';
 

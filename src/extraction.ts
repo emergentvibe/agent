@@ -5,8 +5,13 @@
  */
 import Anthropic from '@anthropic-ai/sdk';
 
-import { EXTRACTION_INTERVAL, EXTRACTION_WINDOW } from './config.js';
 import {
+  EXTRACTION_INTERVAL,
+  EXTRACTION_WINDOW,
+  MIN_CONTEXT_MESSAGES,
+} from './config.js';
+import {
+  getMessagesBefore,
   getMessagesInTimeRange,
   getMessagesSince,
   getRouterState,
@@ -197,8 +202,10 @@ async function runExtractionCycle(deps: ExtractionLoopDeps): Promise<void> {
 
     if (newMessages.length === 0) continue;
 
-    // Context: messages from the sliding window that were already extracted
-    const contextMessages = lastExtracted
+    // Context: messages from the sliding window that were already extracted.
+    // Falls back to last N messages if the time window is too narrow (e.g.,
+    // conversation gap > EXTRACTION_WINDOW, or synthetic timestamps in sim).
+    let contextMessages = lastExtracted
       ? getMessagesInTimeRange(
           chatJid,
           windowStart,
@@ -206,6 +213,15 @@ async function runExtractionCycle(deps: ExtractionLoopDeps): Promise<void> {
           deps.assistantName,
         )
       : [];
+
+    if (contextMessages.length < MIN_CONTEXT_MESSAGES && lastExtracted) {
+      contextMessages = getMessagesBefore(
+        chatJid,
+        lastExtracted,
+        deps.assistantName,
+        MIN_CONTEXT_MESSAGES,
+      );
+    }
 
     logger.info(
       {

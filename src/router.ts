@@ -19,10 +19,12 @@ export function formatMessages(
     return `<message sender="${escapeXml(m.sender_name)}" sender_id="${escapeXml(m.sender)}" time="${escapeXml(displayTime)}">${escapeXml(m.content)}</message>`;
   });
 
-  // Compute current date/day in the community's timezone
-  const now = new Date();
-  const currentDate = now.toLocaleDateString('en-CA', { timeZone: timezone }); // YYYY-MM-DD
-  const currentDay = now.toLocaleDateString('en-US', {
+  // Derive date from the latest message (not wall clock) so the context
+  // header is consistent with message timestamps.
+  const latest = messages[messages.length - 1];
+  const refDate = latest ? new Date(latest.timestamp) : new Date();
+  const currentDate = refDate.toLocaleDateString('en-CA', { timeZone: timezone }); // YYYY-MM-DD
+  const currentDay = refDate.toLocaleDateString('en-US', {
     timeZone: timezone,
     weekday: 'long',
   });

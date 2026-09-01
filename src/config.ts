@@ -76,6 +76,10 @@ export const EXTRACTION_WINDOW = parseInt(
   process.env.EXTRACTION_WINDOW || '3600000',
   10,
 ); // 60 min sliding context window
+export const MIN_CONTEXT_MESSAGES = parseInt(
+  process.env.MIN_CONTEXT_MESSAGES || '20',
+  10,
+);
 
 // Timezone for scheduled tasks (cron expressions, etc.)
 // Uses system timezone by default
