@@ -8,15 +8,20 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { config as loadEnv } from 'dotenv';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const AGENT_ROOT = path.resolve(__dirname, '../..');
 const SIM_ROOT = path.resolve(AGENT_ROOT, '../sim');
 const SCENARIOS_DIR = path.join(SIM_ROOT, 'scenarios');
 
+// Load .env from agent root (API keys etc) before anything else
+loadEnv({ path: path.join(AGENT_ROOT, '.env') });
+
 // --- Env setup (must happen before any agent imports) ---
 
 process.env.SIM_MODE = '1';
+process.env.ASSISTANT_NAME = 'Andy';
 process.env.POLL_INTERVAL = '1000';
 process.env.EXTRACTION_INTERVAL = '5000';
 process.env.EXTRACTION_WINDOW = '60000';
@@ -154,6 +159,12 @@ async function runScenario(scenarioName: string): Promise<AssertionResult[]> {
   // Dynamic imports after env setup
   const { main, registerGroup } = await import('../../src/index.js');
   const { getSimChannel } = await import('../../src/channels/sim.js');
+  const { cleanupSimData, initDatabase } = await import('../../src/db.js');
+
+  // Init DB and clean previous sim data before booting
+  initDatabase();
+  cleanupSimData();
+  console.log('  Cleaned previous sim data from DB');
 
   // Boot the system
   console.log('  Booting agent system...');

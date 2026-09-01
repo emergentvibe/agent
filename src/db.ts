@@ -768,3 +768,30 @@ function migrateJsonState(): void {
     }
   }
 }
+
+export function cleanupSimData(): void {
+  db.prepare("DELETE FROM messages WHERE chat_jid LIKE 'sim:%'").run();
+  db.prepare("DELETE FROM chats WHERE jid LIKE 'sim:%'").run();
+  db.prepare("DELETE FROM registered_groups WHERE jid LIKE 'sim:%'").run();
+  db.prepare("DELETE FROM sessions WHERE group_folder LIKE 'sim-%'").run();
+
+  for (const key of ['last_agent_timestamp', 'last_extraction_timestamp']) {
+    const raw = getRouterState(key);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Record<string, string>;
+      for (const k of Object.keys(parsed)) {
+        if (k.startsWith('sim:')) delete parsed[k];
+      }
+      setRouterState(key, JSON.stringify(parsed));
+    }
+  }
+
+  const maxTs = db
+    .prepare(
+      "SELECT MAX(timestamp) as ts FROM messages WHERE chat_jid NOT LIKE 'sim:%'",
+    )
+    .get() as { ts: string | null } | undefined;
+  setRouterState('last_timestamp', maxTs?.ts || '');
+
+  logger.info('Cleaned sim data from database');
+}

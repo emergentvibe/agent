@@ -142,7 +142,21 @@ export async function extractMemories(
       return { memories: [] };
     }
 
-    const parsed = JSON.parse(jsonMatch[0]) as ExtractionMemory[];
+    let parsed: ExtractionMemory[];
+    try {
+      parsed = JSON.parse(jsonMatch[0]) as ExtractionMemory[];
+    } catch {
+      const codeBlock = textBlock.text.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/);
+      if (codeBlock) {
+        parsed = JSON.parse(codeBlock[1]) as ExtractionMemory[];
+      } else {
+        logger.warn(
+          { raw: jsonMatch[0].slice(0, 200) },
+          'Extraction returned unparseable JSON',
+        );
+        return { memories: [] };
+      }
+    }
     if (!Array.isArray(parsed)) {
       logger.warn('Extraction response is not an array');
       return { memories: [] };
