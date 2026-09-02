@@ -22,11 +22,15 @@ When making a decision, these are the priorities in order:
 
 ## Architecture
 
-Single Node.js process with skill-based channel system. Channels (Telegram currently) self-register at startup. Messages route to Claude Agent SDK running in ephemeral Docker containers. Each group has isolated filesystem and memory. Community knowledge lives in Mem0 under a single shared namespace — no personal namespaces.
+Single Node.js process with skill-based channel system. Channels (Telegram currently) self-register at startup. Messages route to Claude Agent SDK running in ephemeral Docker containers. Each group has isolated filesystem and memory. Community knowledge lives in Mem0 under a single shared namespace — no personal namespaces. DM containers can search Mem0 but never write to it (enforced by `allowedTools` in agent-runner).
 
-The community intelligence layer is ours (`governance/`, `knowledge/`, `src/triage.ts`, `src/mem0-client.ts`, `src/seed.ts`, `src/dm-registration.ts`). The runtime (IPC, containers, queue, routing) is upstream NanoClaw.
+A background extraction loop (`src/extraction.ts`) runs every 5 minutes, using Haiku to process group messages and store facts, introductions, wishes, patterns, and concerns to Mem0. `MIN_CONTEXT_MESSAGES=20` ensures cross-batch context even when messages are spaced far apart.
 
-There's a simulation framework at `../sim/` for testing behavioral design with multi-day persona scenarios.
+Per-group feature flags (`src/feature-config.ts`) control which commands and behaviors are active. Phase C features (escalation, crew digest, subscriptions) default to off and are enabled via `groups/{name}/features.json`.
+
+The community intelligence layer is ours (`governance/`, `knowledge/`, `src/triage.ts`, `src/mem0-client.ts`, `src/seed.ts`, `src/dm-registration.ts`, `src/extraction.ts`, `src/feature-config.ts`, `src/crew.ts`, `src/digest.ts`, `src/subscriptions.ts`). The runtime (IPC, containers, queue, routing) is upstream NanoClaw.
+
+There's a 27-scenario integration sim framework (`tests/integration/sim-runner.ts` + `../sim/scenarios/`) that replaces Telegram with a SimChannel but runs everything else as production code — Docker, Mem0, extraction, IPC.
 
 ## Key Files
 
@@ -34,14 +38,24 @@ There's a simulation framework at `../sim/` for testing behavioral design with m
 |------|---------|
 | `src/index.ts` | Orchestrator: state, message loop, agent invocation |
 | `src/channels/registry.ts` | Channel registry (self-registration at startup) |
-| `src/ipc.ts` | IPC watcher and task processing |
+| `src/ipc.ts` | IPC watcher, task processing, escalation storage |
 | `src/router.ts` | Message formatting and outbound routing |
 | `src/config.ts` | Trigger pattern, paths, intervals |
 | `src/container-runner.ts` | Spawns agent containers with mounts |
+| `src/extraction.ts` | Background memory extraction loop (Haiku) |
+| `src/feature-config.ts` | Per-group feature flags (commands + behaviors) |
+| `src/crew.ts` | Crew member management |
+| `src/digest.ts` | Daily and crew digest generation |
+| `src/subscriptions.ts` | Topic subscription + extraction-driven notification |
+| `src/dm-registration.ts` | DM auto-registration + community lookup |
+| `src/triage.ts` | Message triage classifier (Haiku) |
+| `src/mem0-client.ts` | Mem0 HTTP client |
 | `src/task-scheduler.ts` | Runs scheduled tasks |
 | `src/db.ts` | SQLite operations |
-| `groups/{name}/CLAUDE.md` | Per-group memory (isolated) |
-| `container/skills/agent-browser.md` | Browser automation tool (available to all agents via Bash) |
+| `groups/{name}/CLAUDE.md` | Per-group agent instructions (isolated) |
+| `groups/{name}/features.json` | Per-group feature toggles |
+| `tests/integration/sim-runner.ts` | 27-scenario integration sim runner |
+| `container/agent-runner/src/index.ts` | Agent runner inside Docker (tool filtering, IPC) |
 
 ## Skills
 
@@ -61,7 +75,12 @@ Run commands directly—don't tell the user to run them.
 ```bash
 npm run dev          # Run with hot reload
 npm run build        # Compile TypeScript
+npm test             # Run unit tests (501 pass, 17 pre-existing failures)
 ./container/build.sh # Rebuild agent container
+
+# Integration sims (requires Docker + ANTHROPIC_API_KEY + MEM0_API_KEY)
+SIM_MODE=1 npx tsx tests/integration/sim-runner.ts <scenario-name>
+./tests/integration/run-all.sh  # all 27 scenarios (~100 min)
 ```
 
 Service management:

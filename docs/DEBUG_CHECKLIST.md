@@ -1,6 +1,6 @@
 # NanoClaw Debug Checklist
 
-## Known Issues (2026-02-08)
+## Known Issues (upstream NanoClaw)
 
 ### 1. [FIXED] Resume branches from stale tree position
 When agent teams spawns subagent CLI processes, they write to the same session JSONL. On subsequent `query()` resumes, the CLI reads the JSONL but may pick a stale branch tip (from before the subagent activity), causing the agent's response to land on a branch the host never receives a `result` for. **Fix**: pass `resumeSessionAt` with the last assistant message UUID to explicitly anchor each resume.
@@ -27,10 +27,7 @@ container ls -a --format '{{.Names}} {{.Status}}' 2>/dev/null | grep nanoclaw
 # 4. Recent errors in service log?
 grep -E 'ERROR|WARN' logs/nanoclaw.log | tail -20
 
-# 5. Is WhatsApp connected? (look for last connection event)
-grep -E 'Connected to WhatsApp|Connection closed|connection.*close' logs/nanoclaw.log | tail -5
-
-# 6. Are groups loaded?
+# 5. Are groups loaded?
 grep 'groupCount' logs/nanoclaw.log | tail -3
 ```
 
@@ -77,7 +74,7 @@ grep -E 'Scheduling retry|retry|Max retries' logs/nanoclaw.log | tail -10
 ## Agent Not Responding
 
 ```bash
-# Check if messages are being received from WhatsApp
+# Check if messages are being received
 grep 'New messages' logs/nanoclaw.log | tail -10
 
 # Check if messages are being processed (container spawned)
@@ -108,19 +105,6 @@ sqlite3 store/messages.db "SELECT name, container_config FROM registered_groups;
 # Test-run a container to check mounts (dry run)
 # Replace <group-folder> with the group's folder name
 container run -i --rm --entrypoint ls nanoclaw-agent:latest /workspace/extra/
-```
-
-## WhatsApp Auth Issues
-
-```bash
-# Check if QR code was requested (means auth expired)
-grep 'QR\|authentication required\|qr' logs/nanoclaw.log | tail -5
-
-# Check auth files exist
-ls -la store/auth/
-
-# Re-authenticate if needed
-npm run auth
 ```
 
 ## Service Management

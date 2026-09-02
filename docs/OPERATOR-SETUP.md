@@ -4,7 +4,7 @@ How to deploy NanoClaw as a community intelligence bot for your community.
 
 ## Prerequisites
 
-- A server (VPS, Railway, or local machine with Docker)
+- A server (VPS or local machine with Docker — PaaS like Railway/Fly won't work due to Docker-in-Docker requirement)
 - A Telegram bot token (from [@BotFather](https://t.me/BotFather))
 - An Anthropic API key
 - An OpenAI API key (for Mem0 embeddings)
@@ -27,7 +27,13 @@ How to deploy NanoClaw as a community intelligence bot for your community.
 
 ## 3. Set Up Memory (Mem0)
 
-The bot uses Mem0 for shared community memory. Self-hosted is recommended for privacy.
+The bot uses Mem0 for shared community memory. Two options:
+
+### Option A: Mem0 Cloud (simpler)
+
+Sign up at [mem0.ai](https://mem0.ai), create a project, and copy your API key. Set `MEM0_API_KEY` in `.env` (see step 4).
+
+### Option B: Self-hosted (more control)
 
 ```bash
 # Clone the agent repo
@@ -60,9 +66,12 @@ Edit `.env`:
 ANTHROPIC_API_KEY=sk-ant-...
 TELEGRAM_BOT_TOKEN=123456:ABC...
 
-# Memory (self-hosted)
-MEM0_SSE_URL=http://localhost:8765/sse
-OPENAI_API_KEY=sk-...
+# Memory — pick one:
+# Cloud:
+MEM0_API_KEY=m0-...
+# Self-hosted:
+# MEM0_SSE_URL=http://localhost:8765/sse
+# OPENAI_API_KEY=sk-...
 
 # Constitution sync
 EMERGENTVIBE_API_URL=https://emergentvibe.com
@@ -137,14 +146,14 @@ Your Server
 │   └── Qdrant (:6333)
 │
 └── Shared Memory
-    ├── community:{slug} — community knowledge
-    ├── tg:{user_id} — Telegram user personal memory
-    └── cc:{display_name} — Claude Code user personal memory
+    └── community:{slug} — community knowledge (single namespace, no personal memory)
 ```
 
-## Bootstrapper Phases
+## Authority Model
 
-The bot's behavior changes automatically over time:
+**Telegram bot (crew model):** The Telegram agent uses a persistent crew model. Crew members have ongoing authority over operational matters (schedules, spaces, logistics) for the duration of the event. See `groups/{name}/crew.json`.
+
+**Claude Code integration (bootstrapper model):** Claude Code users connected via `@emergentvibe/join` use a time-decay model where the bootstrapper's authority diminishes:
 
 | Phase | Days | Bootstrapper Authority |
 |-------|------|----------------------|
@@ -172,3 +181,28 @@ The bot's behavior changes automatically over time:
 **Claude Code user can't connect:**
 - Ensure their machine can reach your Mem0 server (port 8765)
 - For remote servers, set up a reverse proxy or SSH tunnel
+
+**Extraction not storing memories:**
+- Check `memory_extraction` is enabled in `groups/{name}/features.json` (default: on)
+- Extraction only runs on main groups, never DMs
+- Check logs for `Running memory extraction` or `Extraction failed`
+- Verify `MEM0_API_KEY` (cloud) or `MEM0_SSE_URL` (self-hosted) is set
+- Extraction runs every 5 min — wait for at least one cycle
+
+**Digests not firing:**
+- Check `daily_digest` / `crew_digest` is enabled in `features.json`
+- Digest tasks are created on first boot — check SQLite: `sqlite3 store/messages.db "SELECT id, status, next_run FROM tasks WHERE id LIKE 'daily-digest%' OR id LIKE 'crew-digest%';"`
+- Crew digest requires `crew.json` in the group folder with crew member IDs
+- Check `TZ` env var if times seem wrong (defaults to system timezone)
+
+**Escalations not working:**
+- Check `escalation` is enabled in `features.json`
+- Escalation only works from DM containers, not group chat
+- Check `data/escalations/{group}/` for stored files
+- DM folder must follow naming convention `{mainGroupFolder}-dm-{senderId}`
+
+**Subscriptions not notifying:**
+- Check `subscribe` command is enabled in `features.json`
+- Subscription matching is simple keyword inclusion — "kitchen" matches "kitchen hours changed"
+- Check `groups/{name}/subscriptions.json` exists and has entries
+- Notifications route through IPC — check logs for `Subscription notification queued`
