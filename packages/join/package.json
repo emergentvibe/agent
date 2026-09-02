@@ -1,0 +1,25 @@
+{
+  "name": "@emergentvibe/join",
+  "version": "0.1.0",
+  "description": "Join an emergentvibe community from Claude Code",
+  "type": "module",
+  "bin": {
+    "emergentvibe-join": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "tsx": "^4.7.0",
+    "vitest": "^2.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "license": "Apache-2.0"
+}

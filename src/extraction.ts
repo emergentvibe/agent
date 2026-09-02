@@ -3,6 +3,9 @@
  * extracts community knowledge into Mem0 without spawning containers.
  * Uses a 60-min sliding window for context so cross-batch Q&A pairs aren't lost.
  */
+import fs from 'fs';
+import path from 'path';
+
 import Anthropic from '@anthropic-ai/sdk';
 
 import {
@@ -19,7 +22,10 @@ import {
 } from './db.js';
 import { readEnvFile } from './env.js';
 import { logger } from './logger.js';
+import { loadFeatureConfig } from './feature-config.js';
+import { resolveGroupIpcPath } from './group-folder.js';
 import { storeMemory } from './mem0-client.js';
+import { findMatchingSubscriptions } from './subscriptions.js';
 import type { NewMessage, RegisteredGroup } from './types.js';
 
 export interface ExtractionMemory {
@@ -261,9 +267,45 @@ async function runExtractionCycle(deps: ExtractionLoopDeps): Promise<void> {
       );
     }
 
+    // Notify subscribers of matching memories
+    const features = loadFeatureConfig(group.folder);
+    if (features.commands.subscribe && result.memories.length > 0) {
+      notifySubscribers(group.folder, result.memories);
+    }
+
     extractionTimestamps[chatJid] =
       newMessages[newMessages.length - 1].timestamp;
     saveExtractionTimestamps();
+  }
+}
+
+function notifySubscribers(
+  groupFolder: string,
+  memories: ExtractionMemory[],
+): void {
+  for (const mem of memories) {
+    const matches = findMatchingSubscriptions(groupFolder, mem.text);
+    if (matches.length === 0) continue;
+
+    const ipcDir = path.join(resolveGroupIpcPath(groupFolder), 'messages');
+    fs.mkdirSync(ipcDir, { recursive: true });
+
+    for (const sub of matches) {
+      const notification = {
+        type: 'message',
+        chatJid: sub.chatJid,
+        text: `Heads up: ${mem.text}`,
+      };
+      const filename = `sub-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.json`;
+      fs.writeFileSync(
+        path.join(ipcDir, filename),
+        JSON.stringify(notification),
+      );
+      logger.info(
+        { userId: sub.userId, topic: sub.topic },
+        'Subscription notification queued',
+      );
+    }
   }
 }
 

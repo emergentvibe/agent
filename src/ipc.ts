@@ -7,6 +7,7 @@ import { DATA_DIR, IPC_POLL_INTERVAL, TIMEZONE } from './config.js';
 import { AvailableGroup } from './container-runner.js';
 import { createTask, deleteTask, getTaskById, updateTask } from './db.js';
 import { isValidGroupFolder } from './group-folder.js';
+import { loadFeatureConfig } from './feature-config.js';
 import { logger } from './logger.js';
 import { RegisteredGroup } from './types.js';
 
@@ -92,6 +93,13 @@ export function startIpcWatcher(deps: IpcDeps): void {
                     'Unauthorized IPC message attempt blocked',
                   );
                 }
+              } else if (data.type === 'escalation' && data.text) {
+                storeEscalation(
+                  data.text,
+                  data.severity || 'comfort',
+                  sourceGroup,
+                  registeredGroups,
+                );
               }
               fs.unlinkSync(filePath);
             } catch (err) {
@@ -458,4 +466,52 @@ export async function processTaskIpc(
     default:
       logger.warn({ type: data.type }, 'Unknown IPC task type');
   }
+}
+
+function storeEscalation(
+  text: string,
+  severity: string,
+  sourceGroup: string,
+  registeredGroups: Record<string, RegisteredGroup>,
+): void {
+  // Find the main group this DM belongs to
+  const mainGroup = Object.values(registeredGroups).find(
+    (g) => g.isMain === true,
+  );
+  if (!mainGroup) {
+    logger.warn({ sourceGroup }, 'No main group found for escalation');
+    return;
+  }
+
+  const features = loadFeatureConfig(mainGroup.folder);
+  if (!features.behaviors.escalation) {
+    logger.debug({ sourceGroup }, 'Escalation feature disabled, skipping');
+    return;
+  }
+
+  const escalationsDir = path.join(
+    DATA_DIR,
+    'escalations',
+    mainGroup.folder,
+  );
+  fs.mkdirSync(escalationsDir, { recursive: true });
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const filename = `${timestamp}.json`;
+  const escalation = {
+    text,
+    severity,
+    created_at: new Date().toISOString(),
+    processed: false,
+  };
+
+  fs.writeFileSync(
+    path.join(escalationsDir, filename),
+    JSON.stringify(escalation, null, 2),
+  );
+
+  logger.info(
+    { severity, mainGroup: mainGroup.folder },
+    'Anonymous escalation stored',
+  );
 }

@@ -44,6 +44,8 @@ import {
   storeChatMetadata,
   storeMessage,
 } from './db.js';
+import { isCrewMember } from './crew.js';
+import { ensureCrewDigestTask, ensureDigestTask } from './digest.js';
 import {
   findCommunityForUser,
   sanitizeForFolder,
@@ -122,6 +124,11 @@ export function registerGroup(jid: string, group: RegisteredGroup): void {
 
   // Create group folder
   fs.mkdirSync(path.join(groupDir, 'logs'), { recursive: true });
+
+  // Ensure scheduled tasks (digest, etc.) for this group
+  if (group.isMain) {
+    ensureDigestTask(group, jid);
+  }
 
   logger.info(
     { jid, name: group.name, folder: group.folder },
@@ -667,6 +674,10 @@ export async function main(): Promise<void> {
               },
               'Auto-registered DM from community member',
             );
+
+            if (isCrewMember(community.group.folder, msg.sender)) {
+              ensureCrewDigestTask(community.group, chatJid, msg.sender);
+            }
           }
         }
       }
