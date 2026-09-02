@@ -11,7 +11,13 @@ vi.mock('./db.js', () => ({
 
 vi.mock('./feature-config.js', () => ({
   loadFeatureConfig: vi.fn(() => ({
-    commands: { today: true, hello: true, connect: true, forget: true, subscribe: false },
+    commands: {
+      today: true,
+      hello: true,
+      connect: true,
+      forget: true,
+      subscribe: false,
+    },
     behaviors: {
       daily_digest: true,
       crew_digest: false,

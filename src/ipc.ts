@@ -474,10 +474,21 @@ function storeEscalation(
   sourceGroup: string,
   registeredGroups: Record<string, RegisteredGroup>,
 ): void {
-  // Find the main group this DM belongs to
-  const mainGroup = Object.values(registeredGroups).find(
-    (g) => g.isMain === true,
+  // Find the main group this DM belongs to.
+  // DM folders are named {mainGroupFolder}-dm-{senderId}, so match by prefix.
+  let mainGroup = Object.values(registeredGroups).find(
+    (g) => g.isMain && sourceGroup.startsWith(g.folder + '-dm-'),
   );
+  if (!mainGroup) {
+    mainGroup = Object.values(registeredGroups).find(
+      (g) => g.isMain && g.folder === sourceGroup,
+    );
+  }
+  if (!mainGroup) {
+    mainGroup = Object.values(registeredGroups).find(
+      (g) => g.isMain === true,
+    );
+  }
   if (!mainGroup) {
     logger.warn({ sourceGroup }, 'No main group found for escalation');
     return;
@@ -489,11 +500,7 @@ function storeEscalation(
     return;
   }
 
-  const escalationsDir = path.join(
-    DATA_DIR,
-    'escalations',
-    mainGroup.folder,
-  );
+  const escalationsDir = path.join(DATA_DIR, 'escalations', mainGroup.folder);
   fs.mkdirSync(escalationsDir, { recursive: true });
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');

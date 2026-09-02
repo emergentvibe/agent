@@ -14,7 +14,10 @@ export interface CrewMember {
 }
 
 export function loadCrewList(groupFolder: string): CrewMember[] {
-  const configPath = path.join(resolveGroupFolderPath(groupFolder), 'crew.json');
+  const configPath = path.join(
+    resolveGroupFolderPath(groupFolder),
+    'crew.json',
+  );
   if (!fs.existsSync(configPath)) return [];
   try {
     const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'));

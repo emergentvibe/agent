@@ -70,10 +70,7 @@ export function ensureDigestTask(
     created_at: new Date().toISOString(),
   });
 
-  logger.info(
-    { group: group.name, taskId },
-    'Created daily digest task',
-  );
+  logger.info({ group: group.name, taskId }, 'Created daily digest task');
 }
 
 function buildCrewDigestPrompt(

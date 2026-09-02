@@ -29,7 +29,10 @@ describe.skipIf(!HAS_API_KEY)('extraction quality (real Haiku)', () => {
   it('extracts operational facts', async () => {
     const result = await extractMemories(
       [
-        msg('Jordan', 'Kitchen is open 7am to 10pm, ground floor of the main house.'),
+        msg(
+          'Jordan',
+          'Kitchen is open 7am to 10pm, ground floor of the main house.',
+        ),
         msg('Jordan', 'Yoga is every morning at 7:30 on the meadow.'),
         msg('Jordan', "Wifi network is 'treeweek' password 'oak2026'."),
       ],
@@ -39,7 +42,7 @@ describe.skipIf(!HAS_API_KEY)('extraction quality (real Haiku)', () => {
     );
 
     expect(result.memories.length).toBeGreaterThanOrEqual(3);
-    const texts = result.memories.map(m => m.text.toLowerCase()).join(' ');
+    const texts = result.memories.map((m) => m.text.toLowerCase()).join(' ');
     expect(texts).toContain('kitchen');
     expect(texts).toContain('yoga');
     expect(texts).toMatch(/wifi|oak2026|treeweek/);
@@ -54,8 +57,14 @@ describe.skipIf(!HAS_API_KEY)('extraction quality (real Haiku)', () => {
   it('extracts introductions', async () => {
     const result = await extractMemories(
       [
-        msg('Alex', '/hello I\'m Alex, a designer from Portland. Into ceramics and hiking.'),
-        msg('Sam', '/hello Hey! I\'m Sam, musician and photographer from Berlin.'),
+        msg(
+          'Alex',
+          "/hello I'm Alex, a designer from Portland. Into ceramics and hiking.",
+        ),
+        msg(
+          'Sam',
+          "/hello Hey! I'm Sam, musician and photographer from Berlin.",
+        ),
       ],
       [],
       'eq-test',
@@ -63,13 +72,15 @@ describe.skipIf(!HAS_API_KEY)('extraction quality (real Haiku)', () => {
     );
 
     expect(result.memories.length).toBeGreaterThanOrEqual(2);
-    const texts = result.memories.map(m => m.text.toLowerCase()).join(' ');
+    const texts = result.memories.map((m) => m.text.toLowerCase()).join(' ');
     expect(texts).toContain('alex');
     expect(texts).toContain('sam');
     expect(texts).toMatch(/ceramics|design/);
     expect(texts).toMatch(/musician|photographer/);
 
-    const intros = result.memories.filter(m => m.metadata?.type === 'introduction');
+    const intros = result.memories.filter(
+      (m) => m.metadata?.type === 'introduction',
+    );
     expect(intros.length).toBeGreaterThanOrEqual(2);
   }, 30_000);
 
@@ -77,7 +88,10 @@ describe.skipIf(!HAS_API_KEY)('extraction quality (real Haiku)', () => {
     const result = await extractMemories(
       [
         msg('Priya', 'I really wish we could do morning swimming in the lake.'),
-        msg('River', 'The noise after midnight in the garden is making it hard to sleep.'),
+        msg(
+          'River',
+          'The noise after midnight in the garden is making it hard to sleep.',
+        ),
       ],
       [],
       'eq-test',
@@ -85,11 +99,11 @@ describe.skipIf(!HAS_API_KEY)('extraction quality (real Haiku)', () => {
     );
 
     expect(result.memories.length).toBeGreaterThanOrEqual(2);
-    const types = result.memories.map(m => m.metadata?.type);
+    const types = result.memories.map((m) => m.metadata?.type);
     expect(types).toContain('wish');
     expect(types).toContain('concern');
 
-    const texts = result.memories.map(m => m.text.toLowerCase()).join(' ');
+    const texts = result.memories.map((m) => m.text.toLowerCase()).join(' ');
     expect(texts).toContain('priya');
     expect(texts).toContain('river');
     expect(texts).toMatch(/swim/);
@@ -116,11 +130,12 @@ describe.skipIf(!HAS_API_KEY)('extraction quality (real Haiku)', () => {
   it('extracts operational change with history', async () => {
     const result = await extractMemories(
       [
-        msg('Jordan', 'Update: dinner is moved from 7pm to 6:30pm tonight because of kitchen prep.'),
+        msg(
+          'Jordan',
+          'Update: dinner is moved from 7pm to 6:30pm tonight because of kitchen prep.',
+        ),
       ],
-      [
-        msg('Jordan', 'Dinner at 7pm in the main house kitchen.', 120),
-      ],
+      [msg('Jordan', 'Dinner at 7pm in the main house kitchen.', 120)],
       'eq-test',
       'Treeweek III',
     );
@@ -145,22 +160,20 @@ describe.skipIf(!HAS_API_KEY)('extraction quality (real Haiku)', () => {
     );
 
     expect(result.memories.length).toBeGreaterThanOrEqual(1);
-    const texts = result.memories.map(m => m.text.toLowerCase()).join(' ');
+    const texts = result.memories.map((m) => m.text.toLowerCase()).join(' ');
     expect(texts).toMatch(/swim/);
     // Should detect the pattern — multiple people want the same thing
-    const patterns = result.memories.filter(m => m.metadata?.type === 'pattern');
-    const wishes = result.memories.filter(m => m.metadata?.type === 'wish');
+    const patterns = result.memories.filter(
+      (m) => m.metadata?.type === 'pattern',
+    );
+    const wishes = result.memories.filter((m) => m.metadata?.type === 'wish');
     expect(patterns.length + wishes.length).toBeGreaterThanOrEqual(1);
   }, 30_000);
 
   it('does not re-extract from context messages', async () => {
     const result = await extractMemories(
-      [
-        msg('Sam', 'Thanks for letting us know about the schedule change!'),
-      ],
-      [
-        msg('Jordan', 'Yoga moved from 7:30 to 8am starting tomorrow.', 30),
-      ],
+      [msg('Sam', 'Thanks for letting us know about the schedule change!')],
+      [msg('Jordan', 'Yoga moved from 7:30 to 8am starting tomorrow.', 30)],
       'eq-test',
       'Treeweek III',
     );

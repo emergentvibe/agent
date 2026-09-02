@@ -51,11 +51,16 @@ interface ScenarioDay {
   messages: ScenarioMessage[];
 }
 
+interface SetupFile {
+  path: string;
+  content: unknown;
+}
+
 interface Assertion {
   after_day: number;
   message_index?: number;
-  type: 'response_contains_any' | 'memory_contains' | 'custom';
-  value: string | string[];
+  type: string;
+  value: string | string[] | Record<string, string>;
   description: string;
 }
 
@@ -66,6 +71,8 @@ interface Scenario {
   personas: Persona[];
   days: ScenarioDay[];
   assertions: Assertion[];
+  features?: Record<string, Record<string, boolean>>;
+  setup_files?: SetupFile[];
 }
 
 interface AssertionResult {
@@ -169,6 +176,16 @@ async function runScenario(scenarioName: string): Promise<AssertionResult[]> {
   cleanupSimData();
   console.log('  Cleaned previous sim data from DB');
 
+  // Clean up stale escalation/IPC files from previous runs
+  const staleEscDir = path.join(AGENT_ROOT, 'data', 'escalations', groupFolder);
+  if (fs.existsSync(staleEscDir)) fs.rmSync(staleEscDir, { recursive: true });
+  const staleIpcDir = path.join(AGENT_ROOT, 'data', 'ipc');
+  if (fs.existsSync(staleIpcDir)) {
+    for (const d of fs.readdirSync(staleIpcDir).filter((x) => x.startsWith(`sim-${scenarioName}`))) {
+      fs.rmSync(path.join(staleIpcDir, d), { recursive: true });
+    }
+  }
+
   // Boot the system
   console.log('  Booting agent system...');
   await main();
@@ -187,6 +204,25 @@ async function runScenario(scenarioName: string): Promise<AssertionResult[]> {
 
   // Write CLAUDE.md
   writeSimClaudeMd(groupFolder, slug, scenario.personas);
+
+  // Write scenario-level feature config
+  if (scenario.features) {
+    const featuresPath = path.join(AGENT_ROOT, 'groups', groupFolder, 'features.json');
+    fs.writeFileSync(featuresPath, JSON.stringify(scenario.features, null, 2));
+    console.log(`  Wrote features.json: ${JSON.stringify(scenario.features)}`);
+  }
+
+  // Write setup files (escalation fixtures, crew.json, etc.)
+  if (scenario.setup_files) {
+    for (const sf of scenario.setup_files) {
+      const filePath = path.join(AGENT_ROOT, sf.path.replace('{groupFolder}', groupFolder));
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      const content = typeof sf.content === 'string' ? sf.content : JSON.stringify(sf.content, null, 2);
+      fs.writeFileSync(filePath, content);
+      console.log(`  Setup file: ${filePath}`);
+    }
+  }
+
   console.log(`  Group registered: ${groupJid} → groups/${groupFolder}/`);
 
   // Build persona lookup
@@ -451,6 +487,88 @@ async function runScenario(scenarioName: string): Promise<AssertionResult[]> {
         break;
       }
 
+      case 'escalation_exists': {
+        const escDir = path.join(AGENT_ROOT, 'data', 'escalations', groupFolder);
+        let escFiles: string[] = [];
+        if (fs.existsSync(escDir)) {
+          escFiles = fs.readdirSync(escDir).filter((f) => f.endsWith('.json'));
+        }
+        if (escFiles.length === 0) {
+          result = {
+            description: assertion.description,
+            passed: false,
+            detail: `No escalation files found in ${escDir}`,
+          };
+        } else {
+          const searchTerms = Array.isArray(assertion.value) ? assertion.value : [assertion.value as string];
+          const allTexts = escFiles.map((f) => {
+            const content = JSON.parse(fs.readFileSync(path.join(escDir, f), 'utf-8'));
+            return (content.text || '').toLowerCase();
+          });
+          const matchedTerm = searchTerms.find((term) =>
+            allTexts.some((t) => t.includes(term.toLowerCase())),
+          );
+          result = {
+            description: assertion.description,
+            passed: !!matchedTerm,
+            detail: matchedTerm
+              ? `Found escalation matching "${matchedTerm}" (${escFiles.length} files)`
+              : `${escFiles.length} escalation files, none match any of: ${searchTerms.join(', ')}. Text: ${allTexts[0]?.slice(0, 100)}`,
+          };
+        }
+        break;
+      }
+
+      case 'escalation_avoids': {
+        const escDir2 = path.join(AGENT_ROOT, 'data', 'escalations', groupFolder);
+        let escFiles2: string[] = [];
+        if (fs.existsSync(escDir2)) {
+          escFiles2 = fs.readdirSync(escDir2).filter((f) => f.endsWith('.json'));
+        }
+        if (escFiles2.length === 0) {
+          result = {
+            description: assertion.description,
+            passed: false,
+            detail: 'No escalation files to check',
+          };
+        } else {
+          const forbidden = assertion.value as string[];
+          const allTexts = escFiles2.map((f) => {
+            const content = JSON.parse(fs.readFileSync(path.join(escDir2, f), 'utf-8'));
+            return (content.text || '').toLowerCase();
+          });
+          const foundBad = forbidden.find((term) =>
+            allTexts.some((t) => t.includes(term.toLowerCase())),
+          );
+          result = {
+            description: assertion.description,
+            passed: !foundBad,
+            detail: foundBad
+              ? `Found forbidden "${foundBad}" in escalation text`
+              : `Correctly avoided all forbidden terms in ${escFiles2.length} escalation files`,
+          };
+        }
+        break;
+      }
+
+      case 'dm_received': {
+        const val = assertion.value as Record<string, string>;
+        const dmJid = `sim:dm-${val.persona_id}-${scenarioName}`;
+        const dmResponses = sim.getResponses(dmJid);
+        const searchText = (val.contains || '').toLowerCase();
+        const found = dmResponses.some((r) => r.toLowerCase().includes(searchText));
+        result = {
+          description: assertion.description,
+          passed: found,
+          detail: found
+            ? `DM to ${val.persona_id} contains "${val.contains}" (${dmResponses.length} messages)`
+            : dmResponses.length === 0
+              ? `No DM messages received by ${val.persona_id}`
+              : `${dmResponses.length} DMs received but none contain "${val.contains}": ${dmResponses.map(r => r.slice(0, 60)).join(' | ')}`,
+        };
+        break;
+      }
+
       default:
         result = {
           description: assertion.description,
@@ -471,6 +589,23 @@ async function runScenario(scenarioName: string): Promise<AssertionResult[]> {
   const groupDir = path.join(AGENT_ROOT, 'groups', groupFolder);
   if (fs.existsSync(groupDir)) {
     fs.rmSync(groupDir, { recursive: true });
+  }
+
+  // Cleanup escalation files for this scenario
+  const escDir = path.join(AGENT_ROOT, 'data', 'escalations', groupFolder);
+  if (fs.existsSync(escDir)) {
+    fs.rmSync(escDir, { recursive: true });
+    console.log('  Cleaned up escalation files');
+  }
+
+  // Cleanup IPC files for this scenario
+  const ipcDir = path.join(AGENT_ROOT, 'data', 'ipc');
+  if (fs.existsSync(ipcDir)) {
+    const ipcFolders = fs.readdirSync(ipcDir).filter((d) => d.startsWith(`sim-${scenarioName}`));
+    for (const f of ipcFolders) {
+      fs.rmSync(path.join(ipcDir, f), { recursive: true });
+    }
+    if (ipcFolders.length > 0) console.log(`  Cleaned up ${ipcFolders.length} IPC folders`);
   }
 
   // Cleanup Mem0 memories for this scenario

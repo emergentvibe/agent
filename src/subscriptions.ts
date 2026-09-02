@@ -31,7 +31,12 @@ function loadStore(groupFolder: string): SubscriptionStore {
   const filePath = subscriptionsPath(groupFolder);
   if (!fs.existsSync(filePath)) return { subscriptions: [] };
   try {
-    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    const raw = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    // Handle various formats the agent might write
+    if (Array.isArray(raw)) return { subscriptions: raw };
+    if (raw && Array.isArray(raw.subscriptions)) return raw;
+    if (raw && typeof raw === 'object' && raw.userId) return { subscriptions: [raw] };
+    return { subscriptions: [] };
   } catch {
     return { subscriptions: [] };
   }

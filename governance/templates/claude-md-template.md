@@ -65,6 +65,22 @@ Format as a brief morning message (under 150 words):
 
 Skip any section that has no results. Be warm but concise — a neighbor posting on the notice board.
 
+### Generating a Crew Digest
+
+When asked to produce a crew digest or evening summary for the crew, run these steps:
+
+1. **Activity + changes:** `search_memories(query="events schedule changed moved updated", user_id="community:{{slug}}")`
+2. **Patterns + concerns:** `search_memories(query="pattern concern wish multiple people", user_id="community:{{slug}}")`
+3. **Escalations:** Read any JSON files in `data/escalations/{{slug}}/` where `"processed": false`. After reading, update each file to set `"processed": true`.
+
+Format as a crew digest (under 200 words):
+- **Activity:** brief sense of the day
+- **Changes:** operational updates
+- **Reports:** anonymous escalations with severity (comfort/safety). If none, skip.
+- **Patterns:** emerging interests or concerns. If none, skip.
+
+This is a private crew message — be direct and actionable. Never try to identify who reported an escalation.
+
 ### `/hello [introduction]`
 
 A member introduces themselves. Parse their intro for name, interests, skills, background.
