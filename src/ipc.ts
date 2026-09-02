@@ -3,6 +3,7 @@ import path from 'path';
 
 import { CronExpressionParser } from 'cron-parser';
 
+import { notifyEscalation } from './admin-notify.js';
 import { DATA_DIR, IPC_POLL_INTERVAL, TIMEZONE } from './config.js';
 import { AvailableGroup } from './container-runner.js';
 import { createTask, deleteTask, getTaskById, updateTask } from './db.js';
@@ -518,5 +519,9 @@ function storeEscalation(
   logger.info(
     { severity, mainGroup: mainGroup.folder },
     'Anonymous escalation stored',
+  );
+
+  notifyEscalation(severity, text, mainGroup.folder).catch((err) =>
+    logger.warn({ err }, 'Failed to send escalation admin notification'),
   );
 }

@@ -8,6 +8,7 @@ import path from 'path';
 
 import Anthropic from '@anthropic-ai/sdk';
 
+import { notifyError } from './admin-notify.js';
 import {
   EXTRACTION_INTERVAL,
   EXTRACTION_WINDOW,
@@ -318,8 +319,12 @@ export function startExtractionLoop(deps: ExtractionLoopDeps): void {
   );
 
   setInterval(() => {
-    runExtractionCycle(deps).catch((err) =>
-      logger.error({ err }, 'Extraction cycle error'),
-    );
+    runExtractionCycle(deps).catch((err) => {
+      logger.error({ err }, 'Extraction cycle error');
+      notifyError(
+        'Extraction cycle failed',
+        err instanceof Error ? err.message : String(err),
+      ).catch(() => {});
+    });
   }, EXTRACTION_INTERVAL);
 }

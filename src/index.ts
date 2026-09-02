@@ -1,7 +1,10 @@
 import fs from 'fs';
 import path from 'path';
 
+import { handleAdminCommand, isSilenced } from './admin-commands.js';
+import { initAdminNotify, notifyError } from './admin-notify.js';
 import {
+  ADMIN_TELEGRAM_ID,
   ASSISTANT_NAME,
   CREDENTIAL_PROXY_PORT,
   IDLE_TIMEOUT,
@@ -166,6 +169,8 @@ export function _setRegisteredGroups(
  * Called by the GroupQueue when it's this group's turn.
  */
 async function processGroupMessages(chatJid: string): Promise<boolean> {
+  if (isSilenced()) return true;
+
   const group = registeredGroups[chatJid];
   if (!group) return true;
 
@@ -387,12 +392,20 @@ async function runAgent(
         { group: group.name, error: output.error },
         'Container agent error',
       );
+      notifyError(
+        `Container error (${group.name})`,
+        output.error || 'Unknown error',
+      ).catch(() => {});
       return 'error';
     }
 
     return 'success';
   } catch (err) {
     logger.error({ group: group.name, err }, 'Agent error');
+    notifyError(
+      `Agent crash (${group.name})`,
+      err instanceof Error ? err.message : String(err),
+    ).catch(() => {});
     return 'error';
   }
 }
@@ -601,8 +614,22 @@ export async function main(): Promise<void> {
   // Channel callbacks (shared by all channels)
   const channelOpts = {
     onMessage: (chatJid: string, msg: NewMessage) => {
-      // Remote control commands — intercept before storage
+      // Admin commands — intercept before storage (DM only)
       const trimmed = msg.content.trim();
+      if (trimmed.startsWith('/admin-')) {
+        const channel = findChannel(channels, chatJid);
+        const result = handleAdminCommand(trimmed, msg.sender, ADMIN_TELEGRAM_ID);
+        if (result.handled) {
+          if (result.response && channel) {
+            channel.sendMessage(chatJid, result.response).catch((err) =>
+              logger.warn({ err }, 'Failed to send admin command response'),
+            );
+          }
+          return;
+        }
+      }
+
+      // Remote control commands — intercept before storage
       if (trimmed === '/remote-control' || trimmed === '/remote-control-end') {
         handleRemoteControl(trimmed, chatJid, msg).catch((err) =>
           logger.error({ err, chatJid }, 'Remote control command error'),
@@ -712,6 +739,16 @@ export async function main(): Promise<void> {
     logger.fatal('No channels connected');
     process.exit(1);
   }
+
+  // Init admin notifications (sends DMs to admin for escalations, errors)
+  initAdminNotify(async (jid, text) => {
+    const ch = findChannel(channels, jid);
+    if (!ch) {
+      logger.warn({ jid }, 'No channel for admin JID');
+      return;
+    }
+    await ch.sendMessage(jid, text);
+  }, ADMIN_TELEGRAM_ID);
 
   // Start subsystems (independently of connection handler)
   startSchedulerLoop({

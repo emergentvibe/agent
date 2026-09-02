@@ -51,6 +51,8 @@ There's a 27-scenario integration sim framework (`tests/integration/sim-runner.t
 | `src/triage.ts` | Message triage classifier (Haiku) |
 | `src/mem0-client.ts` | Mem0 HTTP client |
 | `src/task-scheduler.ts` | Runs scheduled tasks |
+| `src/admin-notify.ts` | Admin DM notifications (escalation, error, summary) |
+| `src/admin-commands.ts` | Admin slash commands (/admin-silence, /admin-status) |
 | `src/db.ts` | SQLite operations |
 | `groups/{name}/CLAUDE.md` | Per-group agent instructions (isolated) |
 | `groups/{name}/features.json` | Per-group feature toggles |
