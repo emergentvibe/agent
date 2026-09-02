@@ -35,7 +35,8 @@ function loadStore(groupFolder: string): SubscriptionStore {
     // Handle various formats the agent might write
     if (Array.isArray(raw)) return { subscriptions: raw };
     if (raw && Array.isArray(raw.subscriptions)) return raw;
-    if (raw && typeof raw === 'object' && raw.userId) return { subscriptions: [raw] };
+    if (raw && typeof raw === 'object' && raw.userId)
+      return { subscriptions: [raw] };
     return { subscriptions: [] };
   } catch {
     return { subscriptions: [] };

@@ -485,9 +485,7 @@ function storeEscalation(
     );
   }
   if (!mainGroup) {
-    mainGroup = Object.values(registeredGroups).find(
-      (g) => g.isMain === true,
-    );
+    mainGroup = Object.values(registeredGroups).find((g) => g.isMain === true);
   }
   if (!mainGroup) {
     logger.warn({ sourceGroup }, 'No main group found for escalation');
