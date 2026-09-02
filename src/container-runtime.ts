@@ -30,14 +30,19 @@ function detectProxyBindHost(): string {
   // Check /proc filesystem, not env vars — WSL_DISTRO_NAME isn't set under systemd.
   if (fs.existsSync('/proc/sys/fs/binfmt_misc/WSLInterop')) return '127.0.0.1';
 
-  // Bare-metal Linux: bind to the docker0 bridge IP instead of 0.0.0.0
+  // Bare-metal Linux: bind to the docker0 bridge IP so containers can reach it.
+  // NEVER fall back to 0.0.0.0 — that exposes real API credentials to the network.
   const ifaces = os.networkInterfaces();
   const docker0 = ifaces['docker0'];
   if (docker0) {
     const ipv4 = docker0.find((a) => a.family === 'IPv4');
     if (ipv4) return ipv4.address;
   }
-  return '0.0.0.0';
+  logger.warn(
+    'docker0 interface not found — credential proxy binding to 127.0.0.1. ' +
+      'Containers may not be able to reach the proxy. Set CREDENTIAL_PROXY_HOST explicitly.',
+  );
+  return '127.0.0.1';
 }
 
 /** CLI args needed for the container to resolve the host gateway. */

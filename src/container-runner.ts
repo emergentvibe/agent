@@ -228,6 +228,13 @@ function buildContainerArgs(
 ): string[] {
   const args: string[] = ['run', '-i', '--rm', '--name', containerName];
 
+  // Security hardening: drop all capabilities, limit resources
+  args.push('--cap-drop=ALL');
+  args.push('--security-opt=no-new-privileges');
+  const memLimit = process.env.CONTAINER_MEMORY_LIMIT || '2g';
+  args.push(`--memory=${memLimit}`);
+  args.push('--pids-limit=256');
+
   // Pass host timezone so container's local time matches the user's
   args.push('-e', `TZ=${TIMEZONE}`);
 
