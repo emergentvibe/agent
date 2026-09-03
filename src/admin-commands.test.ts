@@ -34,11 +34,7 @@ describe('admin-commands', () => {
     handleAdminCommand('/admin-silence', ADMIN_ID, ADMIN_ID);
     expect(isSilenced()).toBe(true);
 
-    const result = handleAdminCommand(
-      '/admin-silence off',
-      ADMIN_ID,
-      ADMIN_ID,
-    );
+    const result = handleAdminCommand('/admin-silence off', ADMIN_ID, ADMIN_ID);
     expect(result.handled).toBe(true);
     expect(result.response).toContain('resumed');
     expect(isSilenced()).toBe(false);

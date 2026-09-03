@@ -73,11 +73,6 @@ export class TelegramChannel implements Channel {
       local?: boolean;
     }> = [
       { command: 'today', description: "Today's events and schedule" },
-      { command: 'where', description: 'Find a place — /where kitchen' },
-      {
-        command: 'recall',
-        description: 'Search community memory — /recall yoga',
-      },
       { command: 'hello', description: 'Introduce yourself to the community' },
       { command: 'connect', description: 'Find people with shared interests' },
       {

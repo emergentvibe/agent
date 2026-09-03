@@ -318,13 +318,19 @@ export function startExtractionLoop(deps: ExtractionLoopDeps): void {
     'Starting background memory extraction loop',
   );
 
-  setInterval(() => {
-    runExtractionCycle(deps).catch((err) => {
-      logger.error({ err }, 'Extraction cycle error');
-      notifyError(
-        'Extraction cycle failed',
-        err instanceof Error ? err.message : String(err),
-      ).catch(() => {});
-    });
-  }, EXTRACTION_INTERVAL);
+  const scheduleNext = () => {
+    setTimeout(async () => {
+      try {
+        await runExtractionCycle(deps);
+      } catch (err) {
+        logger.error({ err }, 'Extraction cycle error');
+        notifyError(
+          'Extraction cycle failed',
+          err instanceof Error ? err.message : String(err),
+        ).catch(() => {});
+      }
+      scheduleNext();
+    }, EXTRACTION_INTERVAL);
+  };
+  scheduleNext();
 }

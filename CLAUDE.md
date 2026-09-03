@@ -48,7 +48,6 @@ There's a 27-scenario integration sim framework (`tests/integration/sim-runner.t
 | `src/digest.ts` | Daily and crew digest generation |
 | `src/subscriptions.ts` | Topic subscription + extraction-driven notification |
 | `src/dm-registration.ts` | DM auto-registration + community lookup |
-| `src/triage.ts` | Message triage classifier (Haiku) |
 | `src/mem0-client.ts` | Mem0 HTTP client |
 | `src/task-scheduler.ts` | Runs scheduled tasks |
 | `src/admin-notify.ts` | Admin DM notifications (escalation, error, summary) |

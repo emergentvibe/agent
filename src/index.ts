@@ -76,8 +76,6 @@ import { logger } from './logger.js';
 import { storeMemory } from './mem0-client.js';
 import { startExtractionLoop } from './extraction.js';
 
-// Re-export for backwards compatibility during refactor
-export { escapeXml, formatMessages } from './router.js';
 
 let lastTimestamp = '';
 let sessions: Record<string, string> = {};
@@ -618,12 +616,18 @@ export async function main(): Promise<void> {
       const trimmed = msg.content.trim();
       if (trimmed.startsWith('/admin-')) {
         const channel = findChannel(channels, chatJid);
-        const result = handleAdminCommand(trimmed, msg.sender, ADMIN_TELEGRAM_ID);
+        const result = handleAdminCommand(
+          trimmed,
+          msg.sender,
+          ADMIN_TELEGRAM_ID,
+        );
         if (result.handled) {
           if (result.response && channel) {
-            channel.sendMessage(chatJid, result.response).catch((err) =>
-              logger.warn({ err }, 'Failed to send admin command response'),
-            );
+            channel
+              .sendMessage(chatJid, result.response)
+              .catch((err) =>
+                logger.warn({ err }, 'Failed to send admin command response'),
+              );
           }
           return;
         }

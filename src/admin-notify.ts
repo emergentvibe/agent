@@ -36,9 +36,7 @@ export async function notifyEscalation(
   text: string,
   groupFolder: string,
 ): Promise<void> {
-  await send(
-    `⚠️ *Escalation* (${severity})\nGroup: ${groupFolder}\n\n${text}`,
-  );
+  await send(`⚠️ *Escalation* (${severity})\nGroup: ${groupFolder}\n\n${text}`);
 }
 
 export async function notifyError(

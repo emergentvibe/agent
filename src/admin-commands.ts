@@ -34,7 +34,10 @@ export function handleAdminCommand(
   if (cmd === '/admin-silence' || cmd === '/admin-silence on') {
     silenced = true;
     logger.warn({ sender }, 'Admin silenced the bot');
-    return { handled: true, response: '🔇 Bot silenced. Send /admin-silence off to resume.' };
+    return {
+      handled: true,
+      response: '🔇 Bot silenced. Send /admin-silence off to resume.',
+    };
   }
 
   if (cmd === '/admin-silence off') {
