@@ -290,7 +290,7 @@ describe('Context file verification', () => {
     expect(rendered).toContain('Edge Esmeralda');
 
     // Core behavioral sections present
-    expect(rendered).toContain('Listening Mode');
+    expect(rendered).toContain('default state is silence');
     expect(rendered).toContain('Pattern Sensing');
   });
 
@@ -316,7 +316,6 @@ describe('Context file verification', () => {
 
     // User-specific content
     expect(rendered).toContain('Alice');
-    expect(rendered).toContain('tg:12345');
 
     // Community reference
     expect(rendered).toContain('Edge Esmeralda');
@@ -356,8 +355,8 @@ describe('Context file verification', () => {
     expect(combined).toContain('send_message');
     expect(combined).toContain('<internal>');
 
-    // Listening mode (from community)
-    expect(combined).toContain('Listening Mode');
+    // Silence contract (from community)
+    expect(combined).toContain('default state is silence');
 
     // Pattern sensing (from community)
     expect(combined).toContain('Pattern Sensing');

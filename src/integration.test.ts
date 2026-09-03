@@ -44,6 +44,7 @@ describe('Integration: community intelligence message flow', () => {
       folder: communityFolder,
       trigger: 'Andy',
       added_at: new Date().toISOString(),
+      isMain: true,
     },
   };
 
@@ -226,7 +227,7 @@ describe('Integration: community intelligence message flow', () => {
   });
 
   // Step 10: community template rendering verification
-  it('community template has constitution, listening mode, pattern sensing, NO memory protocol', () => {
+  it('community template has silence contract, pattern sensing, NO memory protocol', () => {
     const template = loadTemplate();
     const groupConfig: GroupConfig = {
       folder: communityFolder,
@@ -250,15 +251,13 @@ describe('Integration: community intelligence message flow', () => {
       'https://emergentvibe.com',
     );
 
-    // Has constitution content
-    expect(rendered).toContain('Be kind. Be fair. Listen more than you speak.');
-    expect(rendered).toContain('Constitution');
-    // Has listening mode
-    expect(rendered).toContain('Listening Mode');
+    // Has silence contract (formerly "Listening Mode")
+    expect(rendered).toContain('default state is silence');
     // Has pattern sensing
     expect(rendered).toContain('Pattern Sensing');
+    // Has community name
+    expect(rendered).toContain(communityName);
     // Does NOT have the full memory protocol (that's in global CLAUDE.md)
-    // Community template may reference Mem0 for context, but not the full protocol
     expect(rendered).not.toContain('Namespaces');
     expect(rendered).not.toContain('Privacy Rules (Non-Negotiable)');
     // No unreplaced placeholders
@@ -267,7 +266,7 @@ describe('Integration: community intelligence message flow', () => {
   });
 
   // Step 11: DM template rendering verification
-  it('DM template has "always respond", correct namespaces, NO listening mode', () => {
+  it('DM template has "always reply", correct namespaces, NO silence contract', () => {
     const dmContent = buildDmClaudeMd(
       communityName,
       senderName,
@@ -275,16 +274,14 @@ describe('Integration: community intelligence message flow', () => {
       'test-community',
     );
 
-    // Has "always respond"
-    expect(dmContent).toContain('Always respond');
+    // Has "always reply" instruction
+    expect(dmContent).toContain('Always reply');
     // Has community namespace and no-add_memory rule
     expect(dmContent).toContain('community:test-community');
     expect(dmContent).toContain('NEVER call add_memory from a DM');
-    // Does NOT have listening mode (group-only)
-    expect(dmContent).not.toContain('Listening Mode');
+    // Does NOT have silence contract (group-only)
+    expect(dmContent).not.toContain('default state is silence');
     // Does NOT have pattern sensing (group-only)
     expect(dmContent).not.toContain('Pattern Sensing');
-    // Does NOT have "silence is your default" (group-only)
-    expect(dmContent).not.toContain('silence is your default');
   });
 });

@@ -76,7 +76,6 @@ import { logger } from './logger.js';
 import { storeMemory } from './mem0-client.js';
 import { startExtractionLoop } from './extraction.js';
 
-
 let lastTimestamp = '';
 let sessions: Record<string, string> = {};
 let registeredGroups: Record<string, RegisteredGroup> = {};

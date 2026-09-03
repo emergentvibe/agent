@@ -121,7 +121,7 @@ describe('buildDmClaudeMd', () => {
       'tg:123',
       'test-village',
     );
-    expect(result).toContain('Always respond');
+    expect(result).toContain('Always reply');
   });
 
   it('includes privacy rules', () => {
@@ -184,6 +184,7 @@ describe('findCommunityForUser', () => {
     folder: 'test-group',
     trigger: 'Andy',
     added_at: new Date().toISOString(),
+    isMain: true,
   };
 
   it('returns null for unknown users', () => {
@@ -208,7 +209,7 @@ describe('findCommunityForUser', () => {
     expect(result!.group).toBe(baseGroup);
   });
 
-  it('does not skip main group (main can also be a community)', () => {
+  it('checks all main groups and returns the one where sender has messages', () => {
     const groups: Record<string, RegisteredGroup> = {
       'tg:main': { ...baseGroup, isMain: true },
       'tg:community': { ...baseGroup, folder: 'community' },
@@ -225,7 +226,7 @@ describe('findCommunityForUser', () => {
 
   it('skips existing DM folders', () => {
     const groups: Record<string, RegisteredGroup> = {
-      'tg:dm1': { ...baseGroup, folder: 'test-group-dm-tg-999' },
+      'tg:dm1': { ...baseGroup, folder: 'test-group-dm-tg-999', isMain: false },
       'tg:community': { ...baseGroup, folder: 'community' },
     };
     const findSender = vi.fn().mockImplementation((chatJid: string) => {

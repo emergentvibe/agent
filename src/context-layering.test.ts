@@ -235,8 +235,8 @@ describe('DM template (Layer 3)', () => {
     expect(rendered).toContain('Alice');
   });
 
-  it('says always respond', () => {
-    expect(rendered).toContain('Always respond');
+  it('says always reply', () => {
+    expect(rendered).toContain('Always reply');
   });
 
   it('includes community memory search', () => {
