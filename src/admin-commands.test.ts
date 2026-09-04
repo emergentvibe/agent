@@ -1,6 +1,12 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 
-import { handleAdminCommand, isSilenced } from './admin-commands.js';
+import {
+  handleAdminCommand,
+  isDegraded,
+  isSilenced,
+  setDegraded,
+  setSilenced,
+} from './admin-commands.js';
 import {
   _initTestDatabase,
   setRegisteredGroup,
@@ -13,8 +19,8 @@ const ADMIN_ID = '123456';
 describe('admin-commands', () => {
   beforeEach(() => {
     _initTestDatabase();
-    // Reset silence state
-    handleAdminCommand('/admin-silence off', ADMIN_ID, ADMIN_ID);
+    setSilenced(false);
+    setDegraded(false);
   });
 
   it('ignores commands from non-admin', () => {
@@ -50,13 +56,19 @@ describe('admin-commands', () => {
     expect(result.handled).toBe(true);
     expect(result.response).toContain('Status Report');
     expect(result.response).toContain('Uptime');
-    expect(result.response).toContain('Silenced: no');
+    expect(result.response).toContain('Mode: normal');
   });
 
   it('/admin-status reflects silence state', () => {
     handleAdminCommand('/admin-silence', ADMIN_ID, ADMIN_ID);
     const result = handleAdminCommand('/admin-status', ADMIN_ID, ADMIN_ID);
-    expect(result.response).toContain('Silenced: YES');
+    expect(result.response).toContain('Mode: SILENCED');
+  });
+
+  it('/admin-status reflects degraded state', () => {
+    setDegraded(true);
+    const result = handleAdminCommand('/admin-status', ADMIN_ID, ADMIN_ID);
+    expect(result.response).toContain('Mode: DEGRADED');
   });
 
   it('non-admin commands pass through', () => {
@@ -152,11 +164,7 @@ describe('admin-commands', () => {
       storePurchase('tg:123', 'user1', 'Alice', 'beer', 3);
       storePurchase('tg:123', 'user1', 'Alice', 'wine', 5);
 
-      const result = handleAdminCommand(
-        '/admin-tab user1',
-        ADMIN_ID,
-        ADMIN_ID,
-      );
+      const result = handleAdminCommand('/admin-tab user1', ADMIN_ID, ADMIN_ID);
       expect(result.handled).toBe(true);
       expect(result.response).toContain('beer');
       expect(result.response).toContain('wine');

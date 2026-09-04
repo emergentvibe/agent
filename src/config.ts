@@ -55,6 +55,11 @@ export const CREDENTIAL_PROXY_PORT = parseInt(
   process.env.CREDENTIAL_PROXY_PORT || '3001',
   10,
 );
+export const ADMIN_HTTP_PORT = parseInt(
+  process.env.ADMIN_HTTP_PORT || '3002',
+  10,
+);
+export const ADMIN_HTTP_TOKEN = process.env.ADMIN_HTTP_TOKEN || '';
 export const IPC_POLL_INTERVAL = 1000;
 export const IDLE_TIMEOUT = parseInt(process.env.IDLE_TIMEOUT || '7200000', 10); // 2hr default — how long to keep container alive after last result
 export const MAX_CONCURRENT_CONTAINERS = Math.max(

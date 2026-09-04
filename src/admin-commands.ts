@@ -16,11 +16,24 @@ import {
 import { logger } from './logger.js';
 
 let silenced = false;
+let degraded = false;
 
 const startTime = Date.now();
 
 export function isSilenced(): boolean {
   return silenced;
+}
+
+export function setSilenced(value: boolean): void {
+  silenced = value;
+}
+
+export function isDegraded(): boolean {
+  return degraded;
+}
+
+export function setDegraded(value: boolean): void {
+  degraded = value;
 }
 
 export interface AdminCommandResult {
@@ -104,16 +117,48 @@ function buildStatusReport(): string {
     // docker not available or no containers
   }
 
+  const mode = silenced ? 'SILENCED' : degraded ? 'DEGRADED' : 'normal';
+
   const lines = [
     `📊 *Status Report*`,
     `Uptime: ${uptimeHrs}h`,
-    `Silenced: ${silenced ? 'YES' : 'no'}`,
+    `Mode: ${mode}`,
     `Groups: ${mainGroups.length} main, ${dmGroups.length} DMs`,
     `Active tasks: ${activeTasks.length}`,
     `Running containers: ${containerCount}`,
   ];
 
   return lines.join('\n');
+}
+
+export function getStatusJson(): Record<string, unknown> {
+  const uptimeMs = Date.now() - startTime;
+  const groups = getAllRegisteredGroups();
+  const mainGroups = Object.values(groups).filter((g) => g.isMain);
+  const dmGroups = Object.values(groups).filter(
+    (g) => !g.isMain && g.folder.includes('-dm-'),
+  );
+  const tasks = getAllTasks();
+  const activeTasks = tasks.filter((t) => t.status === 'active');
+
+  let containerCount = 0;
+  try {
+    const out = execSync(
+      "docker ps --filter name=nanoclaw- --format '{{.Names}}' 2>/dev/null",
+      { encoding: 'utf-8', timeout: 5000 },
+    );
+    containerCount = out.trim().split('\n').filter(Boolean).length;
+  } catch {
+    // docker not available or no containers
+  }
+
+  return {
+    mode: silenced ? 'silenced' : degraded ? 'degraded' : 'normal',
+    uptime_ms: uptimeMs,
+    groups: { main: mainGroups.length, dm: dmGroups.length },
+    active_tasks: activeTasks.length,
+    running_containers: containerCount,
+  };
 }
 
 function buildTopicReport(): string {
@@ -196,7 +241,9 @@ function buildTabReport(arg: string): string {
   const lines = [`*Purchases for ${purchases[0].user_name}*\n`];
   let total = 0;
   for (const p of purchases) {
-    lines.push(`${p.item}: $${p.price.toFixed(2)} (${p.timestamp.slice(0, 10)})`);
+    lines.push(
+      `${p.item}: $${p.price.toFixed(2)} (${p.timestamp.slice(0, 10)})`,
+    );
     total += p.price;
   }
   lines.push(`\n*Total: $${total.toFixed(2)}*`);

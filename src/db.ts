@@ -931,9 +931,7 @@ export function cancelLastPurchase(userId: string): Purchase | null {
 
 export function getAllPurchases(): Purchase[] {
   return db
-    .prepare(
-      `SELECT * FROM purchases WHERE cancelled = 0 ORDER BY timestamp`,
-    )
+    .prepare(`SELECT * FROM purchases WHERE cancelled = 0 ORDER BY timestamp`)
     .all() as Purchase[];
 }
 

@@ -139,10 +139,7 @@ export class TelegramChannel implements Channel {
 
     // --- Purchase system (local, no containers) ---
 
-    const loadPrices = (): Record<
-      string,
-      Record<string, number>
-    > | null => {
+    const loadPrices = (): Record<string, Record<string, number>> | null => {
       const groups = this.opts.registeredGroups();
       for (const group of Object.values(groups)) {
         const pricesPath = path.join(GROUPS_DIR, group.folder, 'prices.json');
@@ -171,10 +168,7 @@ export class TelegramChannel implements Channel {
       return kb;
     };
 
-    const handlePurchaseCommand = async (
-      ctx: any,
-      category?: string,
-    ) => {
+    const handlePurchaseCommand = async (ctx: any, category?: string) => {
       const prices = loadPrices();
       if (!prices) {
         await ctx.reply('No price list configured for this community.');
@@ -183,10 +177,13 @@ export class TelegramChannel implements Channel {
 
       if (category && prices[category]) {
         const kb = buildCategoryKeyboard(category, prices[category]);
-        await ctx.reply(`*${category.charAt(0).toUpperCase() + category.slice(1)}*`, {
-          reply_markup: kb,
-          parse_mode: 'Markdown',
-        });
+        await ctx.reply(
+          `*${category.charAt(0).toUpperCase() + category.slice(1)}*`,
+          {
+            reply_markup: kb,
+            parse_mode: 'Markdown',
+          },
+        );
       } else {
         const kb = new InlineKeyboard();
         for (const [cat, items] of Object.entries(prices)) {
@@ -213,9 +210,7 @@ export class TelegramChannel implements Channel {
         await ctx.reply('No purchases yet.');
         return;
       }
-      const lines = purchases.map(
-        (p) => `${p.item}: $${p.price.toFixed(2)}`,
-      );
+      const lines = purchases.map((p) => `${p.item}: $${p.price.toFixed(2)}`);
       const total = getUserTotal(userId);
       lines.push(`\n*Total: $${total.toFixed(2)}*`);
       await ctx.reply(lines.join('\n'), { parse_mode: 'Markdown' });
@@ -247,8 +242,7 @@ export class TelegramChannel implements Channel {
       }
 
       const userId = ctx.from.id.toString();
-      const userName =
-        ctx.from.first_name || ctx.from.username || userId;
+      const userName = ctx.from.first_name || ctx.from.username || userId;
       const chatJid = `tg:${ctx.callbackQuery.message?.chat.id || ''}`;
 
       storePurchase(chatJid, userId, userName, item, price);

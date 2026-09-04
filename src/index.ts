@@ -1,9 +1,16 @@
 import fs from 'fs';
 import path from 'path';
 
-import { handleAdminCommand, isSilenced } from './admin-commands.js';
+import {
+  handleAdminCommand,
+  isDegraded,
+  isSilenced,
+} from './admin-commands.js';
+import { startAdminHttp } from './admin-http.js';
 import { initAdminNotify, notifyError } from './admin-notify.js';
 import {
+  ADMIN_HTTP_PORT,
+  ADMIN_HTTP_TOKEN,
   ADMIN_TELEGRAM_ID,
   ASSISTANT_NAME,
   CREDENTIAL_PROXY_PORT,
@@ -176,6 +183,29 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   const channel = findChannel(channels, chatJid);
   if (!channel) {
     logger.warn({ chatJid }, 'No channel owns JID, skipping messages');
+    return true;
+  }
+
+  if (isDegraded()) {
+    const sinceTs = lastAgentTimestamp[chatJid] || '';
+    const msgs = getMessagesSince(chatJid, sinceTs, ASSISTANT_NAME);
+    if (msgs.length > 0) {
+      const hasTrigger = msgs.some((m) =>
+        TRIGGER_PATTERN.test(m.content.trim()),
+      );
+      if (hasTrigger) {
+        const triggerMsg = [...msgs]
+          .reverse()
+          .find((m) => TRIGGER_PATTERN.test(m.content.trim()));
+        await channel.sendMessage(
+          chatJid,
+          "I'm taking a short break — back soon.",
+          { thread_id: triggerMsg?.thread_id },
+        );
+      }
+      lastAgentTimestamp[chatJid] = msgs[msgs.length - 1].timestamp;
+      saveState();
+    }
     return true;
   }
 
@@ -579,10 +609,19 @@ export async function main(): Promise<void> {
     PROXY_BIND_HOST,
   );
 
+  // Start admin HTTP server (kill switch + status)
+  let adminServer: import('http').Server | undefined;
+  if (ADMIN_HTTP_TOKEN) {
+    adminServer = await startAdminHttp(ADMIN_HTTP_PORT, ADMIN_HTTP_TOKEN);
+  } else {
+    logger.warn('ADMIN_HTTP_TOKEN not set — admin HTTP endpoint disabled');
+  }
+
   // Graceful shutdown handlers
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'Shutdown signal received');
     proxyServer.close();
+    adminServer?.close();
     await queue.shutdown(10000);
     for (const ch of channels) await ch.disconnect();
     process.exit(0);
