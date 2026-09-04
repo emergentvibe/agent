@@ -126,6 +126,31 @@ function createSchema(database: Database.Database): void {
     /* column already exists */
   }
 
+  // Topics table for per-topic extraction control
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS topics (
+      chat_jid TEXT,
+      thread_id INTEGER,
+      name TEXT,
+      extraction_enabled INTEGER DEFAULT 0,
+      PRIMARY KEY (chat_jid, thread_id)
+    )
+  `);
+
+  // Purchases table for tab/microtransaction tracking
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS purchases (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      chat_jid TEXT,
+      user_id TEXT,
+      user_name TEXT,
+      item TEXT,
+      price REAL,
+      timestamp TEXT,
+      cancelled INTEGER DEFAULT 0
+    )
+  `);
+
   // Add channel and is_group columns if they don't exist (migration for existing DBs)
   try {
     database.exec(`ALTER TABLE chats ADD COLUMN channel TEXT`);
@@ -777,6 +802,139 @@ function migrateJsonState(): void {
       }
     }
   }
+}
+
+// --- Topic registry ---
+
+export interface TopicInfo {
+  chat_jid: string;
+  thread_id: number;
+  name: string;
+  extraction_enabled: number;
+}
+
+export function upsertTopic(
+  chatJid: string,
+  threadId: number,
+  name: string,
+): void {
+  db.prepare(
+    `INSERT INTO topics (chat_jid, thread_id, name, extraction_enabled)
+     VALUES (?, ?, ?, 0)
+     ON CONFLICT(chat_jid, thread_id) DO UPDATE SET name = excluded.name`,
+  ).run(chatJid, threadId, name);
+}
+
+export function setTopicExtraction(
+  chatJid: string,
+  threadId: number,
+  enabled: boolean,
+): void {
+  db.prepare(
+    `UPDATE topics SET extraction_enabled = ? WHERE chat_jid = ? AND thread_id = ?`,
+  ).run(enabled ? 1 : 0, chatJid, threadId);
+}
+
+export function getTopics(chatJid: string): TopicInfo[] {
+  return db
+    .prepare(
+      `SELECT chat_jid, thread_id, name, extraction_enabled FROM topics WHERE chat_jid = ? ORDER BY thread_id`,
+    )
+    .all(chatJid) as TopicInfo[];
+}
+
+export function isExtractionEnabled(
+  chatJid: string,
+  threadId: number | null | undefined,
+): boolean {
+  // General topic (null/undefined/1) is always extracted
+  if (!threadId || threadId === 1) return true;
+  const row = db
+    .prepare(
+      `SELECT extraction_enabled FROM topics WHERE chat_jid = ? AND thread_id = ?`,
+    )
+    .get(chatJid, threadId) as { extraction_enabled: number } | undefined;
+  // Unknown topics default to off
+  return row ? row.extraction_enabled === 1 : false;
+}
+
+// --- Purchase tracking ---
+
+export interface Purchase {
+  id: number;
+  chat_jid: string;
+  user_id: string;
+  user_name: string;
+  item: string;
+  price: number;
+  timestamp: string;
+  cancelled: number;
+}
+
+export function storePurchase(
+  chatJid: string,
+  userId: string,
+  userName: string,
+  item: string,
+  price: number,
+): number {
+  const result = db
+    .prepare(
+      `INSERT INTO purchases (chat_jid, user_id, user_name, item, price, timestamp, cancelled)
+       VALUES (?, ?, ?, ?, ?, ?, 0)`,
+    )
+    .run(chatJid, userId, userName, item, price, new Date().toISOString());
+  return result.lastInsertRowid as number;
+}
+
+export function getUserPurchases(userId: string): Purchase[] {
+  return db
+    .prepare(
+      `SELECT * FROM purchases WHERE user_id = ? AND cancelled = 0 ORDER BY timestamp`,
+    )
+    .all(userId) as Purchase[];
+}
+
+export function getUserTotal(userId: string): number {
+  const row = db
+    .prepare(
+      `SELECT COALESCE(SUM(price), 0) as total FROM purchases WHERE user_id = ? AND cancelled = 0`,
+    )
+    .get(userId) as { total: number };
+  return row.total;
+}
+
+export function getAllPurchaseTotals(): Array<{
+  user_id: string;
+  user_name: string;
+  total: number;
+}> {
+  return db
+    .prepare(
+      `SELECT user_id, user_name, COALESCE(SUM(price), 0) as total
+       FROM purchases WHERE cancelled = 0
+       GROUP BY user_id ORDER BY total DESC`,
+    )
+    .all() as Array<{ user_id: string; user_name: string; total: number }>;
+}
+
+export function cancelLastPurchase(userId: string): Purchase | null {
+  const last = db
+    .prepare(
+      `SELECT * FROM purchases WHERE user_id = ? AND cancelled = 0 ORDER BY id DESC LIMIT 1`,
+    )
+    .get(userId) as Purchase | undefined;
+  if (!last) return null;
+  db.prepare(`UPDATE purchases SET cancelled = 1 WHERE id = ?`).run(last.id);
+  return last;
+}
+
+export function getAllPurchases(): Purchase[] {
+  return db
+    .prepare(
+      `SELECT * FROM purchases WHERE cancelled = 0 ORDER BY timestamp`,
+    )
+    .all() as Purchase[];
 }
 
 export function cleanupSimData(): void {

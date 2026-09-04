@@ -10,6 +10,7 @@ export interface FeatureConfig {
     connect: boolean;
     forget: boolean;
     subscribe: boolean;
+    purchase: boolean;
   };
   behaviors: {
     daily_digest: boolean;
@@ -31,6 +32,7 @@ export const DEFAULT_FEATURES: FeatureConfig = {
     connect: true,
     forget: true,
     subscribe: false,
+    purchase: false,
   },
   behaviors: {
     daily_digest: false,

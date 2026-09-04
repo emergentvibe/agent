@@ -46,6 +46,7 @@ import {
   setSession,
   storeChatMetadata,
   storeMessage,
+  upsertTopic,
 } from './db.js';
 import { isCrewMember } from './crew.js';
 import { ensureCrewDigestTask, ensureDigestTask } from './digest.js';
@@ -205,9 +206,12 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
   // Find the thread_id of the trigger message so replies go to the correct topic.
   // For DMs (requiresTrigger:false), use the last message's thread_id.
   // Stored in lastReplyThreadId so piped messages can update it.
-  const triggerMsg = group.requiresTrigger !== false
-    ? [...missedMessages].reverse().find((m) => TRIGGER_PATTERN.test(m.content.trim()))
-    : missedMessages[missedMessages.length - 1];
+  const triggerMsg =
+    group.requiresTrigger !== false
+      ? [...missedMessages]
+          .reverse()
+          .find((m) => TRIGGER_PATTERN.test(m.content.trim()))
+      : missedMessages[missedMessages.length - 1];
   lastReplyThreadId[chatJid] = triggerMsg?.thread_id;
 
   // Advance cursor so the piping path in startMessageLoop won't re-fetch
@@ -263,7 +267,9 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
         );
         if (text && !isSilence) {
           try {
-            await channel.sendMessage(chatJid, text, { thread_id: lastReplyThreadId[chatJid] });
+            await channel.sendMessage(chatJid, text, {
+              thread_id: lastReplyThreadId[chatJid],
+            });
             outputSentToUser = true;
           } catch (err) {
             // Channel rejected the send — don't mark as delivered.
@@ -497,7 +503,9 @@ async function startMessageLoop(): Promise<void> {
             );
             // Update reply thread_id so responses go to the topic of the latest trigger
             const pipedTrigger = needsTrigger
-              ? [...messagesToSend].reverse().find((m) => TRIGGER_PATTERN.test(m.content.trim()))
+              ? [...messagesToSend]
+                  .reverse()
+                  .find((m) => TRIGGER_PATTERN.test(m.content.trim()))
               : messagesToSend[messagesToSend.length - 1];
             if (pipedTrigger?.thread_id !== undefined) {
               lastReplyThreadId[chatJid] = pipedTrigger.thread_id;
@@ -735,6 +743,8 @@ export async function main(): Promise<void> {
       channel?: string,
       isGroup?: boolean,
     ) => storeChatMetadata(chatJid, timestamp, name, channel, isGroup),
+    onTopicDiscovered: (chatJid: string, threadId: number, name: string) =>
+      upsertTopic(chatJid, threadId, name),
     registeredGroups: () => registeredGroups,
   };
 

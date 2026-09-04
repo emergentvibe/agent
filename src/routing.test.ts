@@ -2,9 +2,18 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import {
   _initTestDatabase,
+  cancelLastPurchase,
   getAllChats,
+  getAllPurchaseTotals,
+  getUserPurchases,
+  getUserTotal,
+  getTopics,
+  isExtractionEnabled,
+  setTopicExtraction,
   storeChatMetadata,
   storeMessage,
+  storePurchase,
+  upsertTopic,
   getMessagesSince,
 } from './db.js';
 import { getAvailableGroups, _setRegisteredGroups } from './index.js';
@@ -179,7 +188,13 @@ describe('getAvailableGroups', () => {
 
 describe('thread_id in messages', () => {
   it('stores and retrieves thread_id', () => {
-    storeChatMetadata('tg:group1', '2026-01-01T00:00:00Z', 'Test', 'telegram', true);
+    storeChatMetadata(
+      'tg:group1',
+      '2026-01-01T00:00:00Z',
+      'Test',
+      'telegram',
+      true,
+    );
     storeMessage({
       id: 'msg1',
       chat_jid: 'tg:group1',
@@ -197,7 +212,13 @@ describe('thread_id in messages', () => {
   });
 
   it('returns null thread_id for messages without topics', () => {
-    storeChatMetadata('tg:group1', '2026-01-01T00:00:00Z', 'Test', 'telegram', true);
+    storeChatMetadata(
+      'tg:group1',
+      '2026-01-01T00:00:00Z',
+      'Test',
+      'telegram',
+      true,
+    );
     storeMessage({
       id: 'msg2',
       chat_jid: 'tg:group1',
@@ -305,5 +326,99 @@ describe('formatMessages date injection', () => {
     expect(laResult).toContain('current_day="Sunday"');
 
     vi.useRealTimers();
+  });
+});
+
+// --- Topic registry ---
+
+describe('topic registry', () => {
+  it('upserts and retrieves topics', () => {
+    upsertTopic('tg:123', 2, 'Kitchen');
+    upsertTopic('tg:123', 3, 'Events');
+
+    const topics = getTopics('tg:123');
+    expect(topics).toHaveLength(2);
+    expect(topics[0].name).toBe('Kitchen');
+    expect(topics[1].name).toBe('Events');
+  });
+
+  it('updates topic name on re-upsert', () => {
+    upsertTopic('tg:123', 2, 'Kitchen');
+    upsertTopic('tg:123', 2, 'Kitchen & Dining');
+
+    const topics = getTopics('tg:123');
+    expect(topics).toHaveLength(1);
+    expect(topics[0].name).toBe('Kitchen & Dining');
+  });
+
+  it('extraction defaults to off for non-General topics', () => {
+    upsertTopic('tg:123', 2, 'Pics');
+    expect(isExtractionEnabled('tg:123', 2)).toBe(false);
+  });
+
+  it('General topic (null/undefined/1) always enabled', () => {
+    expect(isExtractionEnabled('tg:123', null)).toBe(true);
+    expect(isExtractionEnabled('tg:123', undefined)).toBe(true);
+    expect(isExtractionEnabled('tg:123', 1)).toBe(true);
+  });
+
+  it('toggles extraction on/off', () => {
+    upsertTopic('tg:123', 2, 'Kitchen');
+    setTopicExtraction('tg:123', 2, true);
+    expect(isExtractionEnabled('tg:123', 2)).toBe(true);
+
+    setTopicExtraction('tg:123', 2, false);
+    expect(isExtractionEnabled('tg:123', 2)).toBe(false);
+  });
+});
+
+// --- Purchase tracking ---
+
+describe('purchase tracking', () => {
+  it('stores and retrieves purchases', () => {
+    storePurchase('tg:123', 'user1', 'Alice', 'beer', 3);
+    storePurchase('tg:123', 'user1', 'Alice', 'wine', 5);
+
+    const purchases = getUserPurchases('user1');
+    expect(purchases).toHaveLength(2);
+    expect(purchases[0].item).toBe('beer');
+    expect(purchases[1].item).toBe('wine');
+  });
+
+  it('calculates user total', () => {
+    storePurchase('tg:123', 'user1', 'Alice', 'beer', 3);
+    storePurchase('tg:123', 'user1', 'Alice', 'wine', 5);
+
+    expect(getUserTotal('user1')).toBe(8);
+  });
+
+  it('calculates all totals', () => {
+    storePurchase('tg:123', 'user1', 'Alice', 'beer', 3);
+    storePurchase('tg:123', 'user2', 'Bob', 'burger', 5);
+
+    const totals = getAllPurchaseTotals();
+    expect(totals).toHaveLength(2);
+    expect(totals[0].user_name).toBe('Bob');
+    expect(totals[0].total).toBe(5);
+    expect(totals[1].user_name).toBe('Alice');
+    expect(totals[1].total).toBe(3);
+  });
+
+  it('cancels last purchase', () => {
+    storePurchase('tg:123', 'user1', 'Alice', 'beer', 3);
+    storePurchase('tg:123', 'user1', 'Alice', 'wine', 5);
+
+    const cancelled = cancelLastPurchase('user1');
+    expect(cancelled?.item).toBe('wine');
+    expect(getUserTotal('user1')).toBe(3);
+    expect(getUserPurchases('user1')).toHaveLength(1);
+  });
+
+  it('returns null when nothing to cancel', () => {
+    expect(cancelLastPurchase('nonexistent')).toBeNull();
+  });
+
+  it('returns zero total for unknown user', () => {
+    expect(getUserTotal('unknown')).toBe(0);
   });
 });

@@ -11,7 +11,16 @@ vi.mock('../env.js', () => ({ readEnvFile: vi.fn(() => ({})) }));
 // Mock config
 vi.mock('../config.js', () => ({
   ASSISTANT_NAME: 'Andy',
+  GROUPS_DIR: '/tmp/test-groups',
   TRIGGER_PATTERN: /^@Andy\b/i,
+}));
+
+// Mock db (purchase functions)
+vi.mock('../db.js', () => ({
+  cancelLastPurchase: vi.fn(() => null),
+  getUserPurchases: vi.fn(() => []),
+  getUserTotal: vi.fn(() => 0),
+  storePurchase: vi.fn(() => 1),
 }));
 
 // Mock logger
@@ -35,6 +44,7 @@ vi.mock('grammy', () => ({
     token: string;
     commandHandlers = new Map<string, Handler>();
     filterHandlers = new Map<string, Handler[]>();
+    callbackQueryHandlers = new Map<string, Handler>();
     errorHandler: Handler | null = null;
 
     api = {
@@ -58,6 +68,10 @@ vi.mock('grammy', () => ({
       this.filterHandlers.set(filter, existing);
     }
 
+    callbackQuery(_pattern: any, handler: Handler) {
+      this.callbackQueryHandlers.set(String(_pattern), handler);
+    }
+
     catch(handler: Handler) {
       this.errorHandler = handler;
     }
@@ -67,6 +81,16 @@ vi.mock('grammy', () => ({
     }
 
     stop() {}
+  },
+  InlineKeyboard: class MockInlineKeyboard {
+    buttons: any[] = [];
+    text(label: string, data: string) {
+      this.buttons.push({ label, data });
+      return this;
+    }
+    row() {
+      return this;
+    }
   },
 }));
 

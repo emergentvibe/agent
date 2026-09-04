@@ -19,6 +19,7 @@ import {
   getMessagesInTimeRange,
   getMessagesSince,
   getRouterState,
+  isExtractionEnabled,
   setRouterState,
 } from './db.js';
 import { readEnvFile } from './env.js';
@@ -217,13 +218,26 @@ async function runExtractionCycle(deps: ExtractionLoopDeps): Promise<void> {
     const lastExtracted = extractionTimestamps[chatJid] || '';
     const communitySlug = group.folder;
 
-    const newMessages = getMessagesSince(
+    const allNewMessages = getMessagesSince(
       chatJid,
       lastExtracted,
       deps.assistantName,
     );
 
-    if (newMessages.length === 0) continue;
+    if (allNewMessages.length === 0) continue;
+
+    // Filter out messages from topics where extraction is disabled
+    const newMessages = allNewMessages.filter((m) =>
+      isExtractionEnabled(chatJid, m.thread_id),
+    );
+
+    // Still advance the cursor even if all messages were filtered out
+    if (newMessages.length === 0) {
+      extractionTimestamps[chatJid] =
+        allNewMessages[allNewMessages.length - 1].timestamp;
+      saveExtractionTimestamps();
+      continue;
+    }
 
     // Context: messages from the sliding window that were already extracted.
     // Falls back to last N messages if the time window is too narrow (e.g.,

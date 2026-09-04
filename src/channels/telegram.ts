@@ -1,7 +1,15 @@
+import fs from 'fs';
 import https from 'https';
-import { Api, Bot } from 'grammy';
+import path from 'path';
+import { Api, Bot, InlineKeyboard } from 'grammy';
 
-import { ASSISTANT_NAME, TRIGGER_PATTERN } from '../config.js';
+import { ASSISTANT_NAME, GROUPS_DIR, TRIGGER_PATTERN } from '../config.js';
+import {
+  cancelLastPurchase,
+  getUserPurchases,
+  getUserTotal,
+  storePurchase,
+} from '../db.js';
 import { readEnvFile } from '../env.js';
 import { logger } from '../logger.js';
 import { registerChannel, ChannelOpts } from './registry.js';
@@ -15,6 +23,7 @@ import {
 export interface TelegramChannelOpts {
   onMessage: OnInboundMessage;
   onChatMetadata: OnChatMetadata;
+  onTopicDiscovered?: (chatJid: string, threadId: number, name: string) => void;
   registeredGroups: () => Record<string, RegisteredGroup>;
 }
 
@@ -79,6 +88,19 @@ export class TelegramChannel implements Channel {
         command: 'forget',
         description: 'Remove your introduction from memory',
       },
+      { command: 'bar', description: 'Buy a drink', local: true },
+      { command: 'bbq', description: 'Buy food from the grill', local: true },
+      { command: 'purchase', description: 'Buy something', local: true },
+      {
+        command: 'show_total',
+        description: 'See your tab',
+        local: true,
+      },
+      {
+        command: 'cancel_purchase',
+        description: 'Undo your last purchase',
+        local: true,
+      },
       { command: 'chatid', description: 'Get this chat ID', local: true },
       { command: 'ping', description: 'Check if bot is online', local: true },
     ];
@@ -113,6 +135,189 @@ export class TelegramChannel implements Channel {
     // Command to check bot status
     this.bot.command('ping', (ctx) => {
       ctx.reply(`${ASSISTANT_NAME} is online.`);
+    });
+
+    // --- Purchase system (local, no containers) ---
+
+    const loadPrices = (): Record<
+      string,
+      Record<string, number>
+    > | null => {
+      const groups = this.opts.registeredGroups();
+      for (const group of Object.values(groups)) {
+        const pricesPath = path.join(GROUPS_DIR, group.folder, 'prices.json');
+        if (fs.existsSync(pricesPath)) {
+          try {
+            return JSON.parse(fs.readFileSync(pricesPath, 'utf-8'));
+          } catch {
+            logger.warn({ path: pricesPath }, 'Failed to parse prices.json');
+          }
+        }
+      }
+      return null;
+    };
+
+    const buildCategoryKeyboard = (
+      category: string,
+      items: Record<string, number>,
+    ): InlineKeyboard => {
+      const kb = new InlineKeyboard();
+      const entries = Object.entries(items);
+      for (let i = 0; i < entries.length; i++) {
+        const [item, price] = entries[i];
+        kb.text(`${item} $${price}`, `buy:${category}:${item}`);
+        if (i % 2 === 1 && i < entries.length - 1) kb.row();
+      }
+      return kb;
+    };
+
+    const handlePurchaseCommand = async (
+      ctx: any,
+      category?: string,
+    ) => {
+      const prices = loadPrices();
+      if (!prices) {
+        await ctx.reply('No price list configured for this community.');
+        return;
+      }
+
+      if (category && prices[category]) {
+        const kb = buildCategoryKeyboard(category, prices[category]);
+        await ctx.reply(`*${category.charAt(0).toUpperCase() + category.slice(1)}*`, {
+          reply_markup: kb,
+          parse_mode: 'Markdown',
+        });
+      } else {
+        const kb = new InlineKeyboard();
+        for (const [cat, items] of Object.entries(prices)) {
+          for (const [item, price] of Object.entries(items)) {
+            kb.text(`${item} $${price}`, `buy:${cat}:${item}`);
+          }
+          kb.row();
+        }
+        await ctx.reply('*What would you like?*', {
+          reply_markup: kb,
+          parse_mode: 'Markdown',
+        });
+      }
+    };
+
+    this.bot.command('bar', (ctx) => handlePurchaseCommand(ctx, 'bar'));
+    this.bot.command('bbq', (ctx) => handlePurchaseCommand(ctx, 'bbq'));
+    this.bot.command('purchase', (ctx) => handlePurchaseCommand(ctx));
+
+    this.bot.command('show_total', async (ctx) => {
+      const userId = ctx.from?.id?.toString() || '';
+      const purchases = getUserPurchases(userId);
+      if (purchases.length === 0) {
+        await ctx.reply('No purchases yet.');
+        return;
+      }
+      const lines = purchases.map(
+        (p) => `${p.item}: $${p.price.toFixed(2)}`,
+      );
+      const total = getUserTotal(userId);
+      lines.push(`\n*Total: $${total.toFixed(2)}*`);
+      await ctx.reply(lines.join('\n'), { parse_mode: 'Markdown' });
+    });
+
+    this.bot.command('cancel_purchase', async (ctx) => {
+      const userId = ctx.from?.id?.toString() || '';
+      const cancelled = cancelLastPurchase(userId);
+      if (!cancelled) {
+        await ctx.reply('Nothing to cancel.');
+        return;
+      }
+      const total = getUserTotal(userId);
+      await ctx.reply(
+        `Cancelled: ${cancelled.item} ($${cancelled.price.toFixed(2)})\nNew total: $${total.toFixed(2)}`,
+      );
+    });
+
+    // Handle inline keyboard button taps for purchases
+    this.bot.callbackQuery(/^buy:(.+):(.+)$/, async (ctx) => {
+      const match = ctx.callbackQuery.data.match(/^buy:(.+):(.+)$/);
+      if (!match) return;
+      const [, category, item] = match;
+      const prices = loadPrices();
+      const price = prices?.[category]?.[item];
+      if (price === undefined) {
+        await ctx.answerCallbackQuery({ text: 'Item not available.' });
+        return;
+      }
+
+      const userId = ctx.from.id.toString();
+      const userName =
+        ctx.from.first_name || ctx.from.username || userId;
+      const chatJid = `tg:${ctx.callbackQuery.message?.chat.id || ''}`;
+
+      storePurchase(chatJid, userId, userName, item, price);
+      const total = getUserTotal(userId);
+
+      await ctx.answerCallbackQuery({
+        text: `Added ${item} ($${price.toFixed(2)})`,
+      });
+      try {
+        await ctx.editMessageText(
+          `${userName} bought *${item}* ($${price.toFixed(2)})\nRunning total: *$${total.toFixed(2)}*`,
+          { parse_mode: 'Markdown' },
+        );
+      } catch {
+        // Message may be too old to edit
+      }
+    });
+
+    // /start deep link handler (NFC stickers, DM entry points)
+    this.bot.command('start', async (ctx) => {
+      const payload = ctx.match?.toString().trim();
+      if (!payload) return; // plain /start handled elsewhere or ignored
+
+      switch (payload) {
+        case 'bar':
+        case 'bbq':
+          await handlePurchaseCommand(ctx, payload);
+          break;
+        case 'tab': {
+          const userId = ctx.from?.id?.toString() || '';
+          const purchases = getUserPurchases(userId);
+          if (purchases.length === 0) {
+            await ctx.reply('No purchases yet.');
+          } else {
+            const lines = purchases.map(
+              (p) => `${p.item}: $${p.price.toFixed(2)}`,
+            );
+            const total = getUserTotal(userId);
+            lines.push(`\n*Total: $${total.toFixed(2)}*`);
+            await ctx.reply(lines.join('\n'), { parse_mode: 'Markdown' });
+          }
+          break;
+        }
+        default:
+          // Other payloads (wifi, today, info, connect) → rewrite as agent command
+          this.opts.onMessage(`tg:${ctx.chat.id}`, {
+            id: ctx.message!.message_id.toString(),
+            chat_jid: `tg:${ctx.chat.id}`,
+            sender: ctx.from?.id?.toString() || '',
+            sender_name:
+              ctx.from?.first_name || ctx.from?.username || 'Unknown',
+            content: `@${ASSISTANT_NAME} /${payload}`,
+            timestamp: new Date(ctx.message!.date * 1000).toISOString(),
+            is_from_me: false,
+          });
+          break;
+      }
+    });
+
+    // Auto-discover forum topics from service messages
+    this.bot.on('message:forum_topic_created', (ctx) => {
+      const chatJid = `tg:${ctx.chat.id}`;
+      const threadId = ctx.message.message_thread_id;
+      const name =
+        (ctx.message as any).forum_topic_created?.name || `Topic ${threadId}`;
+      if (threadId && this.opts.onTopicDiscovered) {
+        this.opts.onTopicDiscovered(chatJid, threadId, name);
+        logger.info({ chatJid, threadId, name }, 'Forum topic discovered');
+      }
     });
 
     this.bot.on('message:text', async (ctx) => {
@@ -297,7 +502,11 @@ export class TelegramChannel implements Channel {
     });
   }
 
-  async sendMessage(jid: string, text: string, opts?: { thread_id?: number }): Promise<void> {
+  async sendMessage(
+    jid: string,
+    text: string,
+    opts?: { thread_id?: number },
+  ): Promise<void> {
     if (!this.bot) {
       throw new Error('Telegram bot not initialized');
     }
@@ -325,7 +534,10 @@ export class TelegramChannel implements Channel {
         );
       }
     }
-    logger.info({ jid, thread_id: opts?.thread_id, length: text.length }, 'Telegram message sent');
+    logger.info(
+      { jid, thread_id: opts?.thread_id, length: text.length },
+      'Telegram message sent',
+    );
   }
 
   isConnected(): boolean {
