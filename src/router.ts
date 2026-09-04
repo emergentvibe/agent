@@ -16,7 +16,8 @@ export function formatMessages(
 ): string {
   const lines = messages.map((m) => {
     const displayTime = formatLocalTime(m.timestamp, timezone);
-    return `<message sender="${escapeXml(m.sender_name)}" sender_id="${escapeXml(m.sender)}" time="${escapeXml(displayTime)}">${escapeXml(m.content)}</message>`;
+    const threadAttr = m.thread_id ? ` thread_id="${m.thread_id}"` : '';
+    return `<message sender="${escapeXml(m.sender_name)}" sender_id="${escapeXml(m.sender)}" time="${escapeXml(displayTime)}"${threadAttr}>${escapeXml(m.content)}</message>`;
   });
 
   // Derive date from the latest message (not wall clock) so the context
@@ -50,10 +51,11 @@ export function routeOutbound(
   channels: Channel[],
   jid: string,
   text: string,
+  opts?: { thread_id?: number },
 ): Promise<void> {
   const channel = channels.find((c) => c.ownsJid(jid) && c.isConnected());
   if (!channel) throw new Error(`No channel for JID: ${jid}`);
-  return channel.sendMessage(jid, text);
+  return channel.sendMessage(jid, text, opts);
 }
 
 export function findChannel(

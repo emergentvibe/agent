@@ -80,6 +80,7 @@ let lastTimestamp = '';
 let sessions: Record<string, string> = {};
 let registeredGroups: Record<string, RegisteredGroup> = {};
 let lastAgentTimestamp: Record<string, string> = {};
+let lastReplyThreadId: Record<string, number | undefined> = {};
 let messageLoopRunning = false;
 
 const channels: Channel[] = [];
@@ -201,6 +202,14 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
 
   const prompt = formatMessages(missedMessages, TIMEZONE);
 
+  // Find the thread_id of the trigger message so replies go to the correct topic.
+  // For DMs (requiresTrigger:false), use the last message's thread_id.
+  // Stored in lastReplyThreadId so piped messages can update it.
+  const triggerMsg = group.requiresTrigger !== false
+    ? [...missedMessages].reverse().find((m) => TRIGGER_PATTERN.test(m.content.trim()))
+    : missedMessages[missedMessages.length - 1];
+  lastReplyThreadId[chatJid] = triggerMsg?.thread_id;
+
   // Advance cursor so the piping path in startMessageLoop won't re-fetch
   // these messages. Save the old cursor so we can roll back on error.
   const previousCursor = lastAgentTimestamp[chatJid] || '';
@@ -254,7 +263,7 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
         );
         if (text && !isSilence) {
           try {
-            await channel.sendMessage(chatJid, text);
+            await channel.sendMessage(chatJid, text, { thread_id: lastReplyThreadId[chatJid] });
             outputSentToUser = true;
           } catch (err) {
             // Channel rejected the send — don't mark as delivered.
@@ -486,6 +495,13 @@ async function startMessageLoop(): Promise<void> {
               { chatJid, count: messagesToSend.length },
               'Piped messages to active container',
             );
+            // Update reply thread_id so responses go to the topic of the latest trigger
+            const pipedTrigger = needsTrigger
+              ? [...messagesToSend].reverse().find((m) => TRIGGER_PATTERN.test(m.content.trim()))
+              : messagesToSend[messagesToSend.length - 1];
+            if (pipedTrigger?.thread_id !== undefined) {
+              lastReplyThreadId[chatJid] = pipedTrigger.thread_id;
+            }
             lastAgentTimestamp[chatJid] =
               messagesToSend[messagesToSend.length - 1].timestamp;
             saveState();

@@ -215,6 +215,7 @@ export class TelegramChannel implements Channel {
         content,
         timestamp,
         is_from_me: false,
+        thread_id: ctx.message.message_thread_id,
       });
 
       logger.info(
@@ -254,6 +255,7 @@ export class TelegramChannel implements Channel {
         content: `${placeholder}${caption}`,
         timestamp,
         is_from_me: false,
+        thread_id: ctx.message.message_thread_id,
       });
     };
 
@@ -295,30 +297,35 @@ export class TelegramChannel implements Channel {
     });
   }
 
-  async sendMessage(jid: string, text: string): Promise<void> {
-    // Throw on failure so callers can distinguish "delivered" from "lost".
-    // The caller in index.ts:processGroupMessages relies on this to decide
-    // whether to roll back the message cursor and retry.
+  async sendMessage(jid: string, text: string, opts?: { thread_id?: number }): Promise<void> {
     if (!this.bot) {
       throw new Error('Telegram bot not initialized');
     }
 
     const numericId = jid.replace(/^tg:/, '');
 
+    // Build thread options — General topic (thread_id=1) must be omitted
+    // because Telegram rejects sendMessage with message_thread_id=1.
+    const threadOpts: { message_thread_id?: number } = {};
+    if (opts?.thread_id && opts.thread_id !== 1) {
+      threadOpts.message_thread_id = opts.thread_id;
+    }
+
     // Telegram has a 4096 character limit per message — split if needed
     const MAX_LENGTH = 4096;
     if (text.length <= MAX_LENGTH) {
-      await sendTelegramMessage(this.bot.api, numericId, text);
+      await sendTelegramMessage(this.bot.api, numericId, text, threadOpts);
     } else {
       for (let i = 0; i < text.length; i += MAX_LENGTH) {
         await sendTelegramMessage(
           this.bot.api,
           numericId,
           text.slice(i, i + MAX_LENGTH),
+          threadOpts,
         );
       }
     }
-    logger.info({ jid, length: text.length }, 'Telegram message sent');
+    logger.info({ jid, thread_id: opts?.thread_id, length: text.length }, 'Telegram message sent');
   }
 
   isConnected(): boolean {

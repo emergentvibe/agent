@@ -1,6 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-import { _initTestDatabase, getAllChats, storeChatMetadata } from './db.js';
+import {
+  _initTestDatabase,
+  getAllChats,
+  storeChatMetadata,
+  storeMessage,
+  getMessagesSince,
+} from './db.js';
 import { getAvailableGroups, _setRegisteredGroups } from './index.js';
 
 beforeEach(() => {
@@ -169,9 +175,85 @@ describe('getAvailableGroups', () => {
   });
 });
 
+// --- thread_id storage and retrieval ---
+
+describe('thread_id in messages', () => {
+  it('stores and retrieves thread_id', () => {
+    storeChatMetadata('tg:group1', '2026-01-01T00:00:00Z', 'Test', 'telegram', true);
+    storeMessage({
+      id: 'msg1',
+      chat_jid: 'tg:group1',
+      sender: 'user1',
+      sender_name: 'Alice',
+      content: 'hello from topic',
+      timestamp: '2026-01-01T00:01:00Z',
+      is_from_me: false,
+      thread_id: 42,
+    });
+
+    const msgs = getMessagesSince('tg:group1', '2026-01-01T00:00:00Z', 'Bot');
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].thread_id).toBe(42);
+  });
+
+  it('returns null thread_id for messages without topics', () => {
+    storeChatMetadata('tg:group1', '2026-01-01T00:00:00Z', 'Test', 'telegram', true);
+    storeMessage({
+      id: 'msg2',
+      chat_jid: 'tg:group1',
+      sender: 'user1',
+      sender_name: 'Alice',
+      content: 'hello from general',
+      timestamp: '2026-01-01T00:01:00Z',
+      is_from_me: false,
+    });
+
+    const msgs = getMessagesSince('tg:group1', '2026-01-01T00:00:00Z', 'Bot');
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].thread_id).toBeNull();
+  });
+});
+
 // --- formatMessages date injection ---
 
 import { formatMessages } from './router.js';
+
+describe('formatMessages thread_id', () => {
+  it('includes thread_id attribute when present', () => {
+    const messages = [
+      {
+        id: '1',
+        chat_jid: 'tg:123',
+        sender: '456',
+        sender_name: 'Alice',
+        content: 'hello',
+        timestamp: '2026-03-29T10:00:00.000Z',
+        is_from_me: false,
+        thread_id: 42,
+      },
+    ];
+
+    const result = formatMessages(messages, 'UTC');
+    expect(result).toContain('thread_id="42"');
+  });
+
+  it('omits thread_id attribute when absent', () => {
+    const messages = [
+      {
+        id: '1',
+        chat_jid: 'tg:123',
+        sender: '456',
+        sender_name: 'Alice',
+        content: 'hello',
+        timestamp: '2026-03-29T10:00:00.000Z',
+        is_from_me: false,
+      },
+    ];
+
+    const result = formatMessages(messages, 'UTC');
+    expect(result).not.toContain('thread_id');
+  });
+});
 
 describe('formatMessages date injection', () => {
   it('includes current_date and current_day in context header', () => {
