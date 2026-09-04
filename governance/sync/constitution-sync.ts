@@ -55,10 +55,10 @@ export async function sendHeartbeat(apiUrl: string, slug: string, constitutionVe
 }
 
 export function loadTemplate(templateDir?: string): string {
-  const templatePath = templateDir
-    ? path.join(templateDir, 'claude-md-template.md')
-    : path.resolve(import.meta.dirname ?? '.', '../templates/claude-md-template.md');
-  return fs.readFileSync(templatePath, 'utf-8');
+  const dir = templateDir ?? path.resolve(import.meta.dirname ?? '.', '../templates');
+  const base = fs.readFileSync(path.join(dir, 'base-template.md'), 'utf-8');
+  const group = fs.readFileSync(path.join(dir, 'group-template.md'), 'utf-8');
+  return base + '\n\n' + group;
 }
 
 export function buildClaudeMd(template: string, group: GroupConfig, data: ConstitutionData, apiUrl: string): string {

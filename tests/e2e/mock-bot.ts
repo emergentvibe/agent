@@ -72,8 +72,11 @@ async function syncConstitution(): Promise<boolean> {
     console.log(`[mock-bot] Got constitution: "${data.name}" v${data.version} (hash: ${data.content_hash})`);
 
     // Build CLAUDE.md from template
-    const templatePath = path.join(AGENT_ROOT, 'governance/templates/claude-md-template.md');
-    const template = fs.readFileSync(templatePath, 'utf-8');
+    const templatesDir = path.join(AGENT_ROOT, 'governance/templates');
+    const template =
+      fs.readFileSync(path.join(templatesDir, 'base-template.md'), 'utf-8') +
+      '\n\n' +
+      fs.readFileSync(path.join(templatesDir, 'group-template.md'), 'utf-8');
 
     const claudeMd = template
       .replace(/\{\{community_name\}\}/g, COMMUNITY_NAME)

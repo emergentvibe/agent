@@ -96,15 +96,16 @@ const GLOBAL_CLAUDE_MD = fs.readFileSync(
   'utf-8',
 );
 
-const COMMUNITY_TEMPLATE = fs.readFileSync(
-  path.resolve(TEST_DIR, '../../governance/templates/claude-md-template.md'),
-  'utf-8',
-);
+const TEMPLATES_DIR = path.resolve(TEST_DIR, '../../governance/templates');
+const BASE_TEMPLATE = fs.readFileSync(path.join(TEMPLATES_DIR, 'base-template.md'), 'utf-8');
 
-const DM_TEMPLATE = fs.readFileSync(
-  path.resolve(TEST_DIR, '../../governance/templates/dm-template.md'),
-  'utf-8',
-);
+const COMMUNITY_TEMPLATE =
+  BASE_TEMPLATE + '\n\n' +
+  fs.readFileSync(path.join(TEMPLATES_DIR, 'group-template.md'), 'utf-8');
+
+const DM_TEMPLATE =
+  BASE_TEMPLATE + '\n\n' +
+  fs.readFileSync(path.join(TEMPLATES_DIR, 'dm-overlay-template.md'), 'utf-8');
 
 const CONSTITUTION = `
 # Heliotrope Community Constitution

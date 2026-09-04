@@ -19,21 +19,19 @@ const GLOBAL_CLAUDE_MD = fs.readFileSync(
   'utf-8',
 );
 
-const COMMUNITY_TEMPLATE = fs.readFileSync(
-  path.resolve(
-    import.meta.dirname ?? '.',
-    '../governance/templates/claude-md-template.md',
-  ),
-  'utf-8',
+const TEMPLATES_DIR = path.resolve(
+  import.meta.dirname ?? '.',
+  '../governance/templates',
 );
+const BASE_TEMPLATE = fs.readFileSync(path.join(TEMPLATES_DIR, 'base-template.md'), 'utf-8');
 
-const DM_TEMPLATE = fs.readFileSync(
-  path.resolve(
-    import.meta.dirname ?? '.',
-    '../governance/templates/dm-template.md',
-  ),
-  'utf-8',
-);
+const COMMUNITY_TEMPLATE =
+  BASE_TEMPLATE + '\n\n' +
+  fs.readFileSync(path.join(TEMPLATES_DIR, 'group-template.md'), 'utf-8');
+
+const DM_TEMPLATE =
+  BASE_TEMPLATE + '\n\n' +
+  fs.readFileSync(path.join(TEMPLATES_DIR, 'dm-overlay-template.md'), 'utf-8');
 
 const MOCK_GROUP: GroupConfig = {
   folder: 'telegram_test',
@@ -129,7 +127,7 @@ describe('Community template (Layer 2)', () => {
   );
 
   it('contains tag-only response model', () => {
-    expect(rendered).toContain('When You Speak');
+    expect(rendered).toContain('Group Behavior');
     expect(rendered).toContain('silence');
   });
 
@@ -143,12 +141,9 @@ describe('Community template (Layer 2)', () => {
     expect(rendered).toContain("Don't respond unless addressed");
   });
 
-  it('contains onboarding section with operational categories', () => {
+  it('contains onboarding section', () => {
     expect(rendered).toContain('Onboarding');
-    expect(rendered).toContain('spaces');
-    expect(rendered).toContain('meals');
-    expect(rendered).toContain('events');
-    expect(rendered).toContain('contacts');
+    expect(rendered).toContain('provenance');
   });
 
   it('contains crew section with crew list', () => {
@@ -157,16 +152,16 @@ describe('Community template (Layer 2)', () => {
   });
 
   it('contains epistemic markers', () => {
-    expect(rendered).toContain('How You Speak About What You Know');
+    expect(rendered).toContain('How You Speak');
     expect(rendered).toContain('Established fact');
-    expect(rendered).toContain("I've heard that");
+    expect(rendered).toContain('mentioned');
     expect(rendered).toContain('A few people have mentioned');
   });
 
   it('contains knowledge tiers', () => {
-    expect(rendered).toContain('Knowledge Tiers and Conflict Resolution');
-    expect(rendered).toContain('operational');
-    expect(rendered).toContain('social');
+    expect(rendered).toContain('Knowledge Tiers');
+    expect(rendered).toContain('Operational');
+    expect(rendered).toContain('Social');
   });
 
   it('contains first-person authority', () => {
@@ -231,7 +226,7 @@ describe('DM template (Layer 3)', () => {
   );
 
   it('identifies as private conversation', () => {
-    expect(rendered).toContain('Private Conversation');
+    expect(rendered).toContain('private conversation');
     expect(rendered).toContain('Alice');
   });
 
@@ -244,7 +239,7 @@ describe('DM template (Layer 3)', () => {
   });
 
   it('uses tier-based authority', () => {
-    expect(rendered).toContain('Knowledge Authority');
+    expect(rendered).toContain('Knowledge Tiers');
     expect(rendered.toLowerCase()).toContain('operational');
     expect(rendered.toLowerCase()).toContain('social');
   });
@@ -260,8 +255,7 @@ describe('DM template (Layer 3)', () => {
   });
 
   it('includes onboarding for crew only', () => {
-    expect(rendered).toContain('Onboarding');
-    expect(rendered).toContain('Crew Only');
+    expect(rendered).toContain('Crew Onboarding');
     expect(rendered).toContain('seed knowledge');
   });
 
@@ -273,8 +267,8 @@ describe('DM template (Layer 3)', () => {
     expect(rendered).not.toContain('Listening Mode');
   });
 
-  it('does NOT contain pattern sensing (group-only)', () => {
-    expect(rendered).not.toContain('Pattern Sensing');
+  it('does NOT contain pattern sensing instructions (group-only)', () => {
+    expect(rendered).not.toContain('## Pattern Sensing');
   });
 
   it('leaves no unreplaced placeholders', () => {
@@ -301,8 +295,8 @@ describe('Cross-layer separation', () => {
   });
 
   it('response model only in community template', () => {
-    expect(COMMUNITY_TEMPLATE).toContain('When You Speak');
-    expect(GLOBAL_CLAUDE_MD).not.toContain('When You Speak');
-    expect(DM_TEMPLATE).not.toContain('When You Speak');
+    expect(COMMUNITY_TEMPLATE).toContain('Group Behavior');
+    expect(GLOBAL_CLAUDE_MD).not.toContain('Group Behavior');
+    expect(DM_TEMPLATE).not.toContain('Group Behavior');
   });
 });

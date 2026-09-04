@@ -131,9 +131,12 @@ function writeSimClaudeMd(
 ): void {
   const templatePath = path.join(
     AGENT_ROOT,
-    'governance/templates/claude-md-template.md',
+    'governance/templates',
   );
-  let template = fs.readFileSync(templatePath, 'utf-8');
+  let template =
+    fs.readFileSync(path.join(templatePath, 'base-template.md'), 'utf-8') +
+    '\n\n' +
+    fs.readFileSync(path.join(templatePath, 'group-template.md'), 'utf-8');
 
   const crewPersonas = personas.filter((p) => p.role === 'crew');
   const crewList = crewPersonas.length

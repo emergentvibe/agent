@@ -51,5 +51,4 @@ describe('loadFeatureConfig', () => {
     const config = loadFeatureConfig('test-group');
     expect(config).toEqual(DEFAULT_FEATURES);
   });
-
 });

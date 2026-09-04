@@ -312,10 +312,11 @@ describeFn('Functional: Slash Commands with Real Mem0', () => {
     client = new Anthropic({ apiKey: API_KEY });
 
     // Build system prompt from real templates
-    const communityTemplate = fs.readFileSync(
-      path.resolve(TEST_DIR, '../../governance/templates/claude-md-template.md'),
-      'utf-8',
-    );
+    const templatesDir = path.resolve(TEST_DIR, '../../governance/templates');
+    const communityTemplate =
+      fs.readFileSync(path.join(templatesDir, 'base-template.md'), 'utf-8') +
+      '\n\n' +
+      fs.readFileSync(path.join(templatesDir, 'group-template.md'), 'utf-8');
 
     const globalClaudeMd = fs.readFileSync(
       path.resolve(TEST_DIR, '../../groups/global/CLAUDE.md'),

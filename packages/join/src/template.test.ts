@@ -36,23 +36,24 @@ describe('Template rendering — all templates', () => {
     expect(unreplaced).toEqual([]);
   });
 
-  it('claude-md-template.md renders with remaining group-specific variables only', () => {
-    const template = readFileSync(path.join(TEMPLATE_DIR, 'claude-md-template.md'), 'utf-8');
+  it('base+group templates render with remaining group-specific variables only', () => {
+    const template =
+      readFileSync(path.join(TEMPLATE_DIR, 'base-template.md'), 'utf-8') +
+      '\n\n' +
+      readFileSync(path.join(TEMPLATE_DIR, 'group-template.md'), 'utf-8');
     const rendered = renderClaudeMd(template, renderOpts);
     const unreplaced = validateRendered(rendered);
-    // The community template has {{polis_url}} which isn't in renderClaudeMd — that's OK,
-    // it's set by constitution-sync.ts not by the join CLI
     const expectedUnreplaced = unreplaced.filter(v => v !== '{{polis_url}}');
     expect(expectedUnreplaced).toEqual([]);
   });
 
-  it('dm-template.md renders with remaining DM-specific variables only', () => {
-    const template = readFileSync(path.join(TEMPLATE_DIR, 'dm-template.md'), 'utf-8');
+  it('base+dm-overlay templates render with remaining DM-specific variables only', () => {
+    const template =
+      readFileSync(path.join(TEMPLATE_DIR, 'base-template.md'), 'utf-8') +
+      '\n\n' +
+      readFileSync(path.join(TEMPLATE_DIR, 'dm-overlay-template.md'), 'utf-8');
     const rendered = renderClaudeMd(template, renderOpts);
     const unreplaced = validateRendered(rendered);
-    // DM template has {{user_id}} which is Telegram-specific — not set by join CLI
-    const expectedUnreplaced = unreplaced.filter(v => v === '{{user_id}}');
-    // All other variables should be replaced
     const unexpected = unreplaced.filter(v => v !== '{{user_id}}');
     expect(unexpected).toEqual([]);
   });

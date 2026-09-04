@@ -216,7 +216,7 @@ When `escalation` is enabled:
 8. Admin gets a DM notification immediately (`src/admin-notify.ts`)
 9. Crew digest picks it up at 11pm
 
-**Privacy:** The escalation text must not contain the person's name, message quotes, or identifying information. Enforced by the DM agent template (`governance/templates/dm-template.md`).
+**Privacy:** The escalation text must not contain the person's name, message quotes, or identifying information. Enforced by the DM agent template (`governance/templates/dm-overlay-template.md`).
 
 ## Subscriptions
 
@@ -235,7 +235,7 @@ When someone DMs the bot for the first time (`src/dm-registration.ts`):
 
 1. `findCommunityForUser()` checks if the sender has messages in any registered main group
 2. If found, creates a DM folder: `{mainGroupFolder}-dm-{sanitizedSenderId}`
-3. Writes a DM-specific `CLAUDE.md` from `governance/templates/dm-template.md`
+3. Writes a DM-specific `CLAUDE.md` from `governance/templates/base-template.md` + `dm-overlay-template.md`
 4. DM container gets search-only Mem0 access (privacy wall)
 
 The DM folder naming pattern `{mainGroup}-dm-{senderId}` is used by IPC routing, escalation storage, and community lookup. It's load-bearing.

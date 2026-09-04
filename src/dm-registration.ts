@@ -11,9 +11,9 @@ import { resolveGroupFolderPath } from './group-folder.js';
 import { logger } from './logger.js';
 import { RegisteredGroup } from './types.js';
 
-const DM_TEMPLATE_PATH = path.resolve(
+const TEMPLATE_DIR = path.resolve(
   import.meta.dirname ?? '.',
-  '../governance/templates/dm-template.md',
+  '../governance/templates',
 );
 
 /**
@@ -46,7 +46,9 @@ export function buildDmClaudeMd(
   crewList?: string,
   communityStartDate?: string,
 ): string {
-  const template = fs.readFileSync(DM_TEMPLATE_PATH, 'utf-8');
+  const base = fs.readFileSync(path.join(TEMPLATE_DIR, 'base-template.md'), 'utf-8');
+  const dm = fs.readFileSync(path.join(TEMPLATE_DIR, 'dm-overlay-template.md'), 'utf-8');
+  const template = base + '\n\n' + dm;
   return template
     .replace(/\{\{community_name\}\}/g, communityName)
     .replace(/\{\{user_name\}\}/g, userName)

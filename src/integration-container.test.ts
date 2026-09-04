@@ -265,16 +265,15 @@ describe('Context file verification', () => {
     expect(content).toContain('<internal>');
   });
 
-  it('governance/templates/claude-md-template.md exists and renders correctly', () => {
-    const templatePath = path.join(
-      baseDir,
-      'governance',
-      'templates',
-      'claude-md-template.md',
-    );
-    expect(fs.existsSync(templatePath)).toBe(true);
+  it('governance/templates/base+group templates exist and render correctly', () => {
+    const templatesDir = path.join(baseDir, 'governance', 'templates');
+    expect(fs.existsSync(path.join(templatesDir, 'base-template.md'))).toBe(true);
+    expect(fs.existsSync(path.join(templatesDir, 'group-template.md'))).toBe(true);
 
-    const template = fs.readFileSync(templatePath, 'utf-8');
+    const template =
+      fs.readFileSync(path.join(templatesDir, 'base-template.md'), 'utf-8') +
+      '\n\n' +
+      fs.readFileSync(path.join(templatesDir, 'group-template.md'), 'utf-8');
     const rendered = buildClaudeMd(
       template,
       MOCK_GROUP_CONFIG,
@@ -294,14 +293,10 @@ describe('Context file verification', () => {
     expect(rendered).toContain('Pattern Sensing');
   });
 
-  it('governance/templates/dm-template.md exists and renders correctly', () => {
-    const templatePath = path.join(
-      baseDir,
-      'governance',
-      'templates',
-      'dm-template.md',
-    );
-    expect(fs.existsSync(templatePath)).toBe(true);
+  it('governance/templates/base+dm-overlay templates exist and render correctly', () => {
+    const templatesDir = path.join(baseDir, 'governance', 'templates');
+    expect(fs.existsSync(path.join(templatesDir, 'base-template.md'))).toBe(true);
+    expect(fs.existsSync(path.join(templatesDir, 'dm-overlay-template.md'))).toBe(true);
 
     const rendered = buildDmClaudeMd(
       'Edge Esmeralda',
@@ -330,9 +325,11 @@ describe('Context file verification', () => {
       baseDir,
       'governance',
       'templates',
-      'claude-md-template.md',
     );
-    const template = fs.readFileSync(templatePath, 'utf-8');
+    const template =
+      fs.readFileSync(path.join(templatePath, 'base-template.md'), 'utf-8') +
+      '\n\n' +
+      fs.readFileSync(path.join(templatePath, 'group-template.md'), 'utf-8');
     const communityContent = buildClaudeMd(
       template,
       MOCK_GROUP_CONFIG,

@@ -17,13 +17,14 @@ import type { GroupConfig } from '../governance/sync/config.js';
 
 // ── Template rendering ──────────────────────────────────────
 
-const TEMPLATE = fs.readFileSync(
-  path.resolve(
-    import.meta.dirname ?? '.',
-    '../governance/templates/claude-md-template.md',
-  ),
-  'utf-8',
+const TEMPLATES_DIR = path.resolve(
+  import.meta.dirname ?? '.',
+  '../governance/templates',
 );
+const TEMPLATE =
+  fs.readFileSync(path.join(TEMPLATES_DIR, 'base-template.md'), 'utf-8') +
+  '\n\n' +
+  fs.readFileSync(path.join(TEMPLATES_DIR, 'group-template.md'), 'utf-8');
 
 const MOCK_GROUP: GroupConfig = {
   folder: 'telegram_test',
@@ -318,7 +319,7 @@ describe('community intelligence template (Phase 0)', () => {
   );
 
   it('defines tag-only response model', () => {
-    expect(result).toContain('When You Speak');
+    expect(result).toContain('Group Behavior');
     expect(result).toContain('silence');
     expect(result).toContain('@Andy');
   });
