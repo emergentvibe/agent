@@ -1,6 +1,8 @@
 import pino from 'pino';
 
-function buildTransport(): pino.TransportSingleOptions | pino.TransportMultiOptions {
+function buildTransport():
+  | pino.TransportSingleOptions
+  | pino.TransportMultiOptions {
   const axiomToken = process.env.AXIOM_TOKEN;
   const axiomDataset = process.env.AXIOM_DATASET || 'nanoclaw';
 

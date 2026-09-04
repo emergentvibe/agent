@@ -34,13 +34,13 @@ describe('loadFeatureConfig', () => {
     fs.writeFileSync(
       path.join(TEST_DIR, 'features.json'),
       JSON.stringify({
-        commands: { subscribe: true },
+        commands: { subscribe: false },
         behaviors: { daily_digest: true },
       }),
     );
 
     const config = loadFeatureConfig('test-group');
-    expect(config.commands.subscribe).toBe(true);
+    expect(config.commands.subscribe).toBe(false);
     expect(config.behaviors.daily_digest).toBe(true);
     expect(config.commands.today).toBe(true);
     expect(config.behaviors.memory_extraction).toBe(true);
@@ -51,4 +51,5 @@ describe('loadFeatureConfig', () => {
     const config = loadFeatureConfig('test-group');
     expect(config).toEqual(DEFAULT_FEATURES);
   });
+
 });

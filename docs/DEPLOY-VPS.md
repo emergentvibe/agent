@@ -4,9 +4,12 @@ NanoClaw needs Docker-in-Docker (it spawns containers per conversation), so PaaS
 
 ## 1. Get a VPS
 
-**Hetzner CX22** (~€4/mo): 2 vCPU, 4GB RAM, 40GB disk. More than enough.
+Any VPS with Docker support. Recommended: 2+ vCPU, 4GB RAM, 40GB+ disk.
 
-Create one at [console.hetzner.cloud](https://console.hetzner.cloud). Pick Ubuntu 22.04. Add your SSH key.
+- **DigitalOcean**: 4GB Droplet (~$24/mo). Pick region closest to venue.
+- **Hetzner CX22**: (~€4/mo). Cheapest option.
+
+Pick Ubuntu 24.04 LTS. Add your SSH key.
 
 ## 2. Install Docker + Node
 
@@ -49,7 +52,7 @@ cp .env.example .env
 nano .env
 ```
 
-Fill in:
+Fill in (see `.env.example` for all options):
 ```env
 # Required
 ANTHROPIC_API_KEY=sk-ant-...
@@ -57,13 +60,23 @@ TELEGRAM_BOT_TOKEN=...          # from @BotFather
 MEM0_API_KEY=m0-...             # from mem0.ai dashboard
 
 # Bot identity
-ASSISTANT_NAME=Edge             # what the bot is called in chat
+ASSISTANT_NAME=YourBot          # trigger word (@YourBot in chat)
 
-# Model (optional — defaults to Claude Sonnet)
-# CLAUDE_MODEL=claude-haiku-4-5-20251001  # cheaper fallback
+# Cost optimization
+GROUP_MODEL=claude-haiku-4-5-20251001  # cheaper for group chat
+# DM_MODEL=claude-sonnet-5            # better quality for 1:1
+MAX_CONCURRENT_CONTAINERS=5
 
-# Edge Esmeralda group config
-GROUPS_CONFIG='[{"folder":"edge-esmeralda","slug":"edge-esmeralda","community_name":"Edge Esmeralda","admin_id":"BOOTSTRAPPER_TELEGRAM_ID","admin_name":"bootstrapper","community_start_date":"2026-05-30","governance_mode":"memory-only"}]'
+# Admin
+ADMIN_TELEGRAM_ID=...           # your Telegram user ID
+ADMIN_HTTP_TOKEN=...            # openssl rand -hex 32
+
+# Logging (optional)
+# AXIOM_TOKEN=...
+# AXIOM_DATASET=nanoclaw
+
+# Group config
+GROUPS_CONFIG='[{"folder":"my-community","slug":"my-community","community_name":"My Community","admin_id":"YOUR_TELEGRAM_ID","admin_name":"admin","community_start_date":"2026-09-22","governance_mode":"memory-only"}]'
 ```
 
 ## 5. Run
@@ -105,13 +118,19 @@ journalctl -u nanoclaw -f  # watch logs
 ## 7. Monitoring
 
 ```bash
-# UptimeRobot (free tier)
-# Monitor: HTTP check on credential proxy port (3001)
-# Alert: Telegram webhook to an alert channel
+# Health check via admin HTTP endpoint
+curl -s -H "Authorization: Bearer $ADMIN_HTTP_TOKEN" http://localhost:3002/admin/status
 
-# Quick health check
-curl -s http://localhost:3001/health || echo "Bot down"
+# Kill switch
+curl -X POST -H "Authorization: Bearer $ADMIN_HTTP_TOKEN" http://localhost:3002/admin/pause
+curl -X POST -H "Authorization: Bearer $ADMIN_HTTP_TOKEN" http://localhost:3002/admin/resume
+curl -X POST -H "Authorization: Bearer $ADMIN_HTTP_TOKEN" http://localhost:3002/admin/degrade
+
+# Credential proxy health
+curl -s http://localhost:3001/health || echo "Proxy down"
 ```
+
+If `AXIOM_TOKEN` is set, structured logs ship to Axiom automatically. Check the Axiom dashboard for errors, container events, and extraction results.
 
 ## 8. Update
 

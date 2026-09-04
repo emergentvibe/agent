@@ -24,11 +24,17 @@ When making a decision, these are the priorities in order:
 
 Single Node.js process with skill-based channel system. Channels (Telegram currently) self-register at startup. Messages route to Claude Agent SDK running in ephemeral Docker containers. Each group has isolated filesystem and memory. Community knowledge lives in Mem0 under a single shared namespace — no personal namespaces. DM containers can search Mem0 but never write to it (enforced by `allowedTools` in agent-runner).
 
-A background extraction loop (`src/extraction.ts`) runs every 5 minutes, using Haiku to process group messages and store facts, introductions, wishes, patterns, and concerns to Mem0. `MIN_CONTEXT_MESSAGES=20` ensures cross-batch context even when messages are spaced far apart.
+Telegram Forum mode is supported: `thread_id` flows through the entire message pipeline so the bot replies in the correct topic. Per-topic extraction control lets admins enable/disable memory extraction for individual topics (`/admin-topics`, `/admin-extract-on`, `/admin-extract-off`).
+
+A background extraction loop (`src/extraction.ts`) runs every 5 minutes, using Haiku to process group messages and store facts, introductions, wishes, patterns, and concerns to Mem0. `MIN_CONTEXT_MESSAGES=20` ensures cross-batch context even when messages are spaced far apart. Only topics with extraction enabled are processed.
 
 Per-group feature flags (`src/feature-config.ts`) control which commands and behaviors are active. Phase C features (escalation, crew digest, subscriptions) default to off and are enabled via `groups/{name}/features.json`.
 
-The community intelligence layer is ours (`governance/`, `knowledge/`, `src/triage.ts`, `src/mem0-client.ts`, `src/seed.ts`, `src/dm-registration.ts`, `src/extraction.ts`, `src/feature-config.ts`, `src/crew.ts`, `src/digest.ts`, `src/subscriptions.ts`). The runtime (IPC, containers, queue, routing) is upstream NanoClaw.
+Three bot modes: `normal` (full operation), `silenced` (complete stop), `degraded` (fixed "taking a break" response to triggers, extraction continues). Controlled via Telegram admin commands or HTTP admin endpoint (port 3002, bearer token auth).
+
+A purchase/tab system tracks microtransactions (bar drinks, BBQ food) via inline Telegram keyboards — pure SQLite, no containers, zero API cost. NFC deep links (`t.me/BOT?start=bar`) enable tap-to-purchase at physical locations.
+
+The community intelligence layer is ours (`governance/`, `knowledge/`, `src/triage.ts`, `src/mem0-client.ts`, `src/seed.ts`, `src/dm-registration.ts`, `src/extraction.ts`, `src/feature-config.ts`, `src/crew.ts`, `src/digest.ts`, `src/subscriptions.ts`, `src/admin-http.ts`). The runtime (IPC, containers, queue, routing) is upstream NanoClaw.
 
 There's a 27-scenario integration sim framework (`tests/integration/sim-runner.ts` + `../sim/scenarios/`) that replaces Telegram with a SimChannel but runs everything else as production code — Docker, Mem0, extraction, IPC.
 
@@ -51,8 +57,9 @@ There's a 27-scenario integration sim framework (`tests/integration/sim-runner.t
 | `src/mem0-client.ts` | Mem0 HTTP client |
 | `src/task-scheduler.ts` | Runs scheduled tasks |
 | `src/admin-notify.ts` | Admin DM notifications (escalation, error, summary) |
-| `src/admin-commands.ts` | Admin slash commands (/admin-silence, /admin-status) |
-| `src/db.ts` | SQLite operations |
+| `src/admin-commands.ts` | Admin slash commands + bot mode state (silenced/degraded) |
+| `src/admin-http.ts` | HTTP admin endpoint (pause/resume/degrade/status) |
+| `src/db.ts` | SQLite operations (messages, tasks, topics, purchases) |
 | `groups/{name}/CLAUDE.md` | Per-group agent instructions (isolated) |
 | `groups/{name}/features.json` | Per-group feature toggles |
 | `tests/integration/sim-runner.ts` | 27-scenario integration sim runner |
@@ -76,7 +83,7 @@ Run commands directly—don't tell the user to run them.
 ```bash
 npm run dev          # Run with hot reload
 npm run build        # Compile TypeScript
-npm test             # Run unit tests (501 pass, 17 pre-existing failures)
+npm test             # Run unit tests (551 pass, 6 pre-existing LLM-flaky failures)
 ./container/build.sh # Rebuild agent container
 
 # Integration sims (requires Docker + ANTHROPIC_API_KEY + MEM0_API_KEY)

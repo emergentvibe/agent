@@ -6,9 +6,9 @@ import { resolveGroupFolderPath } from './group-folder.js';
 export interface FeatureConfig {
   commands: {
     today: boolean;
-    hello: boolean;
+    intro: boolean;
     connect: boolean;
-    forget: boolean;
+    'forget-my-intro': boolean;
     subscribe: boolean;
     purchase: boolean;
   };
@@ -28,10 +28,10 @@ export interface FeatureConfig {
 export const DEFAULT_FEATURES: FeatureConfig = {
   commands: {
     today: true,
-    hello: true,
+    intro: true,
     connect: true,
-    forget: true,
-    subscribe: false,
+    'forget-my-intro': true,
+    subscribe: true,
     purchase: false,
   },
   behaviors: {
