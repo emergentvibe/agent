@@ -11,6 +11,7 @@ export interface FeatureConfig {
     'forget-my-intro': boolean;
     subscribe: boolean;
     purchase: boolean;
+    rota: boolean;
   };
   behaviors: {
     daily_digest: boolean;
@@ -33,6 +34,7 @@ export const DEFAULT_FEATURES: FeatureConfig = {
     'forget-my-intro': true,
     subscribe: true,
     purchase: false,
+    rota: false,
   },
   behaviors: {
     daily_digest: false,

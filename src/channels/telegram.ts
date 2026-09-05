@@ -3,7 +3,13 @@ import https from 'https';
 import path from 'path';
 import { Api, Bot, InlineKeyboard } from 'grammy';
 
-import { ASSISTANT_NAME, GROUPS_DIR, TRIGGER_PATTERN } from '../config.js';
+import {
+  ASSISTANT_NAME,
+  GROUPS_DIR,
+  TRIGGER_PATTERN,
+  ROTA_SHIFTS_TOPIC_ID,
+  ROTA_GROUP_JID,
+} from '../config.js';
 import {
   cancelLastPurchase,
   getUserPurchases,
@@ -19,6 +25,10 @@ import {
 import { rotaImport, rotaReset, rotaGetMeta } from '../rota-db.js';
 import type { RotaImportPayload } from '../rota-db.js';
 import { isCrewMember } from '../crew.js';
+import {
+  rotaCommandEntries,
+  registerRotaCommands,
+} from '../rota-commands.js';
 import { registerChannel, ChannelOpts } from './registry.js';
 import {
   Channel,
@@ -110,6 +120,7 @@ export class TelegramChannel implements Channel {
       },
       { command: 'chatid', description: 'Get this chat ID', local: true },
       { command: 'ping', description: 'Check if bot is online', local: true },
+      ...rotaCommandEntries(),
     ];
 
     // Register all commands for Telegram autocomplete menu
@@ -267,6 +278,27 @@ export class TelegramChannel implements Channel {
         // Message may be too old to edit
       }
     });
+
+    // --- Rota commands (local, no containers) ---
+    const rotaGroupId = ROTA_GROUP_JID.replace(/^tg:/, '');
+    registerRotaCommands(this.bot, {
+      registeredGroups: this.opts.registeredGroups,
+      sendToShiftsTopic: async (text, keyboard) => {
+        if (!rotaGroupId || !ROTA_SHIFTS_TOPIC_ID) {
+          logger.warn('Rota: ROTA_GROUP_JID or ROTA_SHIFTS_TOPIC_ID not configured');
+          return;
+        }
+        const msgOpts: Record<string, unknown> = {
+          message_thread_id: ROTA_SHIFTS_TOPIC_ID,
+          parse_mode: 'Markdown',
+        };
+        if (keyboard) msgOpts.reply_markup = keyboard;
+        await this.bot!.api.sendMessage(rotaGroupId, text, msgOpts);
+      },
+      sendDm: async (userId, text) => {
+        await sendTelegramMessage(this.bot!.api, userId, text);
+      },
+    }, InlineKeyboard);
 
     // /start deep link handler (NFC stickers, DM entry points)
     this.bot.command('start', async (ctx) => {
@@ -563,7 +595,11 @@ export class TelegramChannel implements Channel {
         `${verb} ${result.inserted} assignments (version: ${payload.version}).`,
       );
       logger.info(
-        { version: payload.version, count: result.inserted, replaced: result.replaced },
+        {
+          version: payload.version,
+          count: result.inserted,
+          replaced: result.replaced,
+        },
         'Rota imported via Telegram file upload',
       );
     } catch (err: any) {
