@@ -5,6 +5,7 @@ import path from 'path';
 import { ASSISTANT_NAME, DATA_DIR, STORE_DIR } from './config.js';
 import { isValidGroupFolder } from './group-folder.js';
 import { logger } from './logger.js';
+import { createRotaSchema } from './rota-db.js';
 import {
   NewMessage,
   RegisteredGroup,
@@ -171,6 +172,8 @@ function createSchema(database: Database.Database): void {
   } catch {
     /* columns already exist */
   }
+
+  createRotaSchema(database);
 }
 
 export function initDatabase(): void {
@@ -188,6 +191,11 @@ export function initDatabase(): void {
 export function _initTestDatabase(): void {
   db = new Database(':memory:');
   createSchema(db);
+}
+
+/** @internal - allows rota-db.ts to access the singleton. */
+export function _getDb(): Database.Database {
+  return db;
 }
 
 /**
