@@ -25,6 +25,7 @@
     "better-sqlite3": "^11.8.1",
     "cron-parser": "^5.5.0",
     "grammy": "^1.39.3",
+    "pdfkit": "^0.20.2",
     "pino": "^9.6.0",
     "pino-pretty": "^13.0.0",
     "yaml": "^2.8.2",
@@ -33,6 +34,7 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.10.0",
+    "@types/pdfkit": "^0.17.6",
     "@vitest/coverage-v8": "^4.0.18",
     "dotenv": "^17.3.1",
     "husky": "^9.1.7",

@@ -294,10 +294,7 @@ export function registerRotaCommands(
 
       const kb = new InlineKeyboard();
       kb.text("I'm coming!", `rota:coming:${Date.now()}`);
-      await opts.sendToShiftsTopic(
-        'Kitchen needs hands now!',
-        kb,
-      );
+      await opts.sendToShiftsTopic('Kitchen needs hands now!', kb);
       await ctx.reply('Posted to the Shifts topic.');
     });
   }
@@ -351,7 +348,12 @@ export function registerRotaCommands(
     const claimerName = ctx.from.first_name || ctx.from.username || 'Someone';
     const claimerHandle = ctx.from.username ? `@${ctx.from.username}` : null;
 
-    const result = rotaClaim(assignmentId, claimerId, claimerName, claimerHandle);
+    const result = rotaClaim(
+      assignmentId,
+      claimerId,
+      claimerName,
+      claimerHandle,
+    );
     if (!result.ok) {
       const msg =
         result.reason === 'overlap'

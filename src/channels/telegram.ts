@@ -1,7 +1,7 @@
 import fs from 'fs';
 import https from 'https';
 import path from 'path';
-import { Api, Bot, InlineKeyboard } from 'grammy';
+import { Api, Bot, InlineKeyboard, InputFile } from 'grammy';
 
 import {
   ASSISTANT_NAME,
@@ -25,10 +25,7 @@ import {
 import { rotaImport, rotaReset, rotaGetMeta } from '../rota-db.js';
 import type { RotaImportPayload } from '../rota-db.js';
 import { isCrewMember } from '../crew.js';
-import {
-  rotaCommandEntries,
-  registerRotaCommands,
-} from '../rota-commands.js';
+import { rotaCommandEntries, registerRotaCommands } from '../rota-commands.js';
 import { registerChannel, ChannelOpts } from './registry.js';
 import {
   Channel,
@@ -281,24 +278,30 @@ export class TelegramChannel implements Channel {
 
     // --- Rota commands (local, no containers) ---
     const rotaGroupId = ROTA_GROUP_JID.replace(/^tg:/, '');
-    registerRotaCommands(this.bot, {
-      registeredGroups: this.opts.registeredGroups,
-      sendToShiftsTopic: async (text, keyboard) => {
-        if (!rotaGroupId || !ROTA_SHIFTS_TOPIC_ID) {
-          logger.warn('Rota: ROTA_GROUP_JID or ROTA_SHIFTS_TOPIC_ID not configured');
-          return;
-        }
-        const msgOpts: Record<string, unknown> = {
-          message_thread_id: ROTA_SHIFTS_TOPIC_ID,
-          parse_mode: 'Markdown',
-        };
-        if (keyboard) msgOpts.reply_markup = keyboard;
-        await this.bot!.api.sendMessage(rotaGroupId, text, msgOpts);
+    registerRotaCommands(
+      this.bot,
+      {
+        registeredGroups: this.opts.registeredGroups,
+        sendToShiftsTopic: async (text, keyboard) => {
+          if (!rotaGroupId || !ROTA_SHIFTS_TOPIC_ID) {
+            logger.warn(
+              'Rota: ROTA_GROUP_JID or ROTA_SHIFTS_TOPIC_ID not configured',
+            );
+            return;
+          }
+          const msgOpts: Record<string, unknown> = {
+            message_thread_id: ROTA_SHIFTS_TOPIC_ID,
+            parse_mode: 'Markdown',
+          };
+          if (keyboard) msgOpts.reply_markup = keyboard;
+          await this.bot!.api.sendMessage(rotaGroupId, text, msgOpts);
+        },
+        sendDm: async (userId, text) => {
+          await sendTelegramMessage(this.bot!.api, userId, text);
+        },
       },
-      sendDm: async (userId, text) => {
-        await sendTelegramMessage(this.bot!.api, userId, text);
-      },
-    }, InlineKeyboard);
+      InlineKeyboard,
+    );
 
     // /start deep link handler (NFC stickers, DM entry points)
     this.bot.command('start', async (ctx) => {
@@ -653,6 +656,17 @@ export class TelegramChannel implements Channel {
 
   ownsJid(jid: string): boolean {
     return jid.startsWith('tg:');
+  }
+
+  async sendFile(
+    jid: string,
+    buffer: Buffer,
+    filename: string,
+  ): Promise<void> {
+    if (!this.bot) throw new Error('Telegram bot not initialized');
+    const numericId = jid.replace(/^tg:/, '');
+    await this.bot.api.sendDocument(numericId, new InputFile(buffer, filename));
+    logger.info({ jid, filename }, 'Telegram file sent');
   }
 
   async disconnect(): Promise<void> {

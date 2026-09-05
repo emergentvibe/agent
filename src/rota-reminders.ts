@@ -103,7 +103,9 @@ export function buildMorningAnnouncement(
 
   const openCount = assignments.filter((a) => a.state === 'open').length;
   if (openCount > 0) {
-    lines.push(`${openCount} open slot${openCount > 1 ? 's' : ''} — tap to claim!`);
+    lines.push(
+      `${openCount} open slot${openCount > 1 ? 's' : ''} — tap to claim!`,
+    );
   }
 
   return lines.join('\n').trim();
@@ -147,10 +149,7 @@ async function tick(callbacks: ReminderCallbacks): Promise<void> {
     }
   }
 
-  const pingWindow = subtractMinutes(
-    now,
-    -SHIFT_PING_LEAD_MINUTES,
-  );
+  const pingWindow = subtractMinutes(now, -SHIFT_PING_LEAD_MINUTES);
 
   for (const a of assignments) {
     if (a.state !== 'assigned') continue;
@@ -180,10 +179,7 @@ async function tick(callbacks: ReminderCallbacks): Promise<void> {
         'Rota: DM ping sent',
       );
     } catch (err) {
-      logger.error(
-        { err, assignmentId: a.id },
-        'Rota: failed to send DM ping',
-      );
+      logger.error({ err, assignmentId: a.id }, 'Rota: failed to send DM ping');
     }
   }
 }

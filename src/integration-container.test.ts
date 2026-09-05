@@ -267,8 +267,12 @@ describe('Context file verification', () => {
 
   it('governance/templates/base+group templates exist and render correctly', () => {
     const templatesDir = path.join(baseDir, 'governance', 'templates');
-    expect(fs.existsSync(path.join(templatesDir, 'base-template.md'))).toBe(true);
-    expect(fs.existsSync(path.join(templatesDir, 'group-template.md'))).toBe(true);
+    expect(fs.existsSync(path.join(templatesDir, 'base-template.md'))).toBe(
+      true,
+    );
+    expect(fs.existsSync(path.join(templatesDir, 'group-template.md'))).toBe(
+      true,
+    );
 
     const template =
       fs.readFileSync(path.join(templatesDir, 'base-template.md'), 'utf-8') +
@@ -295,8 +299,12 @@ describe('Context file verification', () => {
 
   it('governance/templates/base+dm-overlay templates exist and render correctly', () => {
     const templatesDir = path.join(baseDir, 'governance', 'templates');
-    expect(fs.existsSync(path.join(templatesDir, 'base-template.md'))).toBe(true);
-    expect(fs.existsSync(path.join(templatesDir, 'dm-overlay-template.md'))).toBe(true);
+    expect(fs.existsSync(path.join(templatesDir, 'base-template.md'))).toBe(
+      true,
+    );
+    expect(
+      fs.existsSync(path.join(templatesDir, 'dm-overlay-template.md')),
+    ).toBe(true);
 
     const rendered = buildDmClaudeMd(
       'Edge Esmeralda',
@@ -321,11 +329,7 @@ describe('Context file verification', () => {
     const globalPath = path.join(baseDir, 'groups', 'global', 'CLAUDE.md');
     const globalContent = fs.readFileSync(globalPath, 'utf-8');
 
-    const templatePath = path.join(
-      baseDir,
-      'governance',
-      'templates',
-    );
+    const templatePath = path.join(baseDir, 'governance', 'templates');
     const template =
       fs.readFileSync(path.join(templatePath, 'base-template.md'), 'utf-8') +
       '\n\n' +

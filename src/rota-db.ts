@@ -152,7 +152,10 @@ function intervalsOverlap(
   s2: string,
   e2: string,
 ): boolean {
-  return timeToMinutes(s1) < timeToMinutes(e2) && timeToMinutes(s2) < timeToMinutes(e1);
+  return (
+    timeToMinutes(s1) < timeToMinutes(e2) &&
+    timeToMinutes(s2) < timeToMinutes(e1)
+  );
 }
 
 function logMutation(
@@ -169,7 +172,10 @@ function logMutation(
 
 // --- Import ---
 
-export function rotaImport(payload: RotaImportPayload): { inserted: number; replaced: boolean } {
+export function rotaImport(payload: RotaImportPayload): {
+  inserted: number;
+  replaced: boolean;
+} {
   const db = _getDb();
 
   if (payload.version.startsWith('TEST-')) {
@@ -195,7 +201,9 @@ export function rotaImport(payload: RotaImportPayload): { inserted: number; repl
   const blockKeys = new Set(payload.blocks.map((b) => b.key));
   for (const a of payload.assignments) {
     if (!blockKeys.has(a.block)) {
-      throw new Error(`Assignment ${a.id} references unknown block: ${a.block}`);
+      throw new Error(
+        `Assignment ${a.id} references unknown block: ${a.block}`,
+      );
     }
   }
 
@@ -265,7 +273,9 @@ export function rotaImport(payload: RotaImportPayload): { inserted: number; repl
 
   txn();
 
-  logger.info(`Rota imported: ${payload.assignments.length} assignments, version=${payload.version}, replaced=${replaced}`);
+  logger.info(
+    `Rota imported: ${payload.assignments.length} assignments, version=${payload.version}, replaced=${replaced}`,
+  );
   return { inserted: payload.assignments.length, replaced };
 }
 
@@ -290,14 +300,18 @@ export function rotaGetMeta(): RotaMeta | undefined {
 export function rotaGetByDate(date: string): RotaAssignment[] {
   const db = _getDb();
   return db
-    .prepare('SELECT * FROM rota_assignments WHERE date = ? ORDER BY start, slot')
+    .prepare(
+      'SELECT * FROM rota_assignments WHERE date = ? ORDER BY start, slot',
+    )
     .all(date) as RotaAssignment[];
 }
 
 export function rotaGetByDay(day: number): RotaAssignment[] {
   const db = _getDb();
   return db
-    .prepare('SELECT * FROM rota_assignments WHERE day = ? ORDER BY start, slot')
+    .prepare(
+      'SELECT * FROM rota_assignments WHERE day = ? ORDER BY start, slot',
+    )
     .all(day) as RotaAssignment[];
 }
 
@@ -327,22 +341,26 @@ export function rotaBindTelegramId(handle: string, telegramId: string): number {
     )
     .run(telegramId, handle);
   if (result.changes > 0) {
-    logger.info(`Rota: bound ${handle} → telegram_id ${telegramId} (${result.changes} rows)`);
+    logger.info(
+      `Rota: bound ${handle} → telegram_id ${telegramId} (${result.changes} rows)`,
+    );
   }
   return result.changes;
 }
 
 export function rotaGetById(id: string): RotaAssignment | undefined {
   const db = _getDb();
-  return db
-    .prepare('SELECT * FROM rota_assignments WHERE id = ?')
-    .get(id) as RotaAssignment | undefined;
+  return db.prepare('SELECT * FROM rota_assignments WHERE id = ?').get(id) as
+    | RotaAssignment
+    | undefined;
 }
 
 export function rotaGetOpenSlots(): RotaAssignment[] {
   const db = _getDb();
   return db
-    .prepare("SELECT * FROM rota_assignments WHERE state = 'open' ORDER BY day, start")
+    .prepare(
+      "SELECT * FROM rota_assignments WHERE state = 'open' ORDER BY day, start",
+    )
     .all() as RotaAssignment[];
 }
 
@@ -418,7 +436,9 @@ export function rotaClaim(
     }>;
 
     for (const existing of sameDayAssignments) {
-      if (intervalsOverlap(target.start, target.end, existing.start, existing.end)) {
+      if (
+        intervalsOverlap(target.start, target.end, existing.start, existing.end)
+      ) {
         return { ok: false as const, reason: 'overlap' };
       }
     }

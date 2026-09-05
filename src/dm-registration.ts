@@ -46,8 +46,14 @@ export function buildDmClaudeMd(
   crewList?: string,
   communityStartDate?: string,
 ): string {
-  const base = fs.readFileSync(path.join(TEMPLATE_DIR, 'base-template.md'), 'utf-8');
-  const dm = fs.readFileSync(path.join(TEMPLATE_DIR, 'dm-overlay-template.md'), 'utf-8');
+  const base = fs.readFileSync(
+    path.join(TEMPLATE_DIR, 'base-template.md'),
+    'utf-8',
+  );
+  const dm = fs.readFileSync(
+    path.join(TEMPLATE_DIR, 'dm-overlay-template.md'),
+    'utf-8',
+  );
   const template = base + '\n\n' + dm;
   return template
     .replace(/\{\{community_name\}\}/g, communityName)

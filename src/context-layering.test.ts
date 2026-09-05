@@ -23,14 +23,19 @@ const TEMPLATES_DIR = path.resolve(
   import.meta.dirname ?? '.',
   '../governance/templates',
 );
-const BASE_TEMPLATE = fs.readFileSync(path.join(TEMPLATES_DIR, 'base-template.md'), 'utf-8');
+const BASE_TEMPLATE = fs.readFileSync(
+  path.join(TEMPLATES_DIR, 'base-template.md'),
+  'utf-8',
+);
 
 const COMMUNITY_TEMPLATE =
-  BASE_TEMPLATE + '\n\n' +
+  BASE_TEMPLATE +
+  '\n\n' +
   fs.readFileSync(path.join(TEMPLATES_DIR, 'group-template.md'), 'utf-8');
 
 const DM_TEMPLATE =
-  BASE_TEMPLATE + '\n\n' +
+  BASE_TEMPLATE +
+  '\n\n' +
   fs.readFileSync(path.join(TEMPLATES_DIR, 'dm-overlay-template.md'), 'utf-8');
 
 const MOCK_GROUP: GroupConfig = {

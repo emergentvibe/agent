@@ -15,6 +15,7 @@ import {
 } from './db.js';
 import { logger } from './logger.js';
 import { rotaGetMeta, rotaReset } from './rota-db.js';
+import { generateRotaPdf, parsePrintArgs } from './rota-print.js';
 
 let silenced = false;
 let degraded = false;
@@ -40,13 +41,14 @@ export function setDegraded(value: boolean): void {
 export interface AdminCommandResult {
   handled: boolean;
   response?: string;
+  file?: { buffer: Buffer; filename: string };
 }
 
-export function handleAdminCommand(
+export async function handleAdminCommand(
   text: string,
   sender: string,
   adminTelegramId: string | undefined,
-): AdminCommandResult {
+): Promise<AdminCommandResult> {
   if (!adminTelegramId || sender !== adminTelegramId) {
     return { handled: false };
   }
@@ -89,6 +91,15 @@ export function handleAdminCommand(
   if (cmd.startsWith('/admin-tab')) {
     const arg = text.trim().slice('/admin-tab'.length).trim();
     return { handled: true, response: buildTabReport(arg) };
+  }
+
+  if (cmd.startsWith('/admin-rota-print')) {
+    const date = parsePrintArgs(text.trim());
+    const result = await generateRotaPdf(date);
+    if ('error' in result) {
+      return { handled: true, response: result.error };
+    }
+    return { handled: true, file: result };
   }
 
   if (cmd === '/admin-rota-import') {

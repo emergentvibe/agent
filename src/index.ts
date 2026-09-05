@@ -682,21 +682,30 @@ export async function main(): Promise<void> {
       const trimmed = msg.content.trim();
       if (trimmed.startsWith('/admin-')) {
         const channel = findChannel(channels, chatJid);
-        const result = handleAdminCommand(
-          trimmed,
-          msg.sender,
-          ADMIN_TELEGRAM_ID,
-        );
-        if (result.handled) {
-          if (result.response && channel) {
-            channel
-              .sendMessage(chatJid, result.response)
-              .catch((err) =>
-                logger.warn({ err }, 'Failed to send admin command response'),
-              );
-          }
-          return;
-        }
+        handleAdminCommand(trimmed, msg.sender, ADMIN_TELEGRAM_ID)
+          .then((result) => {
+            if (!result.handled) return;
+            if (result.file && channel?.sendFile) {
+              channel
+                .sendFile(chatJid, result.file.buffer, result.file.filename)
+                .catch((err) =>
+                  logger.warn({ err }, 'Failed to send admin file'),
+                );
+            } else if (result.response && channel) {
+              channel
+                .sendMessage(chatJid, result.response)
+                .catch((err) =>
+                  logger.warn(
+                    { err },
+                    'Failed to send admin command response',
+                  ),
+                );
+            }
+          })
+          .catch((err) =>
+            logger.warn({ err }, 'Admin command handler error'),
+          );
+        return;
       }
 
       // Remote control commands — intercept before storage
