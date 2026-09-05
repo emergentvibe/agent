@@ -29,18 +29,30 @@ describe('admin-commands', () => {
   });
 
   it('ignores commands from non-admin', async () => {
-    const result = await handleAdminCommand('/admin-silence', 'other-user', ADMIN_ID);
+    const result = await handleAdminCommand(
+      '/admin-silence',
+      'other-user',
+      ADMIN_ID,
+    );
     expect(result.handled).toBe(false);
     expect(isSilenced()).toBe(false);
   });
 
   it('ignores commands when no admin configured', async () => {
-    const result = await handleAdminCommand('/admin-silence', ADMIN_ID, undefined);
+    const result = await handleAdminCommand(
+      '/admin-silence',
+      ADMIN_ID,
+      undefined,
+    );
     expect(result.handled).toBe(false);
   });
 
   it('/admin-silence enables silence', async () => {
-    const result = await handleAdminCommand('/admin-silence', ADMIN_ID, ADMIN_ID);
+    const result = await handleAdminCommand(
+      '/admin-silence',
+      ADMIN_ID,
+      ADMIN_ID,
+    );
     expect(result.handled).toBe(true);
     expect(result.response).toContain('silenced');
     expect(isSilenced()).toBe(true);
@@ -50,14 +62,22 @@ describe('admin-commands', () => {
     await handleAdminCommand('/admin-silence', ADMIN_ID, ADMIN_ID);
     expect(isSilenced()).toBe(true);
 
-    const result = await handleAdminCommand('/admin-silence off', ADMIN_ID, ADMIN_ID);
+    const result = await handleAdminCommand(
+      '/admin-silence off',
+      ADMIN_ID,
+      ADMIN_ID,
+    );
     expect(result.handled).toBe(true);
     expect(result.response).toContain('resumed');
     expect(isSilenced()).toBe(false);
   });
 
   it('/admin-status returns a report', async () => {
-    const result = await handleAdminCommand('/admin-status', ADMIN_ID, ADMIN_ID);
+    const result = await handleAdminCommand(
+      '/admin-status',
+      ADMIN_ID,
+      ADMIN_ID,
+    );
     expect(result.handled).toBe(true);
     expect(result.response).toContain('Status Report');
     expect(result.response).toContain('Uptime');
@@ -66,13 +86,21 @@ describe('admin-commands', () => {
 
   it('/admin-status reflects silence state', async () => {
     await handleAdminCommand('/admin-silence', ADMIN_ID, ADMIN_ID);
-    const result = await handleAdminCommand('/admin-status', ADMIN_ID, ADMIN_ID);
+    const result = await handleAdminCommand(
+      '/admin-status',
+      ADMIN_ID,
+      ADMIN_ID,
+    );
     expect(result.response).toContain('Mode: SILENCED');
   });
 
   it('/admin-status reflects degraded state', async () => {
     setDegraded(true);
-    const result = await handleAdminCommand('/admin-status', ADMIN_ID, ADMIN_ID);
+    const result = await handleAdminCommand(
+      '/admin-status',
+      ADMIN_ID,
+      ADMIN_ID,
+    );
     expect(result.response).toContain('Mode: DEGRADED');
   });
 
@@ -83,7 +111,11 @@ describe('admin-commands', () => {
 
   describe('/admin-topics', () => {
     it('shows no main groups when none registered', async () => {
-      const result = await handleAdminCommand('/admin-topics', ADMIN_ID, ADMIN_ID);
+      const result = await handleAdminCommand(
+        '/admin-topics',
+        ADMIN_ID,
+        ADMIN_ID,
+      );
       expect(result.handled).toBe(true);
       expect(result.response).toContain('No main groups');
     });
@@ -99,7 +131,11 @@ describe('admin-commands', () => {
       upsertTopic('tg:123', 2, 'Kitchen');
       upsertTopic('tg:123', 3, 'Events');
 
-      const result = await handleAdminCommand('/admin-topics', ADMIN_ID, ADMIN_ID);
+      const result = await handleAdminCommand(
+        '/admin-topics',
+        ADMIN_ID,
+        ADMIN_ID,
+      );
       expect(result.handled).toBe(true);
       expect(result.response).toContain('Kitchen');
       expect(result.response).toContain('Events');
@@ -169,7 +205,11 @@ describe('admin-commands', () => {
       storePurchase('tg:123', 'user1', 'Alice', 'beer', 3);
       storePurchase('tg:123', 'user1', 'Alice', 'wine', 5);
 
-      const result = await handleAdminCommand('/admin-tab user1', ADMIN_ID, ADMIN_ID);
+      const result = await handleAdminCommand(
+        '/admin-tab user1',
+        ADMIN_ID,
+        ADMIN_ID,
+      );
       expect(result.handled).toBe(true);
       expect(result.response).toContain('beer');
       expect(result.response).toContain('wine');

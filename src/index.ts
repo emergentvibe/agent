@@ -695,16 +695,11 @@ export async function main(): Promise<void> {
               channel
                 .sendMessage(chatJid, result.response)
                 .catch((err) =>
-                  logger.warn(
-                    { err },
-                    'Failed to send admin command response',
-                  ),
+                  logger.warn({ err }, 'Failed to send admin command response'),
                 );
             }
           })
-          .catch((err) =>
-            logger.warn({ err }, 'Admin command handler error'),
-          );
+          .catch((err) => logger.warn({ err }, 'Admin command handler error'));
         return;
       }
 

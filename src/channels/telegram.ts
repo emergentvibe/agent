@@ -658,11 +658,7 @@ export class TelegramChannel implements Channel {
     return jid.startsWith('tg:');
   }
 
-  async sendFile(
-    jid: string,
-    buffer: Buffer,
-    filename: string,
-  ): Promise<void> {
+  async sendFile(jid: string, buffer: Buffer, filename: string): Promise<void> {
     if (!this.bot) throw new Error('Telegram bot not initialized');
     const numericId = jid.replace(/^tg:/, '');
     await this.bot.api.sendDocument(numericId, new InputFile(buffer, filename));

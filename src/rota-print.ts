@@ -35,7 +35,8 @@ function formatPersonLine(a: RotaAssignment): string {
   }
   if (a.state === 'covered') {
     const orig = a.original_name || '???';
-    const coverer = `${a.current_name || '???'} ${a.current_telegram || ''}`.trim();
+    const coverer =
+      `${a.current_name || '???'} ${a.current_telegram || ''}`.trim();
     return `${orig} → ${coverer.toUpperCase()} covering`;
   }
   return `${a.current_name || a.original_name || '???'} ${a.original_telegram || ''}`.trim();
@@ -121,7 +122,9 @@ export async function generateRotaPdf(
       if (a.state === 'open') {
         doc.font('Helvetica-Bold').text(`    ${line}`, { width: PAGE_WIDTH });
       } else if (a.state === 'covered') {
-        doc.font('Helvetica-Oblique').text(`    ${line}`, { width: PAGE_WIDTH });
+        doc
+          .font('Helvetica-Oblique')
+          .text(`    ${line}`, { width: PAGE_WIDTH });
       } else {
         doc.text(`    ${line}`, { width: PAGE_WIDTH });
       }
