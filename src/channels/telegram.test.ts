@@ -13,6 +13,8 @@ vi.mock('../config.js', () => ({
   ASSISTANT_NAME: 'Andy',
   GROUPS_DIR: '/tmp/test-groups',
   TRIGGER_PATTERN: /^@Andy\b/i,
+  ROTA_GROUP_JID: '',
+  ROTA_SHIFTS_TOPIC_ID: undefined,
 }));
 
 // Mock db (purchase functions)

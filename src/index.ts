@@ -16,6 +16,8 @@ import {
   CREDENTIAL_PROXY_PORT,
   IDLE_TIMEOUT,
   POLL_INTERVAL,
+  ROTA_GROUP_JID,
+  ROTA_SHIFTS_TOPIC_ID,
   TIMEZONE,
   TRIGGER_PATTERN,
 } from './config.js';
@@ -83,6 +85,7 @@ import { Channel, NewMessage, RegisteredGroup } from './types.js';
 import { logger } from './logger.js';
 import { storeMemory } from './mem0-client.js';
 import { startExtractionLoop } from './extraction.js';
+import { startRotaReminders, stopRotaReminders } from './rota-reminders.js';
 
 let lastTimestamp = '';
 let sessions: Record<string, string> = {};
@@ -620,6 +623,7 @@ export async function main(): Promise<void> {
   // Graceful shutdown handlers
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'Shutdown signal received');
+    stopRotaReminders();
     proxyServer.close();
     adminServer?.close();
     await queue.shutdown(10000);
@@ -875,6 +879,27 @@ export async function main(): Promise<void> {
   startExtractionLoop({
     registeredGroups: () => registeredGroups,
     assistantName: ASSISTANT_NAME,
+  });
+
+  // Rota shift reminders (morning announcement + DM pings before shifts)
+  startRotaReminders({
+    sendToShiftsTopic: async (text) => {
+      if (!ROTA_GROUP_JID || !ROTA_SHIFTS_TOPIC_ID) return;
+      const ch = findChannel(channels, ROTA_GROUP_JID);
+      if (!ch) return;
+      await ch.sendMessage(ROTA_GROUP_JID, text, {
+        thread_id: ROTA_SHIFTS_TOPIC_ID,
+      });
+    },
+    sendDm: async (userId, text) => {
+      const jid = `tg:${userId}`;
+      const ch = findChannel(channels, jid);
+      if (!ch) {
+        logger.warn({ jid }, 'No channel for rota DM ping');
+        return;
+      }
+      await ch.sendMessage(jid, text);
+    },
   });
 
   recoverPendingMessages();
