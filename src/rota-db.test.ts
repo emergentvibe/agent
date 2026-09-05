@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { describe, it, expect, beforeEach } from 'vitest';
 
 import { _initTestDatabase } from './db.js';
@@ -24,14 +26,51 @@ import {
 } from './rota-db.js';
 
 const BLOCKS = [
-  { key: 'lunch', label: 'Lunch Cooks', start: '10:30', end: '13:00', hours: 2.5, slots: 3 },
-  { key: 'dish1', label: 'Dish Team', start: '11:30', end: '12:30', hours: 1.0, slots: 4 },
-  { key: 'dinner', label: 'Dinner Cooks', start: '14:00', end: '18:00', hours: 4.0, slots: 4 },
-  { key: 'dish2', label: 'Dish Team', start: '15:00', end: '17:00', hours: 2.0, slots: 4 },
-  { key: 'dish3', label: 'Dish Team', start: '19:00', end: '21:00', hours: 2.0, slots: 4 },
+  {
+    key: 'lunch',
+    label: 'Lunch Cooks',
+    start: '10:30',
+    end: '13:00',
+    hours: 2.5,
+    slots: 3,
+  },
+  {
+    key: 'dish1',
+    label: 'Dish Team',
+    start: '11:30',
+    end: '12:30',
+    hours: 1.0,
+    slots: 4,
+  },
+  {
+    key: 'dinner',
+    label: 'Dinner Cooks',
+    start: '14:00',
+    end: '18:00',
+    hours: 4.0,
+    slots: 4,
+  },
+  {
+    key: 'dish2',
+    label: 'Dish Team',
+    start: '15:00',
+    end: '17:00',
+    hours: 2.0,
+    slots: 4,
+  },
+  {
+    key: 'dish3',
+    label: 'Dish Team',
+    start: '19:00',
+    end: '21:00',
+    hours: 2.0,
+    slots: 4,
+  },
 ];
 
-function makePayload(overrides: Partial<RotaImportPayload> = {}): RotaImportPayload {
+function makePayload(
+  overrides: Partial<RotaImportPayload> = {},
+): RotaImportPayload {
   return {
     version: '2026-09-19T14:22:00Z-fixture',
     timezone: 'Europe/Berlin',
@@ -39,34 +78,94 @@ function makePayload(overrides: Partial<RotaImportPayload> = {}): RotaImportPayl
     big_nights: [1, 4, 6],
     assignments: [
       {
-        id: 'd1-lunch-1', day: 1, date: '2026-09-22', block: 'lunch',
-        block_label: 'Lunch Cooks', slot: 1, start: '10:30', end: '13:00',
-        hours: 2.5, weight: 2.5, rota_key: '@alice', name: 'Alice', telegram: '@alice',
+        id: 'd1-lunch-1',
+        day: 1,
+        date: '2026-09-22',
+        block: 'lunch',
+        block_label: 'Lunch Cooks',
+        slot: 1,
+        start: '10:30',
+        end: '13:00',
+        hours: 2.5,
+        weight: 2.5,
+        rota_key: '@alice',
+        name: 'Alice',
+        telegram: '@alice',
       },
       {
-        id: 'd1-dinner-1', day: 1, date: '2026-09-22', block: 'dinner',
-        block_label: 'Dinner Cooks', slot: 1, start: '14:00', end: '18:00',
-        hours: 4.0, weight: 4.0, rota_key: '@bob', name: 'Bob', telegram: '@bob',
+        id: 'd1-dinner-1',
+        day: 1,
+        date: '2026-09-22',
+        block: 'dinner',
+        block_label: 'Dinner Cooks',
+        slot: 1,
+        start: '14:00',
+        end: '18:00',
+        hours: 4.0,
+        weight: 4.0,
+        rota_key: '@bob',
+        name: 'Bob',
+        telegram: '@bob',
       },
       {
-        id: 'd1-dish2-1', day: 1, date: '2026-09-22', block: 'dish2',
-        block_label: 'Dish Team', slot: 1, start: '15:00', end: '17:00',
-        hours: 2.0, weight: 2.0, rota_key: '@carol', name: 'Carol', telegram: '@carol',
+        id: 'd1-dish2-1',
+        day: 1,
+        date: '2026-09-22',
+        block: 'dish2',
+        block_label: 'Dish Team',
+        slot: 1,
+        start: '15:00',
+        end: '17:00',
+        hours: 2.0,
+        weight: 2.0,
+        rota_key: '@carol',
+        name: 'Carol',
+        telegram: '@carol',
       },
       {
-        id: 'd1-dish3-1', day: 1, date: '2026-09-22', block: 'dish3',
-        block_label: 'Dish Team', slot: 1, start: '19:00', end: '21:00',
-        hours: 2.0, weight: 4.0, rota_key: '@dave', name: 'Dave', telegram: '@dave',
+        id: 'd1-dish3-1',
+        day: 1,
+        date: '2026-09-22',
+        block: 'dish3',
+        block_label: 'Dish Team',
+        slot: 1,
+        start: '19:00',
+        end: '21:00',
+        hours: 2.0,
+        weight: 4.0,
+        rota_key: '@dave',
+        name: 'Dave',
+        telegram: '@dave',
       },
       {
-        id: 'd2-lunch-1', day: 2, date: '2026-09-23', block: 'lunch',
-        block_label: 'Lunch Cooks', slot: 1, start: '10:30', end: '13:00',
-        hours: 2.5, weight: 3.75, rota_key: '@eve', name: 'Eve', telegram: '@eve',
+        id: 'd2-lunch-1',
+        day: 2,
+        date: '2026-09-23',
+        block: 'lunch',
+        block_label: 'Lunch Cooks',
+        slot: 1,
+        start: '10:30',
+        end: '13:00',
+        hours: 2.5,
+        weight: 3.75,
+        rota_key: '@eve',
+        name: 'Eve',
+        telegram: '@eve',
       },
       {
-        id: 'd1-unfilled', day: 1, date: '2026-09-22', block: 'dish1',
-        block_label: 'Dish Team', slot: 1, start: '11:30', end: '12:30',
-        hours: 1.0, weight: 1.0, rota_key: null, name: null, telegram: null,
+        id: 'd1-unfilled',
+        day: 1,
+        date: '2026-09-22',
+        block: 'dish1',
+        block_label: 'Dish Team',
+        slot: 1,
+        start: '11:30',
+        end: '12:30',
+        hours: 1.0,
+        weight: 1.0,
+        rota_key: null,
+        name: null,
+        telegram: null,
       },
     ],
     ...overrides,
@@ -125,9 +224,9 @@ describe('rotaImport', () => {
   });
 
   it('refuses TEST- prefixed versions', () => {
-    expect(() =>
-      rotaImport(makePayload({ version: 'TEST-dryrun' })),
-    ).toThrow('TEST-');
+    expect(() => rotaImport(makePayload({ version: 'TEST-dryrun' }))).toThrow(
+      'TEST-',
+    );
   });
 
   it('refuses duplicate assignment IDs', () => {
@@ -240,9 +339,19 @@ describe('rotaRelease', () => {
     rotaBindTelegramId('@bob', '99001');
     const payload = makePayload();
     payload.assignments.push({
-      id: 'd2-dinner-1', day: 2, date: '2026-09-23', block: 'dinner',
-      block_label: 'Dinner Cooks', slot: 1, start: '14:00', end: '18:00',
-      hours: 4.0, weight: 4.0, rota_key: '@alice', name: 'Alice', telegram: '@alice',
+      id: 'd2-dinner-1',
+      day: 2,
+      date: '2026-09-23',
+      block: 'dinner',
+      block_label: 'Dinner Cooks',
+      slot: 1,
+      start: '14:00',
+      end: '18:00',
+      hours: 4.0,
+      weight: 4.0,
+      rota_key: '@alice',
+      name: 'Alice',
+      telegram: '@alice',
     });
     rotaReset();
     rotaImport(payload);
@@ -297,14 +406,34 @@ describe('rotaClaim', () => {
     const payload = makePayload();
     payload.assignments = [
       {
-        id: 'd1-lunch-1', day: 1, date: '2026-09-22', block: 'lunch',
-        block_label: 'Lunch Cooks', slot: 1, start: '10:30', end: '13:00',
-        hours: 2.5, weight: 2.5, rota_key: '@alice', name: 'Alice', telegram: '@alice',
+        id: 'd1-lunch-1',
+        day: 1,
+        date: '2026-09-22',
+        block: 'lunch',
+        block_label: 'Lunch Cooks',
+        slot: 1,
+        start: '10:30',
+        end: '13:00',
+        hours: 2.5,
+        weight: 2.5,
+        rota_key: '@alice',
+        name: 'Alice',
+        telegram: '@alice',
       },
       {
-        id: 'd1-dish1-1', day: 1, date: '2026-09-22', block: 'dish1',
-        block_label: 'Dish Team', slot: 1, start: '11:30', end: '12:30',
-        hours: 1.0, weight: 1.0, rota_key: '@carol', name: 'Carol', telegram: '@carol',
+        id: 'd1-dish1-1',
+        day: 1,
+        date: '2026-09-22',
+        block: 'dish1',
+        block_label: 'Dish Team',
+        slot: 1,
+        start: '11:30',
+        end: '12:30',
+        hours: 1.0,
+        weight: 1.0,
+        rota_key: '@carol',
+        name: 'Carol',
+        telegram: '@carol',
       },
     ];
     rotaImport(payload);
@@ -323,14 +452,34 @@ describe('rotaClaim', () => {
     const payload = makePayload();
     payload.assignments = [
       {
-        id: 'd1-lunch-1', day: 1, date: '2026-09-22', block: 'lunch',
-        block_label: 'Lunch Cooks', slot: 1, start: '10:30', end: '13:00',
-        hours: 2.5, weight: 2.5, rota_key: '@alice', name: 'Alice', telegram: '@alice',
+        id: 'd1-lunch-1',
+        day: 1,
+        date: '2026-09-22',
+        block: 'lunch',
+        block_label: 'Lunch Cooks',
+        slot: 1,
+        start: '10:30',
+        end: '13:00',
+        hours: 2.5,
+        weight: 2.5,
+        rota_key: '@alice',
+        name: 'Alice',
+        telegram: '@alice',
       },
       {
-        id: 'd1-dish3-1', day: 1, date: '2026-09-22', block: 'dish3',
-        block_label: 'Dish Team', slot: 1, start: '19:00', end: '21:00',
-        hours: 2.0, weight: 2.0, rota_key: '@carol', name: 'Carol', telegram: '@carol',
+        id: 'd1-dish3-1',
+        day: 1,
+        date: '2026-09-22',
+        block: 'dish3',
+        block_label: 'Dish Team',
+        slot: 1,
+        start: '19:00',
+        end: '21:00',
+        hours: 2.0,
+        weight: 2.0,
+        rota_key: '@carol',
+        name: 'Carol',
+        telegram: '@carol',
       },
     ];
     rotaImport(payload);
@@ -359,15 +508,35 @@ describe('rotaLeaveEarly', () => {
     const payload = makePayload();
     // Add a past date assignment to alice
     payload.assignments.push({
-      id: 'd0-lunch-1', day: 0, date: '2020-01-01', block: 'lunch',
-      block_label: 'Lunch Cooks', slot: 1, start: '10:30', end: '13:00',
-      hours: 2.5, weight: 2.5, rota_key: '@alice', name: 'Alice', telegram: '@alice',
+      id: 'd0-lunch-1',
+      day: 0,
+      date: '2020-01-01',
+      block: 'lunch',
+      block_label: 'Lunch Cooks',
+      slot: 1,
+      start: '10:30',
+      end: '13:00',
+      hours: 2.5,
+      weight: 2.5,
+      rota_key: '@alice',
+      name: 'Alice',
+      telegram: '@alice',
     });
     // Add another future assignment for alice
     payload.assignments.push({
-      id: 'd2-dinner-1', day: 2, date: '2026-09-23', block: 'dinner',
-      block_label: 'Dinner Cooks', slot: 1, start: '14:00', end: '18:00',
-      hours: 4.0, weight: 4.0, rota_key: '@alice', name: 'Alice', telegram: '@alice',
+      id: 'd2-dinner-1',
+      day: 2,
+      date: '2026-09-23',
+      block: 'dinner',
+      block_label: 'Dinner Cooks',
+      slot: 1,
+      start: '14:00',
+      end: '18:00',
+      hours: 4.0,
+      weight: 4.0,
+      rota_key: '@alice',
+      name: 'Alice',
+      telegram: '@alice',
     });
     rotaImport(payload);
     rotaBindTelegramId('@alice', '99001');
@@ -475,5 +644,65 @@ describe('full lifecycle: import → release → claim', () => {
     expect(log.length).toBe(2);
     expect(log[0].reason).toBe('cover_request');
     expect(log[1].reason).toBe('claimed');
+  });
+});
+
+// --- Contract fixture ---
+
+describe('contract fixture import', () => {
+  const fixturePath = path.resolve(
+    import.meta.dirname ?? '.',
+    '../tests/fixtures/rota-import.json',
+  );
+
+  it('imports the 133-row fixture successfully', () => {
+    const raw = fs.readFileSync(fixturePath, 'utf-8');
+    const payload = JSON.parse(raw);
+    const result = rotaImport(payload);
+    expect(result.inserted).toBe(133);
+    expect(result.replaced).toBe(false);
+  });
+
+  it('fixture has correct structure', () => {
+    const raw = fs.readFileSync(fixturePath, 'utf-8');
+    const payload = JSON.parse(raw);
+    rotaImport(payload);
+
+    expect(rotaGetMeta()!.version).toBe('2026-09-19T14:22:00Z-fixture');
+    expect(rotaGetAllAssignments().length).toBe(133);
+    expect(rotaGetOpenSlots().length).toBe(4);
+
+    // Day 1 has pinned crew on lunch + dish1
+    const day1 = rotaGetByDay(1);
+    const day1Lunch = day1.filter((a) => a.block === 'lunch');
+    expect(day1Lunch.length).toBe(3);
+    expect(day1Lunch.every((a) => a.state === 'assigned')).toBe(true);
+
+    // Big night dish3 has weight = 4.0 (hours * 2)
+    const d1Dish3 = day1.filter((a) => a.block === 'dish3');
+    expect(d1Dish3.every((a) => a.weight === 4.0)).toBe(true);
+
+    // Morning-after lunch has weight = 3.75 (2.5 * 1.5)
+    const day2 = rotaGetByDay(2);
+    const d2Lunch = day2.filter((a) => a.block === 'lunch');
+    expect(d2Lunch.every((a) => a.weight === 3.75)).toBe(true);
+
+    // Phone-number-only handle present
+    const phoneHandles = rotaGetAllAssignments().filter(
+      (a) => a.original_telegram && a.original_telegram.startsWith('+'),
+    );
+    expect(phoneHandles.length).toBeGreaterThan(0);
+
+    // "(no telegram)" handle present
+    const noTelegram = rotaGetAllAssignments().filter(
+      (a) => a.original_telegram === '(no telegram)',
+    );
+    expect(noTelegram.length).toBeGreaterThan(0);
+
+    // First-name collision (two Alexanders)
+    const alexanders = rotaGetAllAssignments().filter(
+      (a) => a.original_name === 'Alexander',
+    );
+    expect(alexanders.length).toBeGreaterThanOrEqual(2);
   });
 });

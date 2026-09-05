@@ -14,6 +14,7 @@ import {
   setTopicExtraction,
 } from './db.js';
 import { logger } from './logger.js';
+import { rotaGetMeta, rotaReset } from './rota-db.js';
 
 let silenced = false;
 let degraded = false;
@@ -90,7 +91,47 @@ export function handleAdminCommand(
     return { handled: true, response: buildTabReport(arg) };
   }
 
+  if (cmd === '/admin-rota-import') {
+    const meta = rotaGetMeta();
+    const hint = meta
+      ? `Current rota: version ${meta.version} (will be replaced on import).`
+      : 'No rota loaded.';
+    rotaImportState.pending = true;
+    rotaImportState.sender = sender;
+    rotaImportState.expiresAt = Date.now() + 5 * 60 * 1000;
+    return {
+      handled: true,
+      response: `${hint}\nSend me the rota JSON file. (Expires in 5 minutes.)`,
+    };
+  }
+
   return { handled: false };
+}
+
+// --- Rota import state ---
+
+export const rotaImportState = {
+  pending: false,
+  sender: '',
+  expiresAt: 0,
+};
+
+export function isRotaImportPending(sender: string): boolean {
+  if (
+    !rotaImportState.pending ||
+    rotaImportState.sender !== sender ||
+    Date.now() > rotaImportState.expiresAt
+  ) {
+    rotaImportState.pending = false;
+    return false;
+  }
+  return true;
+}
+
+export function clearRotaImportState(): void {
+  rotaImportState.pending = false;
+  rotaImportState.sender = '';
+  rotaImportState.expiresAt = 0;
 }
 
 function buildStatusReport(): string {

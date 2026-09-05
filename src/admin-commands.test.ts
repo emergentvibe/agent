@@ -6,6 +6,9 @@ import {
   isSilenced,
   setDegraded,
   setSilenced,
+  rotaImportState,
+  isRotaImportPending,
+  clearRotaImportState,
 } from './admin-commands.js';
 import {
   _initTestDatabase,
@@ -13,6 +16,7 @@ import {
   storePurchase,
   upsertTopic,
 } from './db.js';
+import { rotaImport } from './rota-db.js';
 
 const ADMIN_ID = '123456';
 
@@ -21,6 +25,7 @@ describe('admin-commands', () => {
     _initTestDatabase();
     setSilenced(false);
     setDegraded(false);
+    clearRotaImportState();
   });
 
   it('ignores commands from non-admin', () => {
@@ -187,6 +192,70 @@ describe('admin-commands', () => {
     it('handles no purchases', () => {
       const result = handleAdminCommand('/admin-tab', ADMIN_ID, ADMIN_ID);
       expect(result.response).toContain('No purchases');
+    });
+  });
+
+  describe('/admin-rota-import', () => {
+    it('sets pending state and replies with instructions', () => {
+      const result = handleAdminCommand(
+        '/admin-rota-import',
+        ADMIN_ID,
+        ADMIN_ID,
+      );
+      expect(result.handled).toBe(true);
+      expect(result.response).toContain('Send me the rota JSON file');
+      expect(rotaImportState.pending).toBe(true);
+      expect(rotaImportState.sender).toBe(ADMIN_ID);
+    });
+
+    it('shows current version when rota exists', () => {
+      rotaImport({
+        version: 'v1-test',
+        timezone: 'Europe/Berlin',
+        blocks: [
+          {
+            key: 'lunch',
+            label: 'Lunch',
+            start: '10:30',
+            end: '13:00',
+            hours: 2.5,
+            slots: 3,
+          },
+        ],
+        big_nights: [],
+        assignments: [],
+      });
+
+      const result = handleAdminCommand(
+        '/admin-rota-import',
+        ADMIN_ID,
+        ADMIN_ID,
+      );
+      expect(result.response).toContain('v1-test');
+      expect(result.response).toContain('replaced');
+    });
+
+    it('isRotaImportPending returns true for correct sender', () => {
+      handleAdminCommand('/admin-rota-import', ADMIN_ID, ADMIN_ID);
+      expect(isRotaImportPending(ADMIN_ID)).toBe(true);
+    });
+
+    it('isRotaImportPending returns false for wrong sender', () => {
+      handleAdminCommand('/admin-rota-import', ADMIN_ID, ADMIN_ID);
+      expect(isRotaImportPending('other-user')).toBe(false);
+    });
+
+    it('isRotaImportPending returns false after expiry', () => {
+      handleAdminCommand('/admin-rota-import', ADMIN_ID, ADMIN_ID);
+      rotaImportState.expiresAt = Date.now() - 1000;
+      expect(isRotaImportPending(ADMIN_ID)).toBe(false);
+    });
+
+    it('clearRotaImportState resets everything', () => {
+      handleAdminCommand('/admin-rota-import', ADMIN_ID, ADMIN_ID);
+      clearRotaImportState();
+      expect(rotaImportState.pending).toBe(false);
+      expect(isRotaImportPending(ADMIN_ID)).toBe(false);
     });
   });
 });

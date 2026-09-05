@@ -12,6 +12,13 @@ import {
 } from '../db.js';
 import { readEnvFile } from '../env.js';
 import { logger } from '../logger.js';
+import {
+  isRotaImportPending,
+  clearRotaImportState,
+} from '../admin-commands.js';
+import { rotaImport, rotaReset, rotaGetMeta } from '../rota-db.js';
+import type { RotaImportPayload } from '../rota-db.js';
+import { isCrewMember } from '../crew.js';
 import { registerChannel, ChannelOpts } from './registry.js';
 import {
   Channel,
@@ -462,8 +469,16 @@ export class TelegramChannel implements Channel {
     this.bot.on('message:video', (ctx) => storeNonText(ctx, '[Video]'));
     this.bot.on('message:voice', (ctx) => storeNonText(ctx, '[Voice message]'));
     this.bot.on('message:audio', (ctx) => storeNonText(ctx, '[Audio]'));
-    this.bot.on('message:document', (ctx) => {
+    this.bot.on('message:document', async (ctx) => {
       const name = ctx.message.document?.file_name || 'file';
+      const sender = ctx.from?.id?.toString() || '';
+      const isDm = ctx.chat.type === 'private';
+
+      if (isDm && name.endsWith('.json') && isRotaImportPending(sender)) {
+        await this.handleRotaFileUpload(ctx);
+        return;
+      }
+
       storeNonText(ctx, `[Document: ${name}]`);
     });
     this.bot.on('message:sticker', (ctx) => {
@@ -494,6 +509,68 @@ export class TelegramChannel implements Channel {
         },
       });
     });
+  }
+
+  private async handleRotaFileUpload(ctx: any): Promise<void> {
+    const sender = ctx.from?.id?.toString() || '';
+    clearRotaImportState();
+
+    // Crew gate — silently ignore non-crew
+    const groups = this.opts.registeredGroups();
+    const mainGroup = Object.values(groups).find((g) => g.isMain);
+    if (mainGroup && !isCrewMember(mainGroup.folder, sender)) {
+      logger.warn({ sender }, 'Non-crew member attempted rota import');
+      return;
+    }
+
+    try {
+      const file = await ctx.getFile();
+      const url = `https://api.telegram.org/file/bot${this.botToken}/${file.file_path}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        await ctx.reply('Failed to download the file.');
+        return;
+      }
+
+      const text = await response.text();
+      let payload: RotaImportPayload;
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        await ctx.reply('Invalid JSON. Check the file and try again.');
+        return;
+      }
+
+      if (!payload.version || !payload.assignments || !payload.blocks) {
+        await ctx.reply(
+          'Missing required fields (version, assignments, blocks). Is this the right file?',
+        );
+        return;
+      }
+
+      const existing = rotaGetMeta();
+      if (existing && existing.version !== payload.version) {
+        rotaReset();
+        logger.info(
+          { old: existing.version, new: payload.version },
+          'Auto-reset rota for new version import',
+        );
+      }
+
+      const result = rotaImport(payload);
+      const verb = result.replaced ? 'Replaced' : 'Imported';
+      await ctx.reply(
+        `${verb} ${result.inserted} assignments (version: ${payload.version}).`,
+      );
+      logger.info(
+        { version: payload.version, count: result.inserted, replaced: result.replaced },
+        'Rota imported via Telegram file upload',
+      );
+    } catch (err: any) {
+      const msg = err?.message || 'Unknown error';
+      await ctx.reply(`Import failed: ${msg}`);
+      logger.error({ err: msg, sender }, 'Rota import failed');
+    }
   }
 
   async sendMessage(
