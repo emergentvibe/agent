@@ -307,13 +307,28 @@ export class TelegramChannel implements Channel {
     this.bot.command('start', async (ctx) => {
       const payload = ctx.match?.toString().trim();
       if (!payload) {
-        this.opts.onMessage(`tg:${ctx.chat.id}`, {
+        const chatJid = `tg:${ctx.chat.id}`;
+        const timestamp = new Date(ctx.message!.date * 1000).toISOString();
+        const chatName =
+          ctx.chat.type === 'private'
+            ? ctx.from?.first_name || ctx.from?.username || 'DM'
+            : (ctx.chat as any).title || chatJid;
+        const isGroup =
+          ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
+        this.opts.onChatMetadata(
+          chatJid,
+          timestamp,
+          chatName,
+          'telegram',
+          isGroup,
+        );
+        this.opts.onMessage(chatJid, {
           id: ctx.message!.message_id.toString(),
-          chat_jid: `tg:${ctx.chat.id}`,
+          chat_jid: chatJid,
           sender: ctx.from?.id?.toString() || '',
           sender_name: ctx.from?.first_name || ctx.from?.username || 'Unknown',
           content: `@${ASSISTANT_NAME} hello`,
-          timestamp: new Date(ctx.message!.date * 1000).toISOString(),
+          timestamp,
           is_from_me: false,
         });
         return;
