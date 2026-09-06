@@ -250,7 +250,8 @@ export function rotaImport(payload: RotaImportPayload): {
         throw new Error(`Invalid date format: ${a.date} (expected yyyy-MM-dd)`);
       }
       const filled = a.rota_key !== null;
-      const telegram = a.telegram && a.telegram !== '(no telegram)' ? a.telegram : null;
+      const telegram =
+        a.telegram && a.telegram !== '(no telegram)' ? a.telegram : null;
       insertAssignment.run(
         a.id,
         a.day,

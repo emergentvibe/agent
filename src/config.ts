@@ -83,8 +83,11 @@ export const TRIGGER_PATTERN = new RegExp(
 
 // Rota system
 export const ROTA_SHIFTS_TOPIC_ID =
-  (process.env.ROTA_SHIFTS_TOPIC_ID || envConfig.ROTA_SHIFTS_TOPIC_ID)
-    ? parseInt(process.env.ROTA_SHIFTS_TOPIC_ID || envConfig.ROTA_SHIFTS_TOPIC_ID, 10)
+  process.env.ROTA_SHIFTS_TOPIC_ID || envConfig.ROTA_SHIFTS_TOPIC_ID
+    ? parseInt(
+        process.env.ROTA_SHIFTS_TOPIC_ID || envConfig.ROTA_SHIFTS_TOPIC_ID,
+        10,
+      )
     : undefined;
 export const ROTA_GROUP_JID =
   process.env.ROTA_GROUP_JID || envConfig.ROTA_GROUP_JID || '';

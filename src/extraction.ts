@@ -277,9 +277,11 @@ async function runExtractionCycle(deps: ExtractionLoopDeps): Promise<void> {
     );
 
     for (const mem of result.memories) {
-      storeMemory(mem.text, mem.user_id, mem.metadata).catch((err) =>
-        logger.warn({ err }, 'Failed to store extracted memory'),
-      );
+      try {
+        await storeMemory(mem.text, mem.user_id, mem.metadata);
+      } catch (err) {
+        logger.warn({ err }, 'Failed to store extracted memory');
+      }
     }
 
     // Notify subscribers of matching memories

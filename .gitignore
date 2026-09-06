@@ -28,6 +28,7 @@ groups/global/*
 
 # Temp files
 .tmp-*
+rota-import.json
 
 # OS
 .DS_Store

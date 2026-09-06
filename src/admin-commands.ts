@@ -49,7 +49,10 @@ export async function handleAdminCommand(
   sender: string,
   adminTelegramId: string | undefined,
 ): Promise<AdminCommandResult> {
-  const adminIds = (adminTelegramId || '').split(',').map(s => s.trim()).filter(Boolean);
+  const adminIds = (adminTelegramId || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
   if (adminIds.length === 0 || !adminIds.includes(sender)) {
     return { handled: false };
   }
