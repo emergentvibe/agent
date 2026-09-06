@@ -693,11 +693,11 @@ describe('contract fixture import', () => {
     );
     expect(phoneHandles.length).toBeGreaterThan(0);
 
-    // "(no telegram)" handle present
+    // "(no telegram)" sanitized to null on import
     const noTelegram = rotaGetAllAssignments().filter(
       (a) => a.original_telegram === '(no telegram)',
     );
-    expect(noTelegram.length).toBeGreaterThan(0);
+    expect(noTelegram.length).toBe(0);
 
     // First-name collision (two Alexanders)
     const alexanders = rotaGetAllAssignments().filter(

@@ -196,9 +196,9 @@ describe('admin-commands', () => {
       const result = await handleAdminCommand('/admin-tab', ADMIN_ID, ADMIN_ID);
       expect(result.handled).toBe(true);
       expect(result.response).toContain('Alice');
-      expect(result.response).toContain('$8.00');
+      expect(result.response).toContain('€8.00');
       expect(result.response).toContain('Bob');
-      expect(result.response).toContain('$5.00');
+      expect(result.response).toContain('€5.00');
     });
 
     it('shows user-specific purchases', async () => {
@@ -213,7 +213,7 @@ describe('admin-commands', () => {
       expect(result.handled).toBe(true);
       expect(result.response).toContain('beer');
       expect(result.response).toContain('wine');
-      expect(result.response).toContain('$8.00');
+      expect(result.response).toContain('€8.00');
     });
 
     it('exports CSV', async () => {
