@@ -177,7 +177,7 @@ export class TelegramChannel implements Channel {
       const entries = Object.entries(items);
       for (let i = 0; i < entries.length; i++) {
         const [item, price] = entries[i];
-        kb.text(`${item} $${price}`, `buy:${category}:${item}`);
+        kb.text(`${item} €${price}`, `buy:${category}:${item}`);
         if (i % 2 === 1 && i < entries.length - 1) kb.row();
       }
       return kb;
@@ -203,7 +203,7 @@ export class TelegramChannel implements Channel {
         const kb = new InlineKeyboard();
         for (const [cat, items] of Object.entries(prices)) {
           for (const [item, price] of Object.entries(items)) {
-            kb.text(`${item} $${price}`, `buy:${cat}:${item}`);
+            kb.text(`${item} €${price}`, `buy:${cat}:${item}`);
           }
           kb.row();
         }
@@ -225,9 +225,9 @@ export class TelegramChannel implements Channel {
         await ctx.reply('No purchases yet.');
         return;
       }
-      const lines = purchases.map((p) => `${p.item}: $${p.price.toFixed(2)}`);
+      const lines = purchases.map((p) => `${p.item}: €${p.price.toFixed(2)}`);
       const total = getUserTotal(userId);
-      lines.push(`\n*Total: $${total.toFixed(2)}*`);
+      lines.push(`\n*Total: €${total.toFixed(2)}*`);
       await ctx.reply(lines.join('\n'), { parse_mode: 'Markdown' });
     });
 
@@ -240,7 +240,7 @@ export class TelegramChannel implements Channel {
       }
       const total = getUserTotal(userId);
       await ctx.reply(
-        `Cancelled: ${cancelled.item} ($${cancelled.price.toFixed(2)})\nNew total: $${total.toFixed(2)}`,
+        `Cancelled: ${cancelled.item} (€${cancelled.price.toFixed(2)})\nNew total: €${total.toFixed(2)}`,
       );
     });
 
@@ -264,11 +264,11 @@ export class TelegramChannel implements Channel {
       const total = getUserTotal(userId);
 
       await ctx.answerCallbackQuery({
-        text: `Added ${item} ($${price.toFixed(2)})`,
+        text: `Added ${item} (€${price.toFixed(2)})`,
       });
       try {
         await ctx.editMessageText(
-          `${userName} bought *${item}* ($${price.toFixed(2)})\nRunning total: *$${total.toFixed(2)}*`,
+          `${userName} bought *${item}* (€${price.toFixed(2)})\nRunning total: *€${total.toFixed(2)}*`,
           { parse_mode: 'Markdown' },
         );
       } catch {
@@ -306,7 +306,18 @@ export class TelegramChannel implements Channel {
     // /start deep link handler (NFC stickers, DM entry points)
     this.bot.command('start', async (ctx) => {
       const payload = ctx.match?.toString().trim();
-      if (!payload) return; // plain /start handled elsewhere or ignored
+      if (!payload) {
+        this.opts.onMessage(`tg:${ctx.chat.id}`, {
+          id: ctx.message!.message_id.toString(),
+          chat_jid: `tg:${ctx.chat.id}`,
+          sender: ctx.from?.id?.toString() || '',
+          sender_name: ctx.from?.first_name || ctx.from?.username || 'Unknown',
+          content: `@${ASSISTANT_NAME} hello`,
+          timestamp: new Date(ctx.message!.date * 1000).toISOString(),
+          is_from_me: false,
+        });
+        return;
+      }
 
       switch (payload) {
         case 'bar':
@@ -320,10 +331,10 @@ export class TelegramChannel implements Channel {
             await ctx.reply('No purchases yet.');
           } else {
             const lines = purchases.map(
-              (p) => `${p.item}: $${p.price.toFixed(2)}`,
+              (p) => `${p.item}: €${p.price.toFixed(2)}`,
             );
             const total = getUserTotal(userId);
-            lines.push(`\n*Total: $${total.toFixed(2)}*`);
+            lines.push(`\n*Total: €${total.toFixed(2)}*`);
             await ctx.reply(lines.join('\n'), { parse_mode: 'Markdown' });
           }
           break;

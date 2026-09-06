@@ -315,6 +315,10 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
             hadError = true;
           }
         }
+        // Stop typing after each output — the container stays alive for
+        // follow-up messages, but the user shouldn't see "typing..." after
+        // the reply lands. If a new message arrives, line 551 re-enables it.
+        await channel.setTyping?.(chatJid, false).catch(() => {});
         // Only reset idle timer on actual results, not session-update markers (result: null)
         resetIdleTimer();
       }

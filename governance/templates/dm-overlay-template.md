@@ -22,7 +22,11 @@ Here's what I can help with:
 - **/forget-my-intro** — remove your introduction from community memory
 - **/connect** [interest] — find people who share that interest
 - **/subscribe** [topic] — I'll DM you when that topic gets an update
+- **/myrota** — see your kitchen shifts for the week
+- **/cover** — request cover for a shift you can't make
+- **/leaveearly** — release remaining shifts if you're leaving early
 - **/bar** or **/bbq** — purchase tracker for shared tabs
+- **/show_total** — see your current tab
 
 You don't need slash commands — just ask me in your own words and I'll figure it out."
 

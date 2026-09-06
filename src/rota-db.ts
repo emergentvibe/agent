@@ -246,7 +246,11 @@ export function rotaImport(payload: RotaImportPayload): {
     );
 
     for (const a of payload.assignments) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(a.date)) {
+        throw new Error(`Invalid date format: ${a.date} (expected yyyy-MM-dd)`);
+      }
       const filled = a.rota_key !== null;
+      const telegram = a.telegram && a.telegram !== '(no telegram)' ? a.telegram : null;
       insertAssignment.run(
         a.id,
         a.day,
@@ -260,11 +264,11 @@ export function rotaImport(payload: RotaImportPayload): {
         a.weight,
         filled ? a.rota_key : null,
         filled ? a.name : null,
-        filled ? a.telegram : null,
+        filled ? telegram : null,
         a.telegram_id ?? null,
         filled ? a.rota_key : null,
         filled ? a.name : null,
-        filled ? a.telegram : null,
+        filled ? telegram : null,
         filled ? 'assigned' : 'open',
         null,
       );

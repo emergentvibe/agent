@@ -49,7 +49,8 @@ export async function handleAdminCommand(
   sender: string,
   adminTelegramId: string | undefined,
 ): Promise<AdminCommandResult> {
-  if (!adminTelegramId || sender !== adminTelegramId) {
+  const adminIds = (adminTelegramId || '').split(',').map(s => s.trim()).filter(Boolean);
+  if (adminIds.length === 0 || !adminIds.includes(sender)) {
     return { handled: false };
   }
 
@@ -269,7 +270,7 @@ function buildTabReport(arg: string): string {
     if (totals.length === 0) return 'No purchases recorded.';
     const lines = ['*Purchase Totals*\n'];
     for (const t of totals) {
-      lines.push(`${t.user_name}: $${t.total.toFixed(2)}`);
+      lines.push(`${t.user_name}: €${t.total.toFixed(2)}`);
     }
     return lines.join('\n');
   }
@@ -294,10 +295,10 @@ function buildTabReport(arg: string): string {
   let total = 0;
   for (const p of purchases) {
     lines.push(
-      `${p.item}: $${p.price.toFixed(2)} (${p.timestamp.slice(0, 10)})`,
+      `${p.item}: €${p.price.toFixed(2)} (${p.timestamp.slice(0, 10)})`,
     );
     total += p.price;
   }
-  lines.push(`\n*Total: $${total.toFixed(2)}*`);
+  lines.push(`\n*Total: €${total.toFixed(2)}*`);
   return lines.join('\n');
 }
