@@ -573,6 +573,28 @@ export function rotaRecordPing(assignmentId: string, type: string): void {
   ).run(assignmentId, type, new Date().toISOString());
 }
 
+// --- Board message tracking ---
+
+export function rotaGetBoardMessageId(): number | null {
+  const db = _getDb();
+  const row = db
+    .prepare("SELECT value FROM rota_meta WHERE key = 'board_message_id'")
+    .get() as { value: string } | undefined;
+  return row ? parseInt(row.value, 10) : null;
+}
+
+export function rotaSetBoardMessageId(messageId: number): void {
+  const db = _getDb();
+  db.prepare(
+    "INSERT OR REPLACE INTO rota_meta (key, value) VALUES ('board_message_id', ?)",
+  ).run(String(messageId));
+}
+
+export function rotaClearBoardMessageId(): void {
+  const db = _getDb();
+  db.prepare("DELETE FROM rota_meta WHERE key = 'board_message_id'").run();
+}
+
 // --- State response ---
 
 export function rotaBuildStateResponse(): object | undefined {

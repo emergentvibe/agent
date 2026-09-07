@@ -17,12 +17,16 @@ import {
   rotaRerelease,
   rotaClaim,
   rotaLeaveEarly,
+  rotaGetBoardMessageId,
+  rotaSetBoardMessageId,
+  rotaClearBoardMessageId,
   type RotaAssignment,
 } from './rota-db.js';
 
 export interface RotaCommandOpts {
   registeredGroups: () => Record<string, import('./types.js').RegisteredGroup>;
-  sendToShiftsTopic: (text: string, keyboard?: IKType) => Promise<void>;
+  sendToShiftsTopic: (text: string, keyboard?: IKType) => Promise<number | undefined>;
+  editShiftsTopicMessage: (messageId: number, text: string, keyboard?: IKType) => Promise<void>;
   sendDm: (userId: string, text: string) => Promise<void>;
 }
 
@@ -65,6 +69,67 @@ function formatDate(date: string): string {
 function formatAssignment(a: RotaAssignment): string {
   return `${a.block_label} ${a.start}–${a.end}, ${formatDate(a.date)}`;
 }
+
+// --- Shifts Board ---
+
+function buildBoardContent(InlineKeyboard: typeof IKType): {
+  text: string;
+  keyboard: IKType | undefined;
+  count: number;
+} {
+  const openSlots = rotaGetOpenSlots();
+  const now = new Date().toISOString().slice(0, 10);
+  const future = openSlots.filter((a) => a.date >= now);
+
+  if (future.length === 0) {
+    return { text: 'All shifts are covered!', keyboard: undefined, count: 0 };
+  }
+
+  const kb = new InlineKeyboard();
+  for (const a of future) {
+    kb.text(
+      `${formatAssignment(a)} (${a.original_name || '???'})`,
+      `rota:claim:${a.id}`,
+    ).row();
+  }
+
+  return {
+    text: `${future.length} open shift${future.length > 1 ? 's' : ''} — tap to claim:`,
+    keyboard: kb,
+    count: future.length,
+  };
+}
+
+export async function postShiftsBoard(
+  opts: RotaCommandOpts,
+  InlineKeyboard: typeof IKType,
+): Promise<void> {
+  const { text, keyboard, count } = buildBoardContent(InlineKeyboard);
+
+  const oldBoardId = rotaGetBoardMessageId();
+  if (oldBoardId) {
+    try {
+      await opts.editShiftsTopicMessage(
+        oldBoardId,
+        'See latest open shifts below ↓',
+      );
+    } catch {
+      // Old message may be too old to edit
+    }
+  }
+
+  if (count === 0) {
+    rotaClearBoardMessageId();
+    return;
+  }
+
+  const msgId = await opts.sendToShiftsTopic(text, keyboard);
+  if (msgId) {
+    rotaSetBoardMessageId(msgId);
+  }
+}
+
+// --- Command entries ---
 
 export function rotaCommandEntries(): Array<{
   command: string;
@@ -259,17 +324,7 @@ export function registerRotaCommands(
       `Released ${releasedIds.length} shift${releasedIds.length > 1 ? 's' : ''}. Cover requests have been posted.`,
     );
 
-    // Post only the newly released shifts (not previously open ones)
-    for (const id of releasedIds) {
-      const a = rotaGetById(id);
-      if (!a) continue;
-      const kb = new InlineKeyboard();
-      kb.text('Claim this shift', `rota:claim:${a.id}`);
-      await opts.sendToShiftsTopic(
-        `Cover needed: ${formatAssignment(a)} (${a.original_name || '???'})`,
-        kb,
-      );
-    }
+    await postShiftsBoard(opts, InlineKeyboard);
 
     // Notify crew
     const mainGroup = Object.values(opts.registeredGroups()).find(
@@ -336,16 +391,10 @@ export function registerRotaCommands(
       // Message may be too old
     }
 
-    // Post to Shifts topic
-    const kb = new InlineKeyboard();
-    kb.text('Claim this shift', `rota:claim:${assignmentId}`);
-    await opts.sendToShiftsTopic(
-      `Cover needed: ${formatAssignment(assignment)} (${assignment.original_name || '???'})`,
-      kb,
-    );
+    await postShiftsBoard(opts, InlineKeyboard);
   });
 
-  // Claim button tap (from Shifts topic)
+  // Claim button tap (from Shifts Board in topic)
   bot.callbackQuery(/^rota:claim:(.+)$/, async (ctx) => {
     const match = ctx.callbackQuery.data.match(/^rota:claim:(.+)$/);
     if (!match) return;
@@ -374,14 +423,38 @@ export function registerRotaCommands(
     const assignment = rotaGetById(assignmentId);
     if (!assignment) return;
 
-    try {
-      await ctx.editMessageText(
-        `${formatAssignment(assignment)} — claimed by *${claimerName}* ${claimerHandle || ''}`,
-        { parse_mode: 'Markdown' },
-      );
-    } catch {
-      // Message may be too old
+    // Update the board in place — rebuild with remaining open shifts
+    const boardMsgId = rotaGetBoardMessageId();
+    const tappedMsgId = ctx.callbackQuery.message?.message_id;
+    const { text, keyboard, count } = buildBoardContent(InlineKeyboard);
+
+    if (tappedMsgId === boardMsgId) {
+      try {
+        if (count > 0) {
+          await ctx.editMessageText(text, { reply_markup: keyboard });
+        } else {
+          await ctx.editMessageText('All shifts are covered!');
+        }
+      } catch {
+        // Message may be too old
+      }
+    } else {
+      // Stale button (old board we couldn't deactivate) — update both
+      try {
+        await ctx.editMessageText('Claimed! See latest message for open shifts.');
+      } catch { /* ignore */ }
+      if (boardMsgId) {
+        try {
+          if (count > 0) {
+            await opts.editShiftsTopicMessage(boardMsgId, text, keyboard);
+          } else {
+            await opts.editShiftsTopicMessage(boardMsgId, 'All shifts are covered!');
+          }
+        } catch { /* ignore */ }
+      }
     }
+
+    if (count === 0) rotaClearBoardMessageId();
 
     // DM the original person
     if (assignment.original_telegram_id) {
@@ -411,7 +484,9 @@ export function registerRotaCommands(
     const assignment = rotaGetById(assignmentId);
     if (!assignment) return;
 
-    await ctx.answerCallbackQuery({ text: 'Shift released — cover request posted.' });
+    await ctx.answerCallbackQuery({
+      text: 'Shift released — cover request posted.',
+    });
     try {
       await ctx.editMessageText(
         `Released: ${formatAssignment(assignment)}. Cover request posted.`,
@@ -420,13 +495,7 @@ export function registerRotaCommands(
       // Message may be too old
     }
 
-    // Post cover request to Shifts topic
-    const kb = new InlineKeyboard();
-    kb.text('Claim this shift', `rota:claim:${assignmentId}`);
-    await opts.sendToShiftsTopic(
-      `Cover needed: ${formatAssignment(assignment)} (${assignment.original_name || '???'})`,
-      kb,
-    );
+    await postShiftsBoard(opts, InlineKeyboard);
 
     // Notify the original person their shift is uncovered again
     if (assignment.original_telegram_id) {
@@ -439,7 +508,7 @@ export function registerRotaCommands(
     }
   });
 
-  // /openshifts — list all open shifts with claim buttons
+  // /openshifts — text-only list, claim from Kitchen Shifts topic
   bot.command('openshifts', async (ctx) => {
     if (!isRotaEnabled(opts.registeredGroups())) return;
 
@@ -452,14 +521,11 @@ export function registerRotaCommands(
       return;
     }
 
-    const kb = new InlineKeyboard();
-    for (const a of future) {
-      kb.text(formatAssignment(a), `rota:claim:${a.id}`).row();
-    }
-
+    const lines = future.map(
+      (a) => `  ${formatAssignment(a)} (${a.original_name || '???'})`,
+    );
     await ctx.reply(
-      `${future.length} open shift${future.length > 1 ? 's' : ''}:`,
-      { reply_markup: kb },
+      `${future.length} open shift${future.length > 1 ? 's' : ''}:\n${lines.join('\n')}\n\nHead to Kitchen Shifts to claim.`,
     );
   });
 

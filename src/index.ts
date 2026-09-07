@@ -610,6 +610,13 @@ export async function main(): Promise<void> {
     );
   }
 
+  // Ensure scheduled tasks for existing groups (e.g. digest after feature flag change)
+  for (const [jid, group] of Object.entries(registeredGroups)) {
+    if (group.isMain) {
+      ensureDigestTask(group, jid);
+    }
+  }
+
   // Start credential proxy (containers route API calls through this)
   const proxyServer = await startCredentialProxy(
     CREDENTIAL_PROXY_PORT,

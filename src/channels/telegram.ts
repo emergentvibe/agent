@@ -287,14 +287,26 @@ export class TelegramChannel implements Channel {
             logger.warn(
               'Rota: ROTA_GROUP_JID or ROTA_SHIFTS_TOPIC_ID not configured',
             );
-            return;
+            return undefined;
           }
           const msgOpts: Record<string, unknown> = {
             message_thread_id: ROTA_SHIFTS_TOPIC_ID,
             parse_mode: 'Markdown',
           };
           if (keyboard) msgOpts.reply_markup = keyboard;
-          await this.bot!.api.sendMessage(rotaGroupId, text, msgOpts);
+          const msg = await this.bot!.api.sendMessage(rotaGroupId, text, msgOpts);
+          return msg.message_id;
+        },
+        editShiftsTopicMessage: async (messageId, text, keyboard) => {
+          if (!rotaGroupId) return;
+          const editOpts: Record<string, unknown> = {};
+          if (keyboard) editOpts.reply_markup = keyboard;
+          await this.bot!.api.editMessageText(
+            rotaGroupId,
+            messageId,
+            text,
+            editOpts,
+          );
         },
         sendDm: async (userId, text) => {
           await sendTelegramMessage(this.bot!.api, userId, text);

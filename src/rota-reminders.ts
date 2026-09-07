@@ -201,8 +201,17 @@ async function tick(callbacks: ReminderCallbacks): Promise<void> {
         );
       }
 
+      // DM the original person — they're still on the hook
+      if (a.original_telegram_id) {
+        await callbacks.sendDm(
+          a.original_telegram_id,
+          `Your ${a.block_label} (${a.start}–${a.end}) shift starts in 30 min and nobody picked it up yet. You're still on the hook — head to the kitchen!`,
+        );
+      }
+
       const crewIds = callbacks.getCrewIds?.() || [];
       for (const crewId of crewIds) {
+        if (crewId === a.original_telegram_id) continue;
         await callbacks.sendDm(
           crewId,
           `Heads up — ${a.block_label} (${a.start}–${a.end}) starts soon and has no one assigned.`,
@@ -210,10 +219,7 @@ async function tick(callbacks: ReminderCallbacks): Promise<void> {
       }
 
       rotaRecordPing(a.id, warnKey);
-      logger.info(
-        { assignmentId: a.id },
-        'Rota: uncovered shift warning sent',
-      );
+      logger.info({ assignmentId: a.id }, 'Rota: uncovered shift warning sent');
     } catch (err) {
       logger.error(
         { err, assignmentId: a.id },
