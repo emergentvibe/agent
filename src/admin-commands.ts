@@ -112,6 +112,11 @@ export async function handleAdminCommand(
 
   if (cmd.startsWith('/admin-tab')) {
     const arg = text.trim().slice('/admin-tab'.length).trim();
+    if (arg.toLowerCase() === 'export') {
+      const result = buildTabExportFile();
+      if ('error' in result) return { handled: true, response: result.error };
+      return { handled: true, file: result };
+    }
     return { handled: true, response: buildTabReport(arg) };
   }
 
@@ -296,18 +301,6 @@ function buildTabReport(arg: string): string {
     return lines.join('\n');
   }
 
-  if (arg.toLowerCase() === 'export') {
-    const purchases = getAllPurchases();
-    if (purchases.length === 0) return 'No purchases to export.';
-    const lines = ['user_id,user_name,item,price,timestamp'];
-    for (const p of purchases) {
-      lines.push(
-        `${p.user_id},${p.user_name},${p.item},${p.price},${p.timestamp}`,
-      );
-    }
-    return lines.join('\n');
-  }
-
   // Treat as user lookup — strip @ if present
   const userId = arg.replace(/^@/, '');
   const purchases = getUserPurchases(userId);
@@ -322,4 +315,32 @@ function buildTabReport(arg: string): string {
   }
   lines.push(`\n*Total: €${total.toFixed(2)}*`);
   return lines.join('\n');
+}
+
+function buildTabExportFile():
+  | { buffer: Buffer; filename: string }
+  | { error: string } {
+  const purchases = getAllPurchases();
+  if (purchases.length === 0) return { error: 'No purchases to export.' };
+  const lines = ['user_id,user_name,item,price,timestamp'];
+  for (const p of purchases) {
+    lines.push(
+      `${p.user_id},${p.user_name},${p.item},${p.price},${p.timestamp}`,
+    );
+  }
+  lines.push('');
+  lines.push('--- TOTALS ---');
+  const totals = getAllPurchaseTotals();
+  lines.push('user_name,total');
+  for (const t of totals) {
+    lines.push(`${t.user_name},${t.total.toFixed(2)}`);
+  }
+  const grandTotal = totals.reduce((sum, t) => sum + t.total, 0);
+  lines.push(`TOTAL,${grandTotal.toFixed(2)}`);
+  const csv = lines.join('\n') + '\n';
+  const date = new Date().toISOString().slice(0, 10);
+  return {
+    buffer: Buffer.from(csv, 'utf-8'),
+    filename: `purchases-${date}.csv`,
+  };
 }

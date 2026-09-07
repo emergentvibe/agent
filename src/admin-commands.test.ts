@@ -216,7 +216,7 @@ describe('admin-commands', () => {
       expect(result.response).toContain('€8.00');
     });
 
-    it('exports CSV', async () => {
+    it('exports CSV file with purchases and totals', async () => {
       storePurchase('tg:123', 'user1', 'Alice', 'beer', 3);
 
       const result = await handleAdminCommand(
@@ -225,8 +225,13 @@ describe('admin-commands', () => {
         ADMIN_ID,
       );
       expect(result.handled).toBe(true);
-      expect(result.response).toContain('user_id,user_name,item,price');
-      expect(result.response).toContain('user1,Alice,beer,3');
+      expect(result.file).toBeDefined();
+      const csv = result.file!.buffer.toString('utf-8');
+      expect(csv).toContain('user_id,user_name,item,price');
+      expect(csv).toContain('user1,Alice,beer,3');
+      expect(csv).toContain('--- TOTALS ---');
+      expect(csv).toContain('Alice,3.00');
+      expect(result.file!.filename).toMatch(/^purchases-\d{4}-\d{2}-\d{2}\.csv$/);
     });
 
     it('handles no purchases', async () => {
