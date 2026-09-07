@@ -9,6 +9,10 @@ import {
   rotaImportState,
   isRotaImportPending,
   clearRotaImportState,
+  attendeeImportState,
+  isAttendeeImportPending,
+  clearAttendeeImportState,
+  handleAttendeeImportFile,
 } from './admin-commands.js';
 import {
   _initTestDatabase,
@@ -26,6 +30,7 @@ describe('admin-commands', () => {
     setSilenced(false);
     setDegraded(false);
     clearRotaImportState();
+    clearAttendeeImportState();
   });
 
   it('ignores commands from non-admin', async () => {
@@ -387,6 +392,91 @@ describe('admin-commands', () => {
       );
       expect(result.handled).toBe(true);
       expect(result.response).toContain('No shifts scheduled');
+    });
+  });
+
+  describe('/admin-attendee-import', () => {
+    it('sets pending state and replies with instructions', async () => {
+      const result = await handleAdminCommand(
+        '/admin-attendee-import',
+        ADMIN_ID,
+        ADMIN_ID,
+      );
+      expect(result.handled).toBe(true);
+      expect(result.response).toContain('Send me the attendee JSON file');
+      expect(attendeeImportState.pending).toBe(true);
+      expect(attendeeImportState.sender).toBe(ADMIN_ID);
+    });
+
+    it('isAttendeeImportPending works', async () => {
+      await handleAdminCommand('/admin-attendee-import', ADMIN_ID, ADMIN_ID);
+      expect(isAttendeeImportPending(ADMIN_ID)).toBe(true);
+      expect(isAttendeeImportPending('other')).toBe(false);
+    });
+
+    it('handleAttendeeImportFile imports valid JSON', () => {
+      const json = JSON.stringify({
+        version: '1',
+        event: 'Test',
+        attendees: [
+          { name: 'Alice', telegram: '@alice', role: 'crew' },
+          { name: 'Bob', role: 'attendee' },
+        ],
+      });
+      const result = handleAttendeeImportFile(json);
+      expect(result.handled).toBe(true);
+      expect(result.response).toContain('2 attendees');
+      expect(result.response).toContain('2 new');
+    });
+
+    it('handleAttendeeImportFile rejects invalid JSON', () => {
+      const result = handleAttendeeImportFile('not json');
+      expect(result.handled).toBe(true);
+      expect(result.response).toContain('failed');
+    });
+
+    it('handleAttendeeImportFile rejects missing attendees array', () => {
+      const result = handleAttendeeImportFile(
+        JSON.stringify({ version: '1' }),
+      );
+      expect(result.handled).toBe(true);
+      expect(result.response).toContain('Invalid format');
+    });
+  });
+
+  describe('/admin-checkins', () => {
+    it('shows no attendees when none loaded', async () => {
+      const result = await handleAdminCommand(
+        '/admin-checkins',
+        ADMIN_ID,
+        ADMIN_ID,
+      );
+      expect(result.handled).toBe(true);
+      expect(result.response).toContain('No attendees loaded');
+    });
+
+    it('shows check-in status after import', async () => {
+      handleAttendeeImportFile(
+        JSON.stringify({
+          version: '1',
+          event: 'Test',
+          attendees: [
+            { name: 'Alice', telegram: '@alice', role: 'crew' },
+            { name: 'Bob', role: 'attendee' },
+          ],
+        }),
+      );
+
+      const result = await handleAdminCommand(
+        '/admin-checkins',
+        ADMIN_ID,
+        ADMIN_ID,
+      );
+      expect(result.handled).toBe(true);
+      expect(result.response).toContain('0/2');
+      expect(result.response).toContain('Not yet checked in');
+      expect(result.response).toContain('Alice');
+      expect(result.response).toContain('Bob');
     });
   });
 });

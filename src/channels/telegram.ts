@@ -21,6 +21,8 @@ import { logger } from '../logger.js';
 import {
   isRotaImportPending,
   clearRotaImportState,
+  isAttendeeImportPending,
+  handleAttendeeImportFile,
 } from '../admin-commands.js';
 import { rotaImport, rotaReset, rotaGetMeta } from '../rota-db.js';
 import type { RotaImportPayload } from '../rota-db.js';
@@ -571,6 +573,11 @@ export class TelegramChannel implements Channel {
         return;
       }
 
+      if (isDm && name.endsWith('.json') && isAttendeeImportPending(sender)) {
+        await this.handleAttendeeFileUpload(ctx);
+        return;
+      }
+
       storeNonText(ctx, `[Document: ${name}]`);
     });
     this.bot.on('message:sticker', (ctx) => {
@@ -666,6 +673,28 @@ export class TelegramChannel implements Channel {
       const msg = err?.message || 'Unknown error';
       await ctx.reply(`Import failed: ${msg}`);
       logger.error({ err: msg, sender }, 'Rota import failed');
+    }
+  }
+
+  private async handleAttendeeFileUpload(ctx: any): Promise<void> {
+    try {
+      const file = await ctx.getFile();
+      const url = `https://api.telegram.org/file/bot${this.botToken}/${file.file_path}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        await ctx.reply('Failed to download the file.');
+        return;
+      }
+
+      const text = await response.text();
+      const result = handleAttendeeImportFile(text);
+      if (result.response) {
+        await ctx.reply(result.response);
+      }
+    } catch (err: any) {
+      const msg = err?.message || 'Unknown error';
+      await ctx.reply(`Attendee import failed: ${msg}`);
+      logger.error({ err: msg }, 'Attendee import failed');
     }
   }
 

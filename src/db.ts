@@ -5,6 +5,7 @@ import path from 'path';
 import { ASSISTANT_NAME, DATA_DIR, STORE_DIR } from './config.js';
 import { isValidGroupFolder } from './group-folder.js';
 import { logger } from './logger.js';
+import { createAttendeeSchema } from './attendee-db.js';
 import { createRotaSchema } from './rota-db.js';
 import {
   NewMessage,
@@ -174,6 +175,7 @@ function createSchema(database: Database.Database): void {
   }
 
   createRotaSchema(database);
+  createAttendeeSchema(database);
 }
 
 export function initDatabase(): void {

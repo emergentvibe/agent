@@ -5,6 +5,13 @@
 import { execSync } from 'child_process';
 
 import {
+  attendeeCount,
+  attendeeGetCheckedIn,
+  attendeeGetNotCheckedIn,
+  attendeeImport,
+  type AttendeeImportPayload,
+} from './attendee-db.js';
+import {
   getAllPurchases,
   getAllPurchaseTotals,
   getAllRegisteredGroups,
@@ -143,6 +150,25 @@ export async function handleAdminCommand(
     };
   }
 
+  if (cmd === '/admin-attendee-import') {
+    const counts = attendeeCount();
+    const hint =
+      counts.total > 0
+        ? `Current: ${counts.total} attendees (${counts.checked_in} checked in). Import will update matching names.`
+        : 'No attendees loaded.';
+    attendeeImportState.pending = true;
+    attendeeImportState.sender = sender;
+    attendeeImportState.expiresAt = Date.now() + 5 * 60 * 1000;
+    return {
+      handled: true,
+      response: `${hint}\nSend me the attendee JSON file. (Expires in 5 minutes.)`,
+    };
+  }
+
+  if (cmd === '/admin-checkins') {
+    return { handled: true, response: buildCheckinsReport() };
+  }
+
   return { handled: false };
 }
 
@@ -170,6 +196,90 @@ export function clearRotaImportState(): void {
   rotaImportState.pending = false;
   rotaImportState.sender = '';
   rotaImportState.expiresAt = 0;
+}
+
+// --- Attendee import state ---
+
+export const attendeeImportState = {
+  pending: false,
+  sender: '',
+  expiresAt: 0,
+};
+
+export function isAttendeeImportPending(sender: string): boolean {
+  if (
+    !attendeeImportState.pending ||
+    attendeeImportState.sender !== sender ||
+    Date.now() > attendeeImportState.expiresAt
+  ) {
+    attendeeImportState.pending = false;
+    return false;
+  }
+  return true;
+}
+
+export function clearAttendeeImportState(): void {
+  attendeeImportState.pending = false;
+  attendeeImportState.sender = '';
+  attendeeImportState.expiresAt = 0;
+}
+
+export function handleAttendeeImportFile(
+  jsonString: string,
+): AdminCommandResult {
+  clearAttendeeImportState();
+  try {
+    const payload = JSON.parse(jsonString) as AttendeeImportPayload;
+    if (!payload.attendees || !Array.isArray(payload.attendees)) {
+      return {
+        handled: true,
+        response: 'Invalid format: expected { attendees: [...] }',
+      };
+    }
+    const result = attendeeImport(payload);
+    return {
+      handled: true,
+      response: `Imported ${result.total} attendees (${result.created} new, ${result.updated} updated).`,
+    };
+  } catch (err) {
+    return {
+      handled: true,
+      response: `Import failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
+function buildCheckinsReport(): string {
+  const counts = attendeeCount();
+  if (counts.total === 0) return 'No attendees loaded. Use /admin-attendee-import first.';
+
+  const checkedIn = attendeeGetCheckedIn();
+  const notCheckedIn = attendeeGetNotCheckedIn();
+
+  const lines = [
+    `*Check-in Status* (${counts.checked_in}/${counts.total})`,
+    '',
+  ];
+
+  if (checkedIn.length > 0) {
+    lines.push('*Checked in:*');
+    for (const a of checkedIn) {
+      const handle = a.telegram_handle || '';
+      const role = a.role !== 'attendee' ? ` [${a.role}]` : '';
+      lines.push(`  ${a.name} ${handle}${role}`);
+    }
+    lines.push('');
+  }
+
+  if (notCheckedIn.length > 0) {
+    lines.push(`*Not yet checked in (${notCheckedIn.length}):*`);
+    for (const a of notCheckedIn) {
+      const handle = a.telegram_handle || '(no handle)';
+      lines.push(`  ${a.name} ${handle}`);
+    }
+  }
+
+  return lines.join('\n');
 }
 
 function buildStatusReport(): string {
