@@ -58,15 +58,12 @@ describe('admin-commands', () => {
       JSON.stringify({
         version: '1',
         event: 'Test',
-        attendees: [
-          { name: 'Simon', telegram: '@simon', role: 'organizer' },
-        ],
+        attendees: [{ name: 'Simon', telegram: '@simon', role: 'organizer' }],
       }),
     );
     // Check them in (binds telegram_id)
-    const { attendeeCheckIn, attendeeLookupByHandle } = await import(
-      './attendee-db.js'
-    );
+    const { attendeeCheckIn, attendeeLookupByHandle } =
+      await import('./attendee-db.js');
     const simon = attendeeLookupByHandle('@simon')!;
     attendeeCheckIn(simon.id, 'simon-tg-id');
 

@@ -17,12 +17,14 @@ vi.mock('../config.js', () => ({
   ROTA_SHIFTS_TOPIC_ID: undefined,
 }));
 
-// Mock db (purchase functions)
+// Mock db (purchase functions + topic matching)
 vi.mock('../db.js', () => ({
   cancelLastPurchase: vi.fn(() => null),
   getUserPurchases: vi.fn(() => []),
   getUserTotal: vi.fn(() => 0),
   storePurchase: vi.fn(() => 1),
+  isAnyPurchaseTopic: vi.fn(() => false),
+  isPurchaseTopicForCategory: vi.fn(() => false),
 }));
 
 // Mock logger
@@ -97,6 +99,10 @@ vi.mock('grammy', () => ({
 }));
 
 import { TelegramChannel, TelegramChannelOpts } from './telegram.js';
+import {
+  isPurchaseTopicForCategory,
+  isAnyPurchaseTopic,
+} from '../db.js';
 
 // --- Test helpers ---
 
@@ -129,6 +135,7 @@ function createTextCtx(overrides: {
   messageId?: number;
   date?: number;
   entities?: any[];
+  threadId?: number;
 }) {
   const chatId = overrides.chatId ?? 100200300;
   const chatType = overrides.chatType ?? 'group';
@@ -148,6 +155,9 @@ function createTextCtx(overrides: {
       date: overrides.date ?? Math.floor(Date.now() / 1000),
       message_id: overrides.messageId ?? 1,
       entities: overrides.entities ?? [],
+      ...(overrides.threadId !== undefined
+        ? { message_thread_id: overrides.threadId }
+        : {}),
     },
     me: { username: 'andy_ai_bot' },
     reply: vi.fn(),
@@ -1160,6 +1170,112 @@ describe('TelegramChannel', () => {
       await handler(ctx);
 
       expect(ctx.reply).toHaveBeenCalledWith('Andy is online.');
+    });
+  });
+
+  // --- Purchase command scoping ---
+
+  describe('purchase command scoping', () => {
+    it('/bar works in DMs', async () => {
+      const opts = createTestOpts();
+      const channel = new TelegramChannel('test-token', opts);
+      await channel.connect();
+
+      const handler = currentBot().commandHandlers.get('bar')!;
+      const ctx = createTextCtx({ text: '/bar', chatType: 'private' });
+      await handler(ctx);
+
+      expect(ctx.reply).not.toHaveBeenCalledWith(
+        expect.stringContaining('DM'),
+      );
+    });
+
+    it('/bar blocked in group General topic', async () => {
+      const opts = createTestOpts();
+      const channel = new TelegramChannel('test-token', opts);
+      await channel.connect();
+
+      const handler = currentBot().commandHandlers.get('bar')!;
+      const ctx = createTextCtx({ text: '/bar', chatType: 'supergroup' });
+      await handler(ctx);
+
+      expect(ctx.reply).toHaveBeenCalledWith(
+        expect.stringContaining('DM'),
+      );
+    });
+
+    it('/bar allowed in matching Bar topic', async () => {
+      (isPurchaseTopicForCategory as any).mockReturnValueOnce(true);
+
+      const opts = createTestOpts();
+      const channel = new TelegramChannel('test-token', opts);
+      await channel.connect();
+
+      const handler = currentBot().commandHandlers.get('bar')!;
+      const ctx = createTextCtx({
+        text: '/bar',
+        chatType: 'supergroup',
+        threadId: 10,
+      });
+      await handler(ctx);
+
+      expect(ctx.reply).not.toHaveBeenCalledWith(
+        expect.stringContaining('DM'),
+      );
+    });
+
+    it('/bbq blocked in non-matching topic', async () => {
+      (isPurchaseTopicForCategory as any).mockReturnValueOnce(false);
+
+      const opts = createTestOpts();
+      const channel = new TelegramChannel('test-token', opts);
+      await channel.connect();
+
+      const handler = currentBot().commandHandlers.get('bbq')!;
+      const ctx = createTextCtx({
+        text: '/bbq',
+        chatType: 'supergroup',
+        threadId: 99,
+      });
+      await handler(ctx);
+
+      expect(ctx.reply).toHaveBeenCalledWith(
+        expect.stringContaining('DM'),
+      );
+    });
+
+    it('/show_total blocked in group', async () => {
+      const opts = createTestOpts();
+      const channel = new TelegramChannel('test-token', opts);
+      await channel.connect();
+
+      const handler = currentBot().commandHandlers.get('show_total')!;
+      const ctx = createTextCtx({
+        text: '/show_total',
+        chatType: 'supergroup',
+      });
+      await handler(ctx);
+
+      expect(ctx.reply).toHaveBeenCalledWith(
+        expect.stringContaining('DM'),
+      );
+    });
+
+    it('/cancel_purchase blocked in group', async () => {
+      const opts = createTestOpts();
+      const channel = new TelegramChannel('test-token', opts);
+      await channel.connect();
+
+      const handler = currentBot().commandHandlers.get('cancel_purchase')!;
+      const ctx = createTextCtx({
+        text: '/cancel_purchase',
+        chatType: 'supergroup',
+      });
+      await handler(ctx);
+
+      expect(ctx.reply).toHaveBeenCalledWith(
+        expect.stringContaining('DM'),
+      );
     });
   });
 

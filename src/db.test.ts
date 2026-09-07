@@ -10,10 +10,13 @@ import {
   getMessagesSince,
   getNewMessages,
   getTaskById,
+  isAnyPurchaseTopic,
+  isPurchaseTopicForCategory,
   setRegisteredGroup,
   storeChatMetadata,
   storeMessage,
   updateTask,
+  upsertTopic,
 } from './db.js';
 
 beforeEach(() => {
@@ -506,5 +509,75 @@ describe('registered group isMain', () => {
     const group = groups['group@g.us'];
     expect(group).toBeDefined();
     expect(group.isMain).toBeUndefined();
+  });
+});
+
+describe('purchase topic matching', () => {
+  beforeEach(() => {
+    upsertTopic('tg:group1', 10, 'Bar');
+    upsertTopic('tg:group1', 11, '🍖 BBQ Corner');
+    upsertTopic('tg:group1', 12, 'Meat Station');
+    upsertTopic('tg:group1', 13, 'General');
+    upsertTopic('tg:group1', 14, 'Kitchen Shifts');
+  });
+
+  describe('isPurchaseTopicForCategory', () => {
+    it('matches "Bar" topic for bar category', () => {
+      expect(isPurchaseTopicForCategory(10, 'bar')).toBe(true);
+    });
+
+    it('does not match "Bar" topic for bbq category', () => {
+      expect(isPurchaseTopicForCategory(10, 'bbq')).toBe(false);
+    });
+
+    it('matches "BBQ Corner" topic for bbq category (case-insensitive, emoji)', () => {
+      expect(isPurchaseTopicForCategory(11, 'bbq')).toBe(true);
+    });
+
+    it('matches "Meat Station" topic for bbq category', () => {
+      expect(isPurchaseTopicForCategory(12, 'bbq')).toBe(true);
+    });
+
+    it('does not match "Meat Station" for bar category', () => {
+      expect(isPurchaseTopicForCategory(12, 'bar')).toBe(false);
+    });
+
+    it('does not match unrelated topics', () => {
+      expect(isPurchaseTopicForCategory(13, 'bar')).toBe(false);
+      expect(isPurchaseTopicForCategory(14, 'bbq')).toBe(false);
+    });
+
+    it('returns false for null/undefined thread_id', () => {
+      expect(isPurchaseTopicForCategory(null, 'bar')).toBe(false);
+      expect(isPurchaseTopicForCategory(undefined, 'bar')).toBe(false);
+    });
+
+    it('returns false for unknown thread_id', () => {
+      expect(isPurchaseTopicForCategory(999, 'bar')).toBe(false);
+    });
+  });
+
+  describe('isAnyPurchaseTopic', () => {
+    it('returns true for bar topic', () => {
+      expect(isAnyPurchaseTopic(10)).toBe(true);
+    });
+
+    it('returns true for bbq topic', () => {
+      expect(isAnyPurchaseTopic(11)).toBe(true);
+    });
+
+    it('returns true for meat topic', () => {
+      expect(isAnyPurchaseTopic(12)).toBe(true);
+    });
+
+    it('returns false for unrelated topic', () => {
+      expect(isAnyPurchaseTopic(13)).toBe(false);
+      expect(isAnyPurchaseTopic(14)).toBe(false);
+    });
+
+    it('returns false for null/undefined', () => {
+      expect(isAnyPurchaseTopic(null)).toBe(false);
+      expect(isAnyPurchaseTopic(undefined)).toBe(false);
+    });
   });
 });

@@ -14,6 +14,8 @@ import {
   cancelLastPurchase,
   getUserPurchases,
   getUserTotal,
+  isAnyPurchaseTopic,
+  isPurchaseTopicForCategory,
   storePurchase,
 } from '../db.js';
 import { readEnvFile } from '../env.js';
@@ -200,7 +202,30 @@ export class TelegramChannel implements Channel {
       return kb;
     };
 
+    const isPurchaseAllowed = (
+      ctx: any,
+      category?: 'bar' | 'bbq',
+    ): boolean => {
+      if (ctx.chat?.type === 'private') return true;
+      const threadId = ctx.message?.message_thread_id;
+      if (!threadId) return false;
+      if (category) return isPurchaseTopicForCategory(threadId, category);
+      return isAnyPurchaseTopic(threadId);
+    };
+
+    const PURCHASE_REDIRECT = 'Use this in a DM with me or the right topic.';
+
     const handlePurchaseCommand = async (ctx: any, category?: string) => {
+      if (
+        !isPurchaseAllowed(
+          ctx,
+          category as 'bar' | 'bbq' | undefined,
+        )
+      ) {
+        await ctx.reply(PURCHASE_REDIRECT);
+        return;
+      }
+
       const prices = loadPrices();
       if (!prices) {
         await ctx.reply('No price list configured for this community.');
@@ -236,6 +261,10 @@ export class TelegramChannel implements Channel {
     this.bot.command('purchase', (ctx) => handlePurchaseCommand(ctx));
 
     this.bot.command('show_total', async (ctx) => {
+      if (!isPurchaseAllowed(ctx)) {
+        await ctx.reply(PURCHASE_REDIRECT);
+        return;
+      }
       const userId = ctx.from?.id?.toString() || '';
       const purchases = getUserPurchases(userId);
       if (purchases.length === 0) {
@@ -249,6 +278,10 @@ export class TelegramChannel implements Channel {
     });
 
     this.bot.command('cancel_purchase', async (ctx) => {
+      if (!isPurchaseAllowed(ctx)) {
+        await ctx.reply(PURCHASE_REDIRECT);
+        return;
+      }
       const userId = ctx.from?.id?.toString() || '';
       const cancelled = cancelLastPurchase(userId);
       if (!cancelled) {
@@ -355,9 +388,12 @@ export class TelegramChannel implements Channel {
           'telegram',
           isGroup,
         );
-        const displayName = [ctx.from?.first_name, ctx.from?.last_name]
-          .filter(Boolean)
-          .join(' ') || ctx.from?.username || 'Unknown';
+        const displayName =
+          [ctx.from?.first_name, ctx.from?.last_name]
+            .filter(Boolean)
+            .join(' ') ||
+          ctx.from?.username ||
+          'Unknown';
         this.opts.onMessage(chatJid, {
           id: ctx.message!.message_id.toString(),
           chat_jid: chatJid,
@@ -521,9 +557,7 @@ export class TelegramChannel implements Channel {
         chat_jid: chatJid,
         sender,
         sender_name: senderName,
-        sender_handle: ctx.from?.username
-          ? `@${ctx.from.username}`
-          : undefined,
+        sender_handle: ctx.from?.username ? `@${ctx.from.username}` : undefined,
         content,
         timestamp,
         is_from_me: false,

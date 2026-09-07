@@ -868,6 +868,33 @@ export function isExtractionEnabled(
   return row ? row.extraction_enabled === 1 : false;
 }
 
+const BAR_TOPIC_PATTERN = /bar/i;
+const BBQ_TOPIC_PATTERN = /bbq|meat/i;
+
+export function isPurchaseTopicForCategory(
+  threadId: number | null | undefined,
+  category: 'bar' | 'bbq',
+): boolean {
+  if (!threadId) return false;
+  const row = db
+    .prepare('SELECT name FROM topics WHERE thread_id = ?')
+    .get(threadId) as { name: string } | undefined;
+  if (!row) return false;
+  const pattern = category === 'bar' ? BAR_TOPIC_PATTERN : BBQ_TOPIC_PATTERN;
+  return pattern.test(row.name);
+}
+
+export function isAnyPurchaseTopic(
+  threadId: number | null | undefined,
+): boolean {
+  if (!threadId) return false;
+  const row = db
+    .prepare('SELECT name FROM topics WHERE thread_id = ?')
+    .get(threadId) as { name: string } | undefined;
+  if (!row) return false;
+  return BAR_TOPIC_PATTERN.test(row.name) || BBQ_TOPIC_PATTERN.test(row.name);
+}
+
 // --- Purchase tracking ---
 
 export interface Purchase {
