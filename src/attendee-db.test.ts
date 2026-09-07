@@ -77,7 +77,11 @@ describe('attendee-db', () => {
         version: '1',
         event: 'Test',
         attendees: [
-          { name: 'NewFormat', telegram_handle: '@newformat', role: 'attendee' },
+          {
+            name: 'NewFormat',
+            telegram_handle: '@newformat',
+            role: 'attendee',
+          },
         ],
       });
       const found = attendeeLookupByHandle('@newformat');
@@ -90,7 +94,11 @@ describe('attendee-db', () => {
         version: '1',
         event: 'Test',
         attendees: [
-          { name: 'DisplayTest', telegram_display: 'DisplayName', role: 'attendee' },
+          {
+            name: 'DisplayTest',
+            telegram_display: 'DisplayName',
+            role: 'attendee',
+          },
         ],
       });
       const found = attendeeLookupByTelegramDisplay('DisplayName');
@@ -103,7 +111,12 @@ describe('attendee-db', () => {
         version: '1',
         event: 'Test',
         attendees: [
-          { name: 'Both', telegram: '@legacy', telegram_handle: '@preferred', role: 'attendee' },
+          {
+            name: 'Both',
+            telegram: '@legacy',
+            telegram_handle: '@preferred',
+            role: 'attendee',
+          },
         ],
       });
       expect(attendeeLookupByHandle('@preferred')).not.toBeNull();
@@ -115,15 +128,17 @@ describe('attendee-db', () => {
         version: '1',
         event: 'Test',
         attendees: [
-          { name: 'Keeper', telegram_display: 'OriginalDisplay', role: 'attendee' },
+          {
+            name: 'Keeper',
+            telegram_display: 'OriginalDisplay',
+            role: 'attendee',
+          },
         ],
       });
       attendeeImport({
         version: '1',
         event: 'Test',
-        attendees: [
-          { name: 'Keeper', telegram: '@keeper', role: 'crew' },
-        ],
+        attendees: [{ name: 'Keeper', telegram: '@keeper', role: 'crew' }],
       });
       const found = attendeeLookupByTelegramDisplay('OriginalDisplay');
       expect(found).not.toBeNull();

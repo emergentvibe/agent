@@ -111,6 +111,7 @@ let registeredGroups: Record<string, RegisteredGroup> = {};
 let lastAgentTimestamp: Record<string, string> = {};
 let lastReplyThreadId: Record<string, number | undefined> = {};
 let messageLoopRunning = false;
+let wakeMessageLoop: (() => void) | null = null;
 
 const channels: Channel[] = [];
 
@@ -687,7 +688,11 @@ async function startMessageLoop(): Promise<void> {
     } catch (err) {
       logger.error({ err }, 'Error in message loop');
     }
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL));
+    await new Promise<void>((resolve) => {
+      wakeMessageLoop = resolve;
+      setTimeout(resolve, POLL_INTERVAL);
+    });
+    wakeMessageLoop = null;
   }
 }
 
@@ -860,7 +865,11 @@ export async function main(): Promise<void> {
           return;
         }
       }
+      // Ensure chat row exists before storing message (FK constraint)
+      storeChatMetadata(chatJid, msg.timestamp);
+
       storeMessage(msg);
+      wakeMessageLoop?.();
 
       // Auto-register DMs from community members
       if (!registeredGroups[chatJid]) {
@@ -982,10 +991,7 @@ export async function main(): Promise<void> {
               .split(',')
               .map((s) => s.trim())
               .filter(Boolean);
-            if (
-              adminIds.includes(msg.sender) ||
-              isAttendeeAdmin(msg.sender)
-            ) {
+            if (adminIds.includes(msg.sender) || isAttendeeAdmin(msg.sender)) {
               ensureCrewDigestTask(community.group, chatJid, msg.sender);
             }
           }

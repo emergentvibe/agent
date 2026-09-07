@@ -108,7 +108,7 @@ Run commands directly—don't tell the user to run them.
 ```bash
 npm run dev          # Run with hot reload
 npm run build        # Compile TypeScript
-npm test             # Run unit tests (670 pass, 15 pre-existing LLM-flaky/Mem0 failures)
+npm test             # Run unit tests (697 pass, 15 pre-existing LLM-flaky/Mem0 failures)
 ./container/build.sh # Rebuild agent container
 
 # Integration sims (requires Docker + ANTHROPIC_API_KEY + MEM0_API_KEY)

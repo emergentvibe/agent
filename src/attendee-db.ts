@@ -60,9 +60,7 @@ export function createAttendeeSchema(database: Database.Database): void {
 
   // Migration: add telegram_display if missing (existing DBs)
   try {
-    database.exec(
-      'ALTER TABLE attendees ADD COLUMN telegram_display TEXT',
-    );
+    database.exec('ALTER TABLE attendees ADD COLUMN telegram_display TEXT');
   } catch {
     // Column already exists
   }
@@ -170,9 +168,7 @@ export function attendeeLookupByTelegramDisplay(
   const name = displayName.trim().toLowerCase();
   if (!name) return null;
   const row = db
-    .prepare(
-      'SELECT * FROM attendees WHERE LOWER(telegram_display) = ?',
-    )
+    .prepare('SELECT * FROM attendees WHERE LOWER(telegram_display) = ?')
     .get(name) as
     | (Omit<AttendeeRecord, 'checked_in'> & { checked_in: number })
     | undefined;
