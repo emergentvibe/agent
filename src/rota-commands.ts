@@ -7,11 +7,14 @@ import { logger } from './logger.js';
 import {
   rotaGetByTelegramId,
   rotaGetByHandle,
+  rotaGetCoveredByPerson,
   rotaBindTelegramId,
   rotaGetById,
   rotaGetByDate,
+  rotaGetOpenSlots,
   rotaGetMeta,
   rotaRelease,
+  rotaRerelease,
   rotaClaim,
   rotaLeaveEarly,
   type RotaAssignment,
@@ -78,6 +81,11 @@ export function rotaCommandEntries(): Array<{
       local: true,
     },
     {
+      command: 'openshifts',
+      description: 'See open shifts you can claim',
+      local: true,
+    },
+    {
       command: 'hands',
       description: 'Kitchen needs help! (crew only)',
       local: true,
@@ -117,7 +125,12 @@ export function registerRotaCommands(
       (a) => a.state === 'assigned' && a.date >= now,
     );
 
-    if (future.length === 0) {
+    // Also show shifts this person is covering for someone else
+    const covering = rotaGetCoveredByPerson(telegramId).filter(
+      (a) => a.date >= now,
+    );
+
+    if (future.length === 0 && covering.length === 0) {
       await ctx.reply("You don't have any upcoming shifts to cover.");
       return;
     }
@@ -125,6 +138,12 @@ export function registerRotaCommands(
     const kb = new InlineKeyboard();
     for (const a of future) {
       kb.text(formatAssignment(a), `rota:cover:${a.id}`).row();
+    }
+    for (const a of covering) {
+      kb.text(
+        `Give back: ${formatAssignment(a)}`,
+        `rota:rerelease:${a.id}`,
+      ).row();
     }
 
     await ctx.reply('Which shift do you need covered?', { reply_markup: kb });
@@ -230,33 +249,20 @@ export function registerRotaCommands(
     const username = ctx.from?.username;
     resolveIdentity(telegramId, username);
 
-    const count = rotaLeaveEarly(telegramId);
-    if (count === 0) {
+    const releasedIds = rotaLeaveEarly(telegramId);
+    if (releasedIds.length === 0) {
       await ctx.reply('No upcoming shifts to release.');
       return;
     }
 
     await ctx.reply(
-      `Released ${count} shift${count > 1 ? 's' : ''}. Cover requests have been posted.`,
+      `Released ${releasedIds.length} shift${releasedIds.length > 1 ? 's' : ''}. Cover requests have been posted.`,
     );
 
-    // Post each to Shifts topic
-    const openShifts = rotaGetByTelegramId(telegramId).filter(
-      (a) => a.state === 'open',
-    );
-    // After leave_early, the shifts won't match by telegram_id anymore (current_person is null)
-    // So we need to look them up differently — use the log or re-query by handle
-    // Actually rotaLeaveEarly nulls current_person but keeps original_telegram_id
-    // Re-query: they have state='open' and original_telegram_id=telegramId
-    const { _getDb } = await import('./db.js');
-    const db = _getDb();
-    const released = db
-      .prepare(
-        `SELECT * FROM rota_assignments WHERE original_telegram_id = ? AND state = 'open' ORDER BY date, start`,
-      )
-      .all(telegramId) as RotaAssignment[];
-
-    for (const a of released) {
+    // Post only the newly released shifts (not previously open ones)
+    for (const id of releasedIds) {
+      const a = rotaGetById(id);
+      if (!a) continue;
       const kb = new InlineKeyboard();
       kb.text('Claim this shift', `rota:claim:${a.id}`);
       await opts.sendToShiftsTopic(
@@ -272,8 +278,8 @@ export function registerRotaCommands(
     if (mainGroup) {
       const name = ctx.from?.first_name || ctx.from?.username || 'Someone';
       logger.info(
-        { telegramId, count },
-        `${name} is leaving early, ${count} shifts released`,
+        { telegramId, count: releasedIds.length },
+        `${name} is leaving early, ${releasedIds.length} shifts released`,
       );
     }
   });
@@ -381,9 +387,80 @@ export function registerRotaCommands(
     if (assignment.original_telegram_id) {
       await opts.sendDm(
         assignment.original_telegram_id,
-        `Your ${assignment.block_label} shift on ${formatDate(assignment.date)} has been covered by ${claimerName}.`,
+        `Your ${assignment.block_label} shift on ${formatDate(assignment.date)} has been covered by ${claimerName}. If you get the chance, covering someone else's shift is a nice way to pass it on.`,
       );
     }
+  });
+
+  // Re-release: claimer gives back a covered shift
+  bot.callbackQuery(/^rota:rerelease:(.+)$/, async (ctx) => {
+    const match = ctx.callbackQuery.data.match(/^rota:rerelease:(.+)$/);
+    if (!match) return;
+    const assignmentId = match[1];
+    const telegramId = ctx.from.id.toString();
+
+    const result = rotaRerelease(assignmentId, telegramId);
+    if (!result.ok) {
+      await ctx.answerCallbackQuery({
+        text: 'Could not release this shift.',
+        show_alert: true,
+      });
+      return;
+    }
+
+    const assignment = rotaGetById(assignmentId);
+    if (!assignment) return;
+
+    await ctx.answerCallbackQuery({ text: 'Shift released — cover request posted.' });
+    try {
+      await ctx.editMessageText(
+        `Released: ${formatAssignment(assignment)}. Cover request posted.`,
+      );
+    } catch {
+      // Message may be too old
+    }
+
+    // Post cover request to Shifts topic
+    const kb = new InlineKeyboard();
+    kb.text('Claim this shift', `rota:claim:${assignmentId}`);
+    await opts.sendToShiftsTopic(
+      `Cover needed: ${formatAssignment(assignment)} (${assignment.original_name || '???'})`,
+      kb,
+    );
+
+    // Notify the original person their shift is uncovered again
+    if (assignment.original_telegram_id) {
+      const releaserName =
+        ctx.from.first_name || ctx.from.username || 'Someone';
+      await opts.sendDm(
+        assignment.original_telegram_id,
+        `Heads up — ${releaserName} can no longer cover your ${assignment.block_label} shift on ${formatDate(assignment.date)}. It's back up for grabs.`,
+      );
+    }
+  });
+
+  // /openshifts — list all open shifts with claim buttons
+  bot.command('openshifts', async (ctx) => {
+    if (!isRotaEnabled(opts.registeredGroups())) return;
+
+    const openSlots = rotaGetOpenSlots();
+    const now = new Date().toISOString().slice(0, 10);
+    const future = openSlots.filter((a) => a.date >= now);
+
+    if (future.length === 0) {
+      await ctx.reply('No open shifts right now.');
+      return;
+    }
+
+    const kb = new InlineKeyboard();
+    for (const a of future) {
+      kb.text(formatAssignment(a), `rota:claim:${a.id}`).row();
+    }
+
+    await ctx.reply(
+      `${future.length} open shift${future.length > 1 ? 's' : ''}:`,
+      { reply_markup: kb },
+    );
   });
 
   // /hands response — toast only

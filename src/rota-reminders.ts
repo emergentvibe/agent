@@ -11,6 +11,7 @@ import {
 export interface ReminderCallbacks {
   sendToShiftsTopic: (text: string) => Promise<void>;
   sendDm: (userId: string, text: string) => Promise<void>;
+  getCrewIds?: () => string[];
 }
 
 const CHECK_INTERVAL_MS = 60_000;
@@ -180,6 +181,44 @@ async function tick(callbacks: ReminderCallbacks): Promise<void> {
       );
     } catch (err) {
       logger.error({ err, assignmentId: a.id }, 'Rota: failed to send DM ping');
+    }
+  }
+
+  // Warn about uncovered shifts 30 minutes before they start
+  for (const a of assignments) {
+    if (a.state !== 'open') continue;
+
+    const warnKey = 'open_warning';
+    if (rotaHasPinged(a.id, warnKey)) continue;
+
+    const warnTime = subtractMinutes(a.start, SHIFT_PING_LEAD_MINUTES);
+    if (now < warnTime || now > a.start) continue;
+
+    try {
+      if (ROTA_SHIFTS_TOPIC_ID) {
+        await callbacks.sendToShiftsTopic(
+          `⚠️ ${a.block_label} (${a.start}–${a.end}) starts in 30 min — still needs coverage!`,
+        );
+      }
+
+      const crewIds = callbacks.getCrewIds?.() || [];
+      for (const crewId of crewIds) {
+        await callbacks.sendDm(
+          crewId,
+          `Heads up — ${a.block_label} (${a.start}–${a.end}) starts soon and has no one assigned.`,
+        );
+      }
+
+      rotaRecordPing(a.id, warnKey);
+      logger.info(
+        { assignmentId: a.id },
+        'Rota: uncovered shift warning sent',
+      );
+    } catch (err) {
+      logger.error(
+        { err, assignmentId: a.id },
+        'Rota: failed to send uncovered shift warning',
+      );
     }
   }
 }

@@ -15,7 +15,9 @@ import {
   rotaGetOpenSlots,
   rotaGetAllAssignments,
   rotaRelease,
+  rotaRerelease,
   rotaClaim,
+  rotaGetCoveredByPerson,
   rotaLeaveEarly,
   rotaReset,
   rotaGetLog,
@@ -501,6 +503,92 @@ describe('rotaClaim', () => {
   });
 });
 
+// --- Get covered by person ---
+
+describe('rotaGetCoveredByPerson', () => {
+  it('returns shifts covered by a given telegram ID', () => {
+    rotaImport(makePayload());
+    rotaBindTelegramId('@alice', '99001');
+    rotaRelease('d1-lunch-1', '99001');
+    rotaClaim('d1-lunch-1', '99004', 'Dave', '@dave');
+
+    const covered = rotaGetCoveredByPerson('99004');
+    expect(covered).toHaveLength(1);
+    expect(covered[0].id).toBe('d1-lunch-1');
+    expect(covered[0].state).toBe('covered');
+    expect(covered[0].current_person).toBe('99004');
+  });
+
+  it('returns empty when person has no covered shifts', () => {
+    rotaImport(makePayload());
+    expect(rotaGetCoveredByPerson('99999')).toHaveLength(0);
+  });
+
+  it('does not return assigned or open shifts', () => {
+    rotaImport(makePayload());
+    rotaBindTelegramId('@alice', '99001');
+    // Alice has assigned shifts but none covered
+    const covered = rotaGetCoveredByPerson('99001');
+    expect(covered).toHaveLength(0);
+  });
+});
+
+// --- Rerelease ---
+
+describe('rotaRerelease', () => {
+  it('sets covered shift back to open', () => {
+    rotaImport(makePayload());
+    rotaBindTelegramId('@alice', '99001');
+    rotaRelease('d1-lunch-1', '99001');
+    rotaClaim('d1-lunch-1', '99004', 'Dave', '@dave');
+
+    const result = rotaRerelease('d1-lunch-1', '99004');
+    expect(result).toEqual({ ok: true });
+
+    const a = rotaGetById('d1-lunch-1')!;
+    expect(a.state).toBe('open');
+    expect(a.current_person).toBeNull();
+    expect(a.current_name).toBeNull();
+    expect(a.current_telegram).toBeNull();
+  });
+
+  it('rejects if not the current claimer', () => {
+    rotaImport(makePayload());
+    rotaBindTelegramId('@alice', '99001');
+    rotaRelease('d1-lunch-1', '99001');
+    rotaClaim('d1-lunch-1', '99004', 'Dave', '@dave');
+
+    const result = rotaRerelease('d1-lunch-1', '99001');
+    expect(result).toEqual({ ok: false, reason: 'not_yours' });
+  });
+
+  it('rejects for non-existent assignment', () => {
+    rotaImport(makePayload());
+    const result = rotaRerelease('nonexistent', '99001');
+    expect(result).toEqual({ ok: false, reason: 'not_found' });
+  });
+
+  it('rejects for assigned (not covered) shift', () => {
+    rotaImport(makePayload());
+    rotaBindTelegramId('@alice', '99001');
+    const result = rotaRerelease('d1-lunch-1', '99001');
+    expect(result).toEqual({ ok: false, reason: 'not_yours' });
+  });
+
+  it('creates a log entry on rerelease', () => {
+    rotaImport(makePayload());
+    rotaBindTelegramId('@alice', '99001');
+    rotaRelease('d1-lunch-1', '99001');
+    rotaClaim('d1-lunch-1', '99004', 'Dave', '@dave');
+    rotaRerelease('d1-lunch-1', '99004');
+
+    const log = rotaGetLog();
+    const entry = log.find((l) => l.reason === 'rerelease');
+    expect(entry).toBeDefined();
+    expect(entry!.from_person).toBe('99004');
+  });
+});
+
 // --- Leave early ---
 
 describe('rotaLeaveEarly', () => {
@@ -541,9 +629,9 @@ describe('rotaLeaveEarly', () => {
     rotaImport(payload);
     rotaBindTelegramId('@alice', '99001');
 
-    const count = rotaLeaveEarly('99001');
+    const releasedIds = rotaLeaveEarly('99001');
     // d1-lunch-1 (future) and d2-dinner-1 (future) but NOT d0-lunch-1 (past)
-    expect(count).toBe(2);
+    expect(releasedIds).toHaveLength(2);
 
     const log = rotaGetLog();
     expect(log.filter((l) => l.reason === 'leave_early').length).toBe(2);

@@ -376,6 +376,15 @@ export function rotaGetAllAssignments(): RotaAssignment[] {
     .all() as RotaAssignment[];
 }
 
+export function rotaGetCoveredByPerson(telegramId: string): RotaAssignment[] {
+  const db = _getDb();
+  return db
+    .prepare(
+      `SELECT * FROM rota_assignments WHERE current_person = ? AND state = 'covered' ORDER BY day, start`,
+    )
+    .all(telegramId) as RotaAssignment[];
+}
+
 // --- Mutations ---
 
 export function rotaRelease(
@@ -466,7 +475,33 @@ export function rotaClaim(
   return txn();
 }
 
-export function rotaLeaveEarly(telegramId: string): number {
+export function rotaRerelease(
+  assignmentId: string,
+  telegramId: string,
+): { ok: true } | { ok: false; reason: string } {
+  const db = _getDb();
+
+  const target = db
+    .prepare('SELECT * FROM rota_assignments WHERE id = ?')
+    .get(assignmentId) as RotaAssignment | undefined;
+
+  if (!target) {
+    return { ok: false, reason: 'not_found' };
+  }
+  if (target.state !== 'covered' || target.current_person !== telegramId) {
+    return { ok: false, reason: 'not_yours' };
+  }
+
+  db.prepare(
+    `UPDATE rota_assignments SET state = 'open', current_person = NULL, current_name = NULL, current_telegram = NULL
+     WHERE id = ? AND state = 'covered'`,
+  ).run(assignmentId);
+
+  logMutation(db, assignmentId, telegramId, null, 'rerelease');
+  return { ok: true };
+}
+
+export function rotaLeaveEarly(telegramId: string): string[] {
   const db = _getDb();
   const now = new Date().toISOString().slice(0, 10);
 
@@ -482,18 +517,18 @@ export function rotaLeaveEarly(telegramId: string): number {
      WHERE id = ? AND state = 'assigned'`,
   );
 
-  let count = 0;
+  const releasedIds: string[] = [];
   const txn = db.transaction(() => {
     for (const row of future) {
       const r = release.run(row.id);
       if (r.changes > 0) {
         logMutation(db, row.id, row.original_person, null, 'leave_early');
-        count++;
+        releasedIds.push(row.id);
       }
     }
   });
   txn();
-  return count;
+  return releasedIds;
 }
 
 export function rotaReset(): void {

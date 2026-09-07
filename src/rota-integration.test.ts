@@ -151,13 +151,13 @@ describe('rota integration: full lifecycle', () => {
     const assignedCount = shifts.filter((s) => s.state === 'assigned').length;
     expect(assignedCount).toBeGreaterThan(0);
 
-    const released = rotaLeaveEarly('88001');
-    expect(released).toBeGreaterThan(0);
+    const releasedIds = rotaLeaveEarly('88001');
+    expect(releasedIds.length).toBeGreaterThan(0);
 
     // Verify log entries
     const log = rotaGetLog();
     const leaveEntries = log.filter((l) => l.reason === 'leave_early');
-    expect(leaveEntries.length).toBe(released);
+    expect(leaveEntries.length).toBe(releasedIds.length);
   });
 
   it('overlap check prevents double-booking', () => {

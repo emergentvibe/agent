@@ -289,3 +289,23 @@ describe('startRotaReminders / stopRotaReminders', () => {
     stopRotaReminders();
   });
 });
+
+describe('uncovered shift warning dedup', () => {
+  beforeEach(() => {
+    rotaImport(makePayload());
+  });
+
+  it('open_warning ping type is tracked in rota_notifications', () => {
+    expect(rotaHasPinged('d1-open-1', 'open_warning')).toBe(false);
+    rotaRecordPing('d1-open-1', 'open_warning');
+    expect(rotaHasPinged('d1-open-1', 'open_warning')).toBe(true);
+  });
+
+  it('open_warning is independent from dm pings', () => {
+    rotaRecordPing('d1-lunch-1', 'dm_99001');
+    expect(rotaHasPinged('d1-lunch-1', 'open_warning')).toBe(false);
+    rotaRecordPing('d1-lunch-1', 'open_warning');
+    expect(rotaHasPinged('d1-lunch-1', 'dm_99001')).toBe(true);
+    expect(rotaHasPinged('d1-lunch-1', 'open_warning')).toBe(true);
+  });
+});
