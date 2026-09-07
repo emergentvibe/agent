@@ -1,6 +1,10 @@
 import type { Bot, InlineKeyboard as IKType } from 'grammy';
 
-import { ROTA_SHIFTS_TOPIC_ID, ROTA_GROUP_JID } from './config.js';
+import {
+  ROTA_SHIFTS_TOPIC_ID,
+  ROTA_GROUP_JID,
+  ADMIN_TELEGRAM_ID,
+} from './config.js';
 import { isCrewMember } from './crew.js';
 import { loadFeatureConfig } from './feature-config.js';
 import { logger } from './logger.js';
@@ -25,8 +29,15 @@ import {
 
 export interface RotaCommandOpts {
   registeredGroups: () => Record<string, import('./types.js').RegisteredGroup>;
-  sendToShiftsTopic: (text: string, keyboard?: IKType) => Promise<number | undefined>;
-  editShiftsTopicMessage: (messageId: number, text: string, keyboard?: IKType) => Promise<void>;
+  sendToShiftsTopic: (
+    text: string,
+    keyboard?: IKType,
+  ) => Promise<number | undefined>;
+  editShiftsTopicMessage: (
+    messageId: number,
+    text: string,
+    keyboard?: IKType,
+  ) => Promise<void>;
   sendDm: (userId: string, text: string) => Promise<void>;
 }
 
@@ -302,7 +313,7 @@ export function registerRotaCommands(
     await ctx.reply(lines.join('\n'), { parse_mode: 'Markdown' });
   });
 
-  // /leaveearly — DM only, release all future shifts
+  // /leaveearly — admin only, DM only, release all future shifts for a person
   bot.command('leaveearly', async (ctx) => {
     if (!isRotaEnabled(opts.registeredGroups())) return;
     if (ctx.chat.type !== 'private') {
@@ -311,6 +322,16 @@ export function registerRotaCommands(
     }
 
     const telegramId = ctx.from?.id?.toString() || '';
+    const adminIds = (ADMIN_TELEGRAM_ID || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (!adminIds.includes(telegramId)) {
+      await ctx.reply(
+        "This command is for admins only. If you need to release a shift, use /cover.",
+      );
+      return;
+    }
     const username = ctx.from?.username;
     resolveIdentity(telegramId, username);
 
@@ -441,16 +462,25 @@ export function registerRotaCommands(
     } else {
       // Stale button (old board we couldn't deactivate) — update both
       try {
-        await ctx.editMessageText('Claimed! See latest message for open shifts.');
-      } catch { /* ignore */ }
+        await ctx.editMessageText(
+          'Claimed! See latest message for open shifts.',
+        );
+      } catch {
+        /* ignore */
+      }
       if (boardMsgId) {
         try {
           if (count > 0) {
             await opts.editShiftsTopicMessage(boardMsgId, text, keyboard);
           } else {
-            await opts.editShiftsTopicMessage(boardMsgId, 'All shifts are covered!');
+            await opts.editShiftsTopicMessage(
+              boardMsgId,
+              'All shifts are covered!',
+            );
           }
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }
     }
 
