@@ -144,6 +144,31 @@ describe('buildDmClaudeMd', () => {
     const unreplaced = result.match(/\{\{[^}]+\}\}/g);
     expect(unreplaced).toBeNull();
   });
+
+  it('appends personal context when provided', () => {
+    const result = buildDmClaudeMd(
+      'Test Village',
+      'Alice',
+      'tg:123',
+      'test-village',
+      undefined,
+      undefined,
+      'You are crew. Arrival: Sep 22.\nUpcoming shifts:\n- Sep 23 Lunch 10:30–13:00',
+    );
+    expect(result).toContain('## Personal Context');
+    expect(result).toContain('You are crew');
+    expect(result).toContain('Sep 23 Lunch');
+  });
+
+  it('omits personal context section when not provided', () => {
+    const result = buildDmClaudeMd(
+      'Test Village',
+      'Alice',
+      'tg:123',
+      'test-village',
+    );
+    expect(result).not.toContain('## Personal Context');
+  });
 });
 
 // ── writeDmClaudeMd ──────────────────────────────────────────

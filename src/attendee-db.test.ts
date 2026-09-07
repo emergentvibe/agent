@@ -129,6 +129,30 @@ describe('attendee-db', () => {
       const results = attendeeLookupByName('Nobody');
       expect(results.length).toBe(0);
     });
+
+    it('returns multiple for ambiguous first name', () => {
+      attendeeImport({
+        version: '1',
+        event: 'Test',
+        attendees: [
+          { name: 'Alex Johnson', role: 'attendee' },
+          { name: 'Alex Rivera', role: 'attendee' },
+        ],
+      });
+      const results = attendeeLookupByName('Alex');
+      expect(results.length).toBe(2);
+    });
+
+    it('matches Telegram concat (first_name + last_name) against full name', () => {
+      const results = attendeeLookupByName('Bob Smith');
+      expect(results.length).toBe(1);
+      expect(results[0].name).toBe('Bob Smith');
+    });
+
+    it('does not match partial last name', () => {
+      const results = attendeeLookupByName('Smith');
+      expect(results.length).toBe(0);
+    });
   });
 
   describe('check-in', () => {
