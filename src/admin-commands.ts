@@ -70,8 +70,26 @@ export async function handleAdminCommand(
 
   if (cmd === '/admin-silence off') {
     silenced = false;
+    degraded = false;
     logger.info({ sender }, 'Admin un-silenced the bot');
     return { handled: true, response: '🔊 Bot resumed.' };
+  }
+
+  if (cmd === '/admin-degrade' || cmd === '/admin-degrade on') {
+    silenced = false;
+    degraded = true;
+    logger.warn({ sender }, 'Admin set bot to degraded mode');
+    return {
+      handled: true,
+      response:
+        '🌙 Bot in degraded mode — replies "taking a break" when tagged. Extraction continues.\nSend /admin-silence off to resume.',
+    };
+  }
+
+  if (cmd === '/admin-degrade off') {
+    degraded = false;
+    logger.info({ sender }, 'Admin exited degraded mode');
+    return { handled: true, response: '🔊 Bot resumed from degraded mode.' };
   }
 
   if (cmd === '/admin-status') {
