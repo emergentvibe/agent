@@ -9,6 +9,7 @@ import {
   attendeeGetCheckedIn,
   attendeeGetNotCheckedIn,
   attendeeImport,
+  isAttendeeAdmin,
   type AttendeeImportPayload,
 } from './attendee-db.js';
 import {
@@ -60,7 +61,9 @@ export async function handleAdminCommand(
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
-  if (adminIds.length === 0 || !adminIds.includes(sender)) {
+  const isEnvAdmin = adminIds.includes(sender);
+  const isOrgAdmin = isAttendeeAdmin(sender);
+  if (!isEnvAdmin && !isOrgAdmin) {
     return { handled: false };
   }
 
@@ -251,7 +254,8 @@ export function handleAttendeeImportFile(
 
 function buildCheckinsReport(): string {
   const counts = attendeeCount();
-  if (counts.total === 0) return 'No attendees loaded. Use /admin-attendee-import first.';
+  if (counts.total === 0)
+    return 'No attendees loaded. Use /admin-attendee-import first.';
 
   const checkedIn = attendeeGetCheckedIn();
   const notCheckedIn = attendeeGetNotCheckedIn();

@@ -43,13 +43,41 @@ describe('admin-commands', () => {
     expect(isSilenced()).toBe(false);
   });
 
-  it('ignores commands when no admin configured', async () => {
+  it('ignores commands when no admin configured and no organizer role', async () => {
     const result = await handleAdminCommand(
       '/admin-silence',
       ADMIN_ID,
       undefined,
     );
     expect(result.handled).toBe(false);
+  });
+
+  it('allows organizer to use admin commands after check-in', async () => {
+    // Import an organizer
+    handleAttendeeImportFile(
+      JSON.stringify({
+        version: '1',
+        event: 'Test',
+        attendees: [
+          { name: 'Simon', telegram: '@simon', role: 'organizer' },
+        ],
+      }),
+    );
+    // Check them in (binds telegram_id)
+    const { attendeeCheckIn, attendeeLookupByHandle } = await import(
+      './attendee-db.js'
+    );
+    const simon = attendeeLookupByHandle('@simon')!;
+    attendeeCheckIn(simon.id, 'simon-tg-id');
+
+    // Now simon can use admin commands even without being in ADMIN_TELEGRAM_ID
+    const result = await handleAdminCommand(
+      '/admin-status',
+      'simon-tg-id',
+      ADMIN_ID, // simon is NOT in this list
+    );
+    expect(result.handled).toBe(true);
+    expect(result.response).toContain('Status Report');
   });
 
   it('/admin-silence enables silence', async () => {
@@ -436,9 +464,7 @@ describe('admin-commands', () => {
     });
 
     it('handleAttendeeImportFile rejects missing attendees array', () => {
-      const result = handleAttendeeImportFile(
-        JSON.stringify({ version: '1' }),
-      );
+      const result = handleAttendeeImportFile(JSON.stringify({ version: '1' }));
       expect(result.handled).toBe(true);
       expect(result.response).toContain('Invalid format');
     });

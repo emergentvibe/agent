@@ -6,8 +6,20 @@ import {
   isDegraded,
   isSilenced,
 } from './admin-commands.js';
+import {
+  attendeeCheckIn,
+  attendeeLookupByHandle,
+  attendeeLookupByName,
+  attendeeLookupByTelegramId,
+  isAttendeeAdmin,
+  type AttendeeRecord,
+} from './attendee-db.js';
 import { startAdminHttp } from './admin-http.js';
-import { initAdminNotify, notifyError } from './admin-notify.js';
+import {
+  initAdminNotify,
+  notifyAdminSummary,
+  notifyError,
+} from './admin-notify.js';
 import {
   ADMIN_HTTP_PORT,
   ADMIN_HTTP_TOKEN,
@@ -85,6 +97,11 @@ import { Channel, NewMessage, RegisteredGroup } from './types.js';
 import { logger } from './logger.js';
 import { storeMemory } from './mem0-client.js';
 import { startExtractionLoop } from './extraction.js';
+import {
+  rotaGetByTelegramId,
+  rotaGetByHandle,
+  rotaBindTelegramId,
+} from './rota-db.js';
 import { startRotaReminders, stopRotaReminders } from './rota-reminders.js';
 
 let lastTimestamp = '';
@@ -95,6 +112,103 @@ let lastReplyThreadId: Record<string, number | undefined> = {};
 let messageLoopRunning = false;
 
 const channels: Channel[] = [];
+
+function resolveAttendee(
+  telegramId: string,
+  senderName?: string,
+  senderHandle?: string,
+): AttendeeRecord | null {
+  // 1. Telegram ID (returning user)
+  const byId = attendeeLookupByTelegramId(telegramId);
+  if (byId) return byId;
+
+  // 2. @handle match
+  if (senderHandle) {
+    const byHandle = attendeeLookupByHandle(senderHandle);
+    if (byHandle) return byHandle;
+  }
+
+  // 3. Display name match
+  if (senderName) {
+    const byName = attendeeLookupByName(senderName);
+    if (byName.length === 1) return byName[0];
+    if (byName.length > 1) {
+      logger.info(
+        { senderName, matchCount: byName.length },
+        'Ambiguous attendee name match — registering as walk-in',
+      );
+    }
+  }
+
+  return null;
+}
+
+function bindRotaIdentity(
+  telegramId: string,
+  handle?: string,
+): string | undefined {
+  let shifts = rotaGetByTelegramId(telegramId);
+  if (shifts.length === 0 && handle) {
+    const normalized = handle.startsWith('@') ? handle : `@${handle}`;
+    shifts = rotaGetByHandle(normalized);
+    if (shifts.length > 0) {
+      rotaBindTelegramId(normalized, telegramId);
+      logger.info(
+        { handle: normalized, telegramId },
+        'Rota identity bound at check-in',
+      );
+    }
+  }
+
+  if (shifts.length === 0) return undefined;
+
+  const future = shifts.filter(
+    (s) => s.date >= new Date().toISOString().slice(0, 10),
+  );
+  if (future.length === 0) return undefined;
+
+  const lines = future
+    .slice(0, 8)
+    .map(
+      (s) =>
+        `- ${s.block_label} ${s.start}–${s.end}, ${s.date} (${s.state})`,
+    );
+  return `This person has ${future.length} upcoming kitchen shift${future.length === 1 ? '' : 's'}:\n${lines.join('\n')}`;
+}
+
+function buildPersonalContext(
+  attendee: AttendeeRecord | null,
+  rotaSummary?: string,
+): string | undefined {
+  const parts: string[] = [];
+
+  if (attendee) {
+    parts.push(`This is ${attendee.name}.`);
+    if (attendee.role === 'crew') {
+      parts.push('They are a crew member (kitchen team).');
+    } else if (attendee.role === 'organizer') {
+      parts.push('They are an organizer. Treat them as crew with admin-level trust.');
+    }
+    if (attendee.arrival || attendee.departure) {
+      const dates = [
+        attendee.arrival ? `arrives ${attendee.arrival}` : '',
+        attendee.departure ? `departs ${attendee.departure}` : '',
+      ]
+        .filter(Boolean)
+        .join(', ');
+      parts.push(`Schedule: ${dates}.`);
+    }
+  }
+
+  if (rotaSummary) {
+    parts.push(rotaSummary);
+    parts.push(
+      'Mention their shifts in the welcome message. Remind them about /myrota and /cover.',
+    );
+  }
+
+  return parts.length > 0 ? parts.join('\n') : undefined;
+}
 const queue = new GroupQueue();
 
 function loadState(): void {
@@ -744,15 +858,84 @@ export async function main(): Promise<void> {
       if (!registeredGroups[chatJid]) {
         const chatMeta = getChatMetadata(chatJid);
         if (chatMeta && chatMeta.is_group === 0) {
-          const community = findCommunityForUser(
+          let community = findCommunityForUser(
             msg.sender,
             registeredGroups,
             hasSenderInChat,
           );
+
+          // Fallback: attendee registry or single-community for NFC walk-ins
+          let attendee: AttendeeRecord | null = null;
+          if (!community) {
+            attendee = resolveAttendee(
+              msg.sender,
+              msg.sender_name,
+              msg.sender_handle,
+            );
+            const mainGroups = Object.entries(registeredGroups).filter(
+              ([, g]) => g.isMain,
+            );
+            if (mainGroups.length === 1) {
+              const [jid, group] = mainGroups[0];
+              const claudeMdPath = path.join(
+                resolveGroupFolderPath(group.folder),
+                'CLAUDE.md',
+              );
+              let slug = group.folder;
+              if (fs.existsSync(claudeMdPath)) {
+                const content = fs.readFileSync(claudeMdPath, 'utf-8');
+                const slugMatch = content.match(
+                  /constitution_slug:\s*"([^"]+)"/,
+                );
+                if (slugMatch) slug = slugMatch[1];
+              }
+              community = { jid, group, slug };
+            }
+          }
+
           if (community) {
+            // Check in attendee if matched
+            if (attendee && !attendee.checked_in) {
+              attendeeCheckIn(attendee.id, msg.sender);
+              const roleSuffix =
+                attendee.role !== 'attendee' ? ` [${attendee.role}]` : '';
+              notifyAdminSummary(
+                `Check-in: ${attendee.name} (${attendee.telegram_handle || 'no handle'})${roleSuffix}`,
+              ).catch(() => {});
+              logger.info(
+                {
+                  attendee: attendee.name,
+                  role: attendee.role,
+                  sender: msg.sender,
+                },
+                'Attendee checked in via /start',
+              );
+            } else if (!attendee) {
+              // Walk-in — no attendee match
+              notifyAdminSummary(
+                `Walk-in check-in: "${msg.sender_name || 'Unknown'}" (ID: ${msg.sender}, no handle). Registered as walk-in.`,
+              ).catch(() => {});
+              logger.info(
+                { sender: msg.sender, senderName: msg.sender_name },
+                'Walk-in registered (no attendee match)',
+              );
+            }
+
+            // Lazy-bind rota identity
+            const rotaSummary = bindRotaIdentity(
+              msg.sender,
+              attendee?.telegram_handle || undefined,
+            );
+
+            const personalContext = buildPersonalContext(
+              attendee,
+              rotaSummary,
+            );
+
             const dmFolder = `${community.group.folder}-dm-${sanitizeForFolder(msg.sender)}`;
             registerGroup(chatJid, {
-              name: msg.sender_name || chatJid,
+              name:
+                attendee?.name || msg.sender_name || chatJid,
               folder: dmFolder,
               trigger: ASSISTANT_NAME,
               added_at: new Date().toISOString(),
@@ -773,9 +956,12 @@ export async function main(): Promise<void> {
             writeDmClaudeMd(
               dmFolder,
               community.group.name,
-              msg.sender_name || msg.sender,
+              attendee?.name || msg.sender_name || msg.sender,
               msg.sender,
               community.slug,
+              undefined,
+              undefined,
+              personalContext,
             );
             logger.info(
               {
@@ -783,8 +969,9 @@ export async function main(): Promise<void> {
                 sender: msg.sender,
                 community: community.group.name,
                 dmFolder,
+                attendeeName: attendee?.name,
               },
-              'Auto-registered DM from community member',
+              'Auto-registered DM',
             );
 
             if (isCrewMember(community.group.folder, msg.sender)) {

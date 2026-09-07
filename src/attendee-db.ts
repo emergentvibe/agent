@@ -82,8 +82,7 @@ export function attendeeImport(payload: AttendeeImportPayload): {
     for (const a of payload.attendees) {
       if (!a.name || typeof a.name !== 'string') continue;
 
-      const handle =
-        a.telegram && a.telegram.trim() ? a.telegram.trim() : null;
+      const handle = a.telegram && a.telegram.trim() ? a.telegram.trim() : null;
       const phone = a.phone && a.phone.trim() ? a.phone.trim() : null;
       const role = a.role || 'attendee';
 
@@ -126,62 +125,60 @@ export function attendeeLookupByTelegramId(
   const db = _getDb();
   const row = db
     .prepare('SELECT * FROM attendees WHERE telegram_id = ?')
-    .get(telegramId) as (Omit<AttendeeRecord, 'checked_in'> & { checked_in: number }) | undefined;
+    .get(telegramId) as
+    | (Omit<AttendeeRecord, 'checked_in'> & { checked_in: number })
+    | undefined;
   return row ? { ...row, checked_in: !!row.checked_in } : null;
 }
 
-export function attendeeLookupByHandle(
-  handle: string,
-): AttendeeRecord | null {
+export function attendeeLookupByHandle(handle: string): AttendeeRecord | null {
   const db = _getDb();
   const normalized = handle.startsWith('@') ? handle : `@${handle}`;
   const row = db
-    .prepare(
-      'SELECT * FROM attendees WHERE LOWER(telegram_handle) = LOWER(?)',
-    )
-    .get(normalized) as (Omit<AttendeeRecord, 'checked_in'> & { checked_in: number }) | undefined;
+    .prepare('SELECT * FROM attendees WHERE LOWER(telegram_handle) = LOWER(?)')
+    .get(normalized) as
+    | (Omit<AttendeeRecord, 'checked_in'> & { checked_in: number })
+    | undefined;
   return row ? { ...row, checked_in: !!row.checked_in } : null;
 }
 
-export function attendeeLookupByName(
-  displayName: string,
-): AttendeeRecord[] {
+export function attendeeLookupByName(displayName: string): AttendeeRecord[] {
   const db = _getDb();
   const name = displayName.trim().toLowerCase();
   const rows = db
     .prepare('SELECT * FROM attendees WHERE LOWER(name) = ?')
-    .all(name) as Array<Omit<AttendeeRecord, 'checked_in'> & { checked_in: number }>;
+    .all(name) as Array<
+    Omit<AttendeeRecord, 'checked_in'> & { checked_in: number }
+  >;
 
-  if (rows.length > 0) return rows.map((r) => ({ ...r, checked_in: !!r.checked_in }));
+  if (rows.length > 0)
+    return rows.map((r) => ({ ...r, checked_in: !!r.checked_in }));
 
   // Fuzzy: first name match (first word of attendee name matches first word of display name)
   const firstName = name.split(/\s+/)[0];
   if (!firstName) return [];
 
   const fuzzy = db
-    .prepare(
-      "SELECT * FROM attendees WHERE LOWER(name) LIKE ? || '%'",
-    )
-    .all(firstName) as Array<Omit<AttendeeRecord, 'checked_in'> & { checked_in: number }>;
+    .prepare("SELECT * FROM attendees WHERE LOWER(name) LIKE ? || '%'")
+    .all(firstName) as Array<
+    Omit<AttendeeRecord, 'checked_in'> & { checked_in: number }
+  >;
   return fuzzy.map((r) => ({ ...r, checked_in: !!r.checked_in }));
 }
 
-export function attendeeLookupByPhone(
-  phone: string,
-): AttendeeRecord | null {
+export function attendeeLookupByPhone(phone: string): AttendeeRecord | null {
   const db = _getDb();
   const row = db
     .prepare('SELECT * FROM attendees WHERE phone = ?')
-    .get(phone) as (Omit<AttendeeRecord, 'checked_in'> & { checked_in: number }) | undefined;
+    .get(phone) as
+    | (Omit<AttendeeRecord, 'checked_in'> & { checked_in: number })
+    | undefined;
   return row ? { ...row, checked_in: !!row.checked_in } : null;
 }
 
 // --- Check-in ---
 
-export function attendeeCheckIn(
-  attendeeId: number,
-  telegramId: string,
-): void {
+export function attendeeCheckIn(attendeeId: number, telegramId: string): void {
   const db = _getDb();
   db.prepare(
     `UPDATE attendees SET
@@ -198,7 +195,9 @@ export function attendeeCheckIn(
 
 export function attendeeGetAll(): AttendeeRecord[] {
   const db = _getDb();
-  const rows = db.prepare('SELECT * FROM attendees ORDER BY name').all() as Array<
+  const rows = db
+    .prepare('SELECT * FROM attendees ORDER BY name')
+    .all() as Array<
     Omit<AttendeeRecord, 'checked_in'> & { checked_in: number }
   >;
   return rows.map((r) => ({ ...r, checked_in: !!r.checked_in }));
@@ -207,8 +206,12 @@ export function attendeeGetAll(): AttendeeRecord[] {
 export function attendeeGetCheckedIn(): AttendeeRecord[] {
   const db = _getDb();
   const rows = db
-    .prepare('SELECT * FROM attendees WHERE checked_in = 1 ORDER BY checked_in_at')
-    .all() as Array<Omit<AttendeeRecord, 'checked_in'> & { checked_in: number }>;
+    .prepare(
+      'SELECT * FROM attendees WHERE checked_in = 1 ORDER BY checked_in_at',
+    )
+    .all() as Array<
+    Omit<AttendeeRecord, 'checked_in'> & { checked_in: number }
+  >;
   return rows.map((r) => ({ ...r, checked_in: !!r.checked_in }));
 }
 
@@ -216,7 +219,9 @@ export function attendeeGetNotCheckedIn(): AttendeeRecord[] {
   const db = _getDb();
   const rows = db
     .prepare('SELECT * FROM attendees WHERE checked_in = 0 ORDER BY name')
-    .all() as Array<Omit<AttendeeRecord, 'checked_in'> & { checked_in: number }>;
+    .all() as Array<
+    Omit<AttendeeRecord, 'checked_in'> & { checked_in: number }
+  >;
   return rows.map((r) => ({ ...r, checked_in: !!r.checked_in }));
 }
 
@@ -226,7 +231,9 @@ export function attendeeGetByRole(
   const db = _getDb();
   const rows = db
     .prepare('SELECT * FROM attendees WHERE role = ? ORDER BY name')
-    .all(role) as Array<Omit<AttendeeRecord, 'checked_in'> & { checked_in: number }>;
+    .all(role) as Array<
+    Omit<AttendeeRecord, 'checked_in'> & { checked_in: number }
+  >;
   return rows.map((r) => ({ ...r, checked_in: !!r.checked_in }));
 }
 

@@ -45,6 +45,7 @@ export function buildDmClaudeMd(
   slug: string,
   crewList?: string,
   communityStartDate?: string,
+  personalContext?: string,
 ): string {
   const base = fs.readFileSync(
     path.join(TEMPLATE_DIR, 'base-template.md'),
@@ -54,7 +55,10 @@ export function buildDmClaudeMd(
     path.join(TEMPLATE_DIR, 'dm-overlay-template.md'),
     'utf-8',
   );
-  const template = base + '\n\n' + dm;
+  let template = base + '\n\n' + dm;
+  if (personalContext) {
+    template += '\n\n## Personal Context\n\n' + personalContext;
+  }
   return template
     .replace(/\{\{community_name\}\}/g, communityName)
     .replace(/\{\{user_name\}\}/g, userName)
@@ -78,6 +82,7 @@ export function writeDmClaudeMd(
   slug: string,
   crewList?: string,
   communityStartDate?: string,
+  personalContext?: string,
 ): void {
   const dmDir = resolveGroupFolderPath(dmFolder);
   fs.mkdirSync(dmDir, { recursive: true });
@@ -89,6 +94,7 @@ export function writeDmClaudeMd(
     slug,
     crewList,
     communityStartDate,
+    personalContext,
   );
   fs.writeFileSync(path.join(dmDir, 'CLAUDE.md'), content, 'utf-8');
 

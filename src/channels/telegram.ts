@@ -355,11 +355,17 @@ export class TelegramChannel implements Channel {
           'telegram',
           isGroup,
         );
+        const displayName = [ctx.from?.first_name, ctx.from?.last_name]
+          .filter(Boolean)
+          .join(' ') || ctx.from?.username || 'Unknown';
         this.opts.onMessage(chatJid, {
           id: ctx.message!.message_id.toString(),
           chat_jid: chatJid,
           sender: ctx.from?.id?.toString() || '',
-          sender_name: ctx.from?.first_name || ctx.from?.username || 'Unknown',
+          sender_name: displayName,
+          sender_handle: ctx.from?.username
+            ? `@${ctx.from.username}`
+            : undefined,
           content: `@${ASSISTANT_NAME} hello`,
           timestamp,
           is_from_me: false,
@@ -395,6 +401,9 @@ export class TelegramChannel implements Channel {
             sender: ctx.from?.id?.toString() || '',
             sender_name:
               ctx.from?.first_name || ctx.from?.username || 'Unknown',
+            sender_handle: ctx.from?.username
+              ? `@${ctx.from.username}`
+              : undefined,
             content: `@${ASSISTANT_NAME} /${payload}`,
             timestamp: new Date(ctx.message!.date * 1000).toISOString(),
             is_from_me: false,
@@ -512,6 +521,9 @@ export class TelegramChannel implements Channel {
         chat_jid: chatJid,
         sender,
         sender_name: senderName,
+        sender_handle: ctx.from?.username
+          ? `@${ctx.from.username}`
+          : undefined,
         content,
         timestamp,
         is_from_me: false,
