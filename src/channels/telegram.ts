@@ -117,16 +117,27 @@ export class TelegramChannel implements Channel {
         local: true,
         visible: false,
       },
-      { command: 'chatid', description: 'Get this chat ID', local: true, visible: false },
-      { command: 'ping', description: 'Check if bot is online', local: true, visible: false },
+      {
+        command: 'chatid',
+        description: 'Get this chat ID',
+        local: true,
+        visible: false,
+      },
+      {
+        command: 'ping',
+        description: 'Check if bot is online',
+        local: true,
+        visible: false,
+      },
       ...rotaCommandEntries(),
     ];
 
     // Only register visible commands for Telegram autocomplete menu.
     // Hidden commands still work when typed — they just don't clutter the menu.
     await this.bot.api.setMyCommands(
-      COMMANDS.filter((c) => c.visible !== false)
-        .map(({ command, description }) => ({ command, description })),
+      COMMANDS.filter((c) => c.visible !== false).map(
+        ({ command, description }) => ({ command, description }),
+      ),
     );
 
     const LOCAL_COMMANDS = new Set(

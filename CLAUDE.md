@@ -24,17 +24,33 @@ When making a decision, these are the priorities in order:
 
 Single Node.js process with skill-based channel system. Channels (Telegram currently) self-register at startup. Messages route to Claude Agent SDK running in ephemeral Docker containers. Each group has isolated filesystem and memory. Community knowledge lives in Mem0 under a single shared namespace — no personal namespaces. DM containers can search Mem0 but never write to it (enforced by `allowedTools` in agent-runner).
 
-Telegram Forum mode is supported: `thread_id` flows through the entire message pipeline so the bot replies in the correct topic. Per-topic extraction control lets admins enable/disable memory extraction for individual topics (`/admin-topics`, `/admin-extract-on`, `/admin-extract-off`).
+Telegram Forum mode is supported: `thread_id` flows through the entire message pipeline so the bot replies in the correct topic. Per-topic extraction control lets admins enable/disable memory extraction for individual topics (`/admin-topics`, `/admin-extract-on`, `/admin-extract-off`). New topics default to extraction OFF; General is always ON.
 
 A background extraction loop (`src/extraction.ts`) runs every 5 minutes, using Haiku to process group messages and store facts, introductions, wishes, patterns, and concerns to Mem0. `MIN_CONTEXT_MESSAGES=20` ensures cross-batch context even when messages are spaced far apart. Only topics with extraction enabled are processed.
 
 Per-group feature flags (`src/feature-config.ts`) control which commands and behaviors are active. Phase C features (escalation, crew digest, subscriptions) default to off and are enabled via `groups/{name}/features.json`.
 
-Three bot modes: `normal` (full operation), `silenced` (complete stop), `degraded` (fixed "taking a break" response to triggers, extraction continues). Controlled via Telegram admin commands or HTTP admin endpoint (port 3002, bearer token auth).
+Three bot modes: `normal` (full operation), `silenced` (complete stop), `degraded` (fixed "taking a break" response to triggers, extraction continues). Controlled via Telegram admin commands (`/admin-silence`, `/admin-degrade`) or HTTP admin endpoint (port 3002, bearer token auth).
 
-A purchase/tab system tracks microtransactions (bar drinks, BBQ food) via inline Telegram keyboards — pure SQLite, no containers, zero API cost. NFC deep links (`t.me/BOT?start=bar`) enable tap-to-purchase at physical locations.
+### Rota System
 
-The community intelligence layer is ours (`governance/`, `knowledge/`, `src/triage.ts`, `src/mem0-client.ts`, `src/seed.ts`, `src/dm-registration.ts`, `src/extraction.ts`, `src/feature-config.ts`, `src/crew.ts`, `src/digest.ts`, `src/subscriptions.ts`, `src/admin-http.ts`). The runtime (IPC, containers, queue, routing) is upstream NanoClaw.
+Kitchen shift management lives entirely in SQLite — no containers, no API cost. Rota data is imported via `/admin-rota-import` (JSON file upload). Identity resolution is lazy: on first `/myrota` or `/cover`, the bot matches Telegram ID or @handle against imported assignments and binds them permanently.
+
+Key flows: `/cover` releases a shift → post in Shifts topic with [Claim] button → anyone taps to claim → DM notifications to both parties. `/hands` is a crew-only emergency call. `/leaveearly` (admin-only) bulk-releases someone's remaining shifts. An uncovered shift warning fires 30 min before unassigned slots. The Shifts Board (`/openshifts`) consolidates all open shifts into a single pinnable message.
+
+### Purchase System
+
+Bar/BBQ tab tracking via inline Telegram keyboards — pure SQLite, no containers, zero API cost. Prices configured per group in `groups/{name}/prices.json`. NFC deep links (`t.me/BOT?start=bar`) enable tap-to-purchase at physical locations. Admin export (`/admin-tab export`) generates a CSV with purchases and per-user totals.
+
+### Command Visibility
+
+Commands are split into visible (appear in Telegram autocomplete) and hidden (work when typed, not in menu). Visible: `today`, `hello`, `connect`, `forget`, `bar`, `bbq`, `purchase`, `show_total`, `cover`, `shifts`, `myrota`. Hidden: `cancel_purchase`, `chatid`, `ping`, `leaveearly`, `openshifts`, `hands`, `h`.
+
+### DM Registration & NFC Check-in
+
+When someone taps an NFC tag or sends `/start`, the bot auto-registers a DM if the sender is found in a registered community group. The DM gets its own container with a personalized CLAUDE.md and read-only access to community knowledge files.
+
+The community intelligence layer is ours (`governance/`, `knowledge/`, `src/triage.ts`, `src/mem0-client.ts`, `src/seed.ts`, `src/dm-registration.ts`, `src/extraction.ts`, `src/feature-config.ts`, `src/crew.ts`, `src/digest.ts`, `src/subscriptions.ts`, `src/admin-http.ts`, `src/rota-*.ts`). The runtime (IPC, containers, queue, routing) is upstream NanoClaw.
 
 There's a 27-scenario integration sim framework (`tests/integration/sim-runner.ts` + `../sim/scenarios/`) that replaces Telegram with a SimChannel but runs everything else as production code — Docker, Mem0, extraction, IPC.
 
@@ -43,6 +59,7 @@ There's a 27-scenario integration sim framework (`tests/integration/sim-runner.t
 | File | Purpose |
 |------|---------|
 | `src/index.ts` | Orchestrator: state, message loop, agent invocation |
+| `src/channels/telegram.ts` | Telegram channel: commands, purchases, rota UI, NFC deep links |
 | `src/channels/registry.ts` | Channel registry (self-registration at startup) |
 | `src/ipc.ts` | IPC watcher, task processing, escalation storage |
 | `src/router.ts` | Message formatting and outbound routing |
@@ -50,6 +67,10 @@ There's a 27-scenario integration sim framework (`tests/integration/sim-runner.t
 | `src/container-runner.ts` | Spawns agent containers with mounts |
 | `src/extraction.ts` | Background memory extraction loop (Haiku) |
 | `src/feature-config.ts` | Per-group feature flags (commands + behaviors) |
+| `src/rota-db.ts` | Rota SQLite: import, assignments, identity binding, open slots |
+| `src/rota-commands.ts` | Rota slash commands: /cover, /myrota, /shifts, /hands, Shifts Board |
+| `src/rota-print.ts` | PDF generation for printable daily shift sheets |
+| `src/rota-reminders.ts` | Morning announcements + pre-shift DM pings |
 | `src/crew.ts` | Crew member management |
 | `src/digest.ts` | Daily and crew digest generation |
 | `src/subscriptions.ts` | Topic subscription + extraction-driven notification |
@@ -59,9 +80,13 @@ There's a 27-scenario integration sim framework (`tests/integration/sim-runner.t
 | `src/admin-notify.ts` | Admin DM notifications (escalation, error, summary) |
 | `src/admin-commands.ts` | Admin slash commands + bot mode state (silenced/degraded) |
 | `src/admin-http.ts` | HTTP admin endpoint (pause/resume/degrade/status) |
-| `src/db.ts` | SQLite operations (messages, tasks, topics, purchases) |
+| `src/db.ts` | SQLite operations (messages, tasks, topics, purchases, attendees) |
 | `groups/{name}/CLAUDE.md` | Per-group agent instructions (isolated) |
 | `groups/{name}/features.json` | Per-group feature toggles |
+| `groups/{name}/prices.json` | Purchase items and prices per category |
+| `groups/{name}/crew.json` | Crew member list ({id, name} pairs) |
+| `governance/templates/base-template.md` | Base agent personality and behavior |
+| `governance/templates/dm-overlay-template.md` | DM-specific behavior, welcome message, privacy rules |
 | `tests/integration/sim-runner.ts` | 27-scenario integration sim runner |
 | `container/agent-runner/src/index.ts` | Agent runner inside Docker (tool filtering, IPC) |
 
@@ -83,7 +108,7 @@ Run commands directly—don't tell the user to run them.
 ```bash
 npm run dev          # Run with hot reload
 npm run build        # Compile TypeScript
-npm test             # Run unit tests (551 pass, 6 pre-existing LLM-flaky failures)
+npm test             # Run unit tests (644 pass, 6 pre-existing LLM-flaky failures)
 ./container/build.sh # Rebuild agent container
 
 # Integration sims (requires Docker + ANTHROPIC_API_KEY + MEM0_API_KEY)

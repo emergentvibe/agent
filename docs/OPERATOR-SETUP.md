@@ -79,6 +79,17 @@ BOT_API_SECRET=your-secret-here
 
 # Groups config
 GROUPS_CONFIG=[{"folder":"my-community","slug":"my-community","community_name":"My Community","admin_id":"123456789","admin_name":"Your Name","community_start_date":"2026-03-21"}]
+
+# Admin (comma-separated Telegram user IDs)
+ADMIN_TELEGRAM_ID=123456789,987654321
+
+# Rota (optional — set after creating the Shifts forum topic)
+ROTA_SHIFTS_TOPIC_ID=24
+ROTA_GROUP_JID=tg:-1001234567890
+
+# Admin HTTP endpoint (optional)
+ADMIN_HTTP_TOKEN=your-bearer-token
+ADMIN_HTTP_PORT=3002
 ```
 
 ### GROUPS_CONFIG format
@@ -139,15 +150,72 @@ Your Server
 ├── NanoClaw (Telegram bot)
 │   ├── Constitution sync (polls emergentvibe.com every 5 min)
 │   ├── Container per conversation (Claude Code inside Docker)
-│   └── Mem0 MCP connection
+│   ├── Mem0 MCP connection
+│   ├── Background extraction (Haiku, every 5 min)
+│   ├── Rota system (SQLite, local commands)
+│   └── Purchase system (SQLite, inline keyboards)
 │
-├── Mem0 (self-hosted)
+├── Mem0 (self-hosted or cloud)
 │   ├── OpenMemory (:8765/sse)
 │   └── Qdrant (:6333)
 │
 └── Shared Memory
     └── community:{slug} — community knowledge (single namespace, no personal memory)
 ```
+
+## Admin Commands (DM only)
+
+All admin commands are DM-only, gated by `ADMIN_TELEGRAM_ID` (comma-separated for multi-admin).
+
+| Command | What it does |
+|---------|-------------|
+| `/admin-status` | Uptime, mode, group count, container count |
+| `/admin-silence` | Stop all bot responses |
+| `/admin-silence off` | Resume from silenced or degraded mode |
+| `/admin-degrade` | "Taking a break" replies when tagged, extraction continues |
+| `/admin-degrade off` | Resume from degraded mode |
+| `/admin-topics` | List forum topics with extraction status |
+| `/admin-extract-on <topic>` | Enable memory extraction for a topic |
+| `/admin-extract-off <topic>` | Disable memory extraction for a topic |
+| `/admin-tab` | Show all purchase totals |
+| `/admin-tab <user_id>` | Show one user's purchases |
+| `/admin-tab export` | Download CSV with all purchases + totals |
+| `/admin-rota-import` | Upload rota JSON file |
+| `/admin-rota-print <date>` | Generate printable PDF for a day's shifts |
+
+## User Commands
+
+**Visible in Telegram menu:** `today`, `hello`, `connect`, `forget`, `bar`, `bbq`, `purchase`, `show_total`, `cover`, `shifts`, `myrota`
+
+**Hidden (work when typed):** `cancel_purchase`, `chatid`, `ping`, `leaveearly` (admin-only), `openshifts`, `hands` / `h` (crew-only)
+
+## Kitchen Rota System
+
+Requires: rota JSON imported via `/admin-rota-import`, `ROTA_SHIFTS_TOPIC_ID` in `.env`, `features.json` with `commands.rota: true`.
+
+- `/cover` — release a shift, post cover request in Shifts topic with [Claim] button
+- `/myrota` — show all your shifts for the week
+- `/shifts` — today's kitchen schedule
+- `/openshifts` — consolidated Shifts Board with all open slots
+- `/hands` — crew emergency call: "Kitchen needs help!" with [I'm coming] button
+- `/leaveearly` — (admin-only) bulk-release someone's remaining shifts
+- Uncovered shift warnings fire 30 min before unassigned slots
+- Morning announcements post the day's schedule in the Shifts topic
+
+Identity resolution: on first `/myrota` or `/cover`, matches Telegram ID or @handle against imported rota and binds permanently.
+
+## Purchase System
+
+Requires: `groups/{name}/prices.json` with category → item → price mapping.
+
+```json
+{
+  "bar": { "Beer": 2, "Soft Drink": 1.5 },
+  "bbq": { "Beef Burger": 4, "Chicken Breast": 5 }
+}
+```
+
+NFC deep links: `t.me/BOT?start=bar`, `t.me/BOT?start=bbq`, `t.me/BOT?start=tab`
 
 ## Authority Model
 
