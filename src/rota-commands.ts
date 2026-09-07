@@ -146,6 +146,7 @@ export function rotaCommandEntries(): Array<{
   command: string;
   description: string;
   local: true;
+  visible?: boolean;
 }> {
   return [
     { command: 'cover', description: 'Request cover for a shift', local: true },
@@ -155,21 +156,25 @@ export function rotaCommandEntries(): Array<{
       command: 'leaveearly',
       description: 'Release all remaining shifts',
       local: true,
+      visible: false,
     },
     {
       command: 'openshifts',
       description: 'See open shifts you can claim',
       local: true,
+      visible: false,
     },
     {
       command: 'hands',
       description: 'Kitchen needs help! (crew only)',
       local: true,
+      visible: false,
     },
     {
       command: 'h',
       description: 'Kitchen needs help! (crew only)',
       local: true,
+      visible: false,
     },
   ];
 }
@@ -328,7 +333,7 @@ export function registerRotaCommands(
       .filter(Boolean);
     if (!adminIds.includes(telegramId)) {
       await ctx.reply(
-        "This command is for admins only. If you need to release a shift, use /cover.",
+        'This command is for admins only. If you need to release a shift, use /cover.',
       );
       return;
     }

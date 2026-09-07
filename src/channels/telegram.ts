@@ -94,6 +94,7 @@ export class TelegramChannel implements Channel {
       command: string;
       description: string;
       local?: boolean;
+      visible?: boolean;
     }> = [
       { command: 'today', description: "Today's events and schedule" },
       { command: 'hello', description: 'Introduce yourself to the community' },
@@ -114,15 +115,18 @@ export class TelegramChannel implements Channel {
         command: 'cancel_purchase',
         description: 'Undo your last purchase',
         local: true,
+        visible: false,
       },
-      { command: 'chatid', description: 'Get this chat ID', local: true },
-      { command: 'ping', description: 'Check if bot is online', local: true },
+      { command: 'chatid', description: 'Get this chat ID', local: true, visible: false },
+      { command: 'ping', description: 'Check if bot is online', local: true, visible: false },
       ...rotaCommandEntries(),
     ];
 
-    // Register all commands for Telegram autocomplete menu
+    // Only register visible commands for Telegram autocomplete menu.
+    // Hidden commands still work when typed — they just don't clutter the menu.
     await this.bot.api.setMyCommands(
-      COMMANDS.map(({ command, description }) => ({ command, description })),
+      COMMANDS.filter((c) => c.visible !== false)
+        .map(({ command, description }) => ({ command, description })),
     );
 
     const LOCAL_COMMANDS = new Set(
@@ -294,7 +298,11 @@ export class TelegramChannel implements Channel {
             parse_mode: 'Markdown',
           };
           if (keyboard) msgOpts.reply_markup = keyboard;
-          const msg = await this.bot!.api.sendMessage(rotaGroupId, text, msgOpts);
+          const msg = await this.bot!.api.sendMessage(
+            rotaGroupId,
+            text,
+            msgOpts,
+          );
           return msg.message_id;
         },
         editShiftsTopicMessage: async (messageId, text, keyboard) => {

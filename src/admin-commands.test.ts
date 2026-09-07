@@ -231,7 +231,9 @@ describe('admin-commands', () => {
       expect(csv).toContain('user1,Alice,beer,3');
       expect(csv).toContain('--- TOTALS ---');
       expect(csv).toContain('Alice,3.00');
-      expect(result.file!.filename).toMatch(/^purchases-\d{4}-\d{2}-\d{2}\.csv$/);
+      expect(result.file!.filename).toMatch(
+        /^purchases-\d{4}-\d{2}-\d{2}\.csv$/,
+      );
     });
 
     it('handles no purchases', async () => {
