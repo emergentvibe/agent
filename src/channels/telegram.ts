@@ -202,10 +202,7 @@ export class TelegramChannel implements Channel {
       return kb;
     };
 
-    const isPurchaseAllowed = (
-      ctx: any,
-      category?: 'bar' | 'bbq',
-    ): boolean => {
+    const isPurchaseAllowed = (ctx: any, category?: 'bar' | 'bbq'): boolean => {
       if (ctx.chat?.type === 'private') return true;
       const threadId = ctx.message?.message_thread_id;
       if (!threadId) return false;
@@ -216,12 +213,7 @@ export class TelegramChannel implements Channel {
     const PURCHASE_REDIRECT = 'Use this in a DM with me or the right topic.';
 
     const handlePurchaseCommand = async (ctx: any, category?: string) => {
-      if (
-        !isPurchaseAllowed(
-          ctx,
-          category as 'bar' | 'bbq' | undefined,
-        )
-      ) {
+      if (!isPurchaseAllowed(ctx, category as 'bar' | 'bbq' | undefined)) {
         await ctx.reply(PURCHASE_REDIRECT);
         return;
       }

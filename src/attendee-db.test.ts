@@ -12,6 +12,7 @@ import {
   attendeeLookupByHandle,
   attendeeLookupByName,
   attendeeLookupByPhone,
+  attendeeLookupByTelegramDisplay,
   attendeeLookupByTelegramId,
   isAttendeeAdmin,
   type AttendeeImportPayload,
@@ -69,6 +70,64 @@ describe('attendee-db', () => {
         ],
       });
       expect(result.created).toBe(1);
+    });
+
+    it('imports telegram_handle field (new format)', () => {
+      attendeeImport({
+        version: '1',
+        event: 'Test',
+        attendees: [
+          { name: 'NewFormat', telegram_handle: '@newformat', role: 'attendee' },
+        ],
+      });
+      const found = attendeeLookupByHandle('@newformat');
+      expect(found).not.toBeNull();
+      expect(found!.name).toBe('NewFormat');
+    });
+
+    it('imports telegram_display field', () => {
+      attendeeImport({
+        version: '1',
+        event: 'Test',
+        attendees: [
+          { name: 'DisplayTest', telegram_display: 'DisplayName', role: 'attendee' },
+        ],
+      });
+      const found = attendeeLookupByTelegramDisplay('DisplayName');
+      expect(found).not.toBeNull();
+      expect(found!.name).toBe('DisplayTest');
+    });
+
+    it('prefers telegram_handle over legacy telegram field', () => {
+      attendeeImport({
+        version: '1',
+        event: 'Test',
+        attendees: [
+          { name: 'Both', telegram: '@legacy', telegram_handle: '@preferred', role: 'attendee' },
+        ],
+      });
+      expect(attendeeLookupByHandle('@preferred')).not.toBeNull();
+      expect(attendeeLookupByHandle('@legacy')).toBeNull();
+    });
+
+    it('upsert preserves existing telegram_display', () => {
+      attendeeImport({
+        version: '1',
+        event: 'Test',
+        attendees: [
+          { name: 'Keeper', telegram_display: 'OriginalDisplay', role: 'attendee' },
+        ],
+      });
+      attendeeImport({
+        version: '1',
+        event: 'Test',
+        attendees: [
+          { name: 'Keeper', telegram: '@keeper', role: 'crew' },
+        ],
+      });
+      const found = attendeeLookupByTelegramDisplay('OriginalDisplay');
+      expect(found).not.toBeNull();
+      expect(found!.role).toBe('crew');
     });
   });
 
@@ -152,6 +211,43 @@ describe('attendee-db', () => {
     it('does not match partial last name', () => {
       const results = attendeeLookupByName('Smith');
       expect(results.length).toBe(0);
+    });
+
+    it('by telegram_display', () => {
+      attendeeClear();
+      attendeeImport({
+        version: '1',
+        event: 'Test',
+        attendees: [
+          { name: 'Frederick F.', telegram_display: 'Fred', role: 'attendee' },
+        ],
+      });
+      const found = attendeeLookupByTelegramDisplay('Fred');
+      expect(found).not.toBeNull();
+      expect(found!.name).toBe('Frederick F.');
+    });
+
+    it('by telegram_display is case-insensitive', () => {
+      attendeeClear();
+      attendeeImport({
+        version: '1',
+        event: 'Test',
+        attendees: [
+          { name: 'Frederick F.', telegram_display: 'Fred', role: 'attendee' },
+        ],
+      });
+      expect(attendeeLookupByTelegramDisplay('fred')).not.toBeNull();
+      expect(attendeeLookupByTelegramDisplay('FRED')).not.toBeNull();
+    });
+
+    it('by telegram_display returns null for empty string', () => {
+      expect(attendeeLookupByTelegramDisplay('')).toBeNull();
+      expect(attendeeLookupByTelegramDisplay('  ')).toBeNull();
+    });
+
+    it('by telegram_display returns null for no match', () => {
+      attendeeImport(PAYLOAD);
+      expect(attendeeLookupByTelegramDisplay('Nobody')).toBeNull();
     });
   });
 

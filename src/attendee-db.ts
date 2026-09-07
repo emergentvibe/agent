@@ -9,6 +9,7 @@ export interface AttendeeRecord {
   id: number;
   name: string;
   telegram_handle: string | null;
+  telegram_display: string | null;
   telegram_id: string | null;
   phone: string | null;
   role: 'attendee' | 'crew' | 'organizer';
@@ -25,6 +26,8 @@ export interface AttendeeImportPayload {
   attendees: Array<{
     name: string;
     telegram?: string | null;
+    telegram_handle?: string | null;
+    telegram_display?: string | null;
     phone?: string | null;
     role?: 'attendee' | 'crew' | 'organizer';
     arrival?: string | null;
@@ -40,6 +43,7 @@ export function createAttendeeSchema(database: Database.Database): void {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
       telegram_handle TEXT,
+      telegram_display TEXT,
       telegram_id TEXT,
       phone TEXT,
       role TEXT NOT NULL DEFAULT 'attendee',
@@ -53,6 +57,15 @@ export function createAttendeeSchema(database: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_attendees_tg_id ON attendees(telegram_id);
     CREATE INDEX IF NOT EXISTS idx_attendees_phone ON attendees(phone);
   `);
+
+  // Migration: add telegram_display if missing (existing DBs)
+  try {
+    database.exec(
+      'ALTER TABLE attendees ADD COLUMN telegram_display TEXT',
+    );
+  } catch {
+    // Column already exists
+  }
 }
 
 // --- Import ---
@@ -65,10 +78,11 @@ export function attendeeImport(payload: AttendeeImportPayload): {
   const db = _getDb();
 
   const upsert = db.prepare(`
-    INSERT INTO attendees (name, telegram_handle, phone, role, arrival, departure)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO attendees (name, telegram_handle, telegram_display, phone, role, arrival, departure)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(name) DO UPDATE SET
       telegram_handle = COALESCE(excluded.telegram_handle, attendees.telegram_handle),
+      telegram_display = COALESCE(excluded.telegram_display, attendees.telegram_display),
       phone = COALESCE(excluded.phone, attendees.phone),
       role = excluded.role,
       arrival = COALESCE(excluded.arrival, attendees.arrival),
@@ -82,7 +96,13 @@ export function attendeeImport(payload: AttendeeImportPayload): {
     for (const a of payload.attendees) {
       if (!a.name || typeof a.name !== 'string') continue;
 
-      const handle = a.telegram && a.telegram.trim() ? a.telegram.trim() : null;
+      // Accept both `telegram` (legacy) and `telegram_handle` fields
+      const rawHandle = a.telegram_handle || a.telegram;
+      const handle = rawHandle && rawHandle.trim() ? rawHandle.trim() : null;
+      const display =
+        a.telegram_display && a.telegram_display.trim()
+          ? a.telegram_display.trim()
+          : null;
       const phone = a.phone && a.phone.trim() ? a.phone.trim() : null;
       const role = a.role || 'attendee';
 
@@ -93,6 +113,7 @@ export function attendeeImport(payload: AttendeeImportPayload): {
       upsert.run(
         a.name,
         handle,
+        display,
         phone,
         role,
         a.arrival || null,
@@ -137,6 +158,22 @@ export function attendeeLookupByHandle(handle: string): AttendeeRecord | null {
   const row = db
     .prepare('SELECT * FROM attendees WHERE LOWER(telegram_handle) = LOWER(?)')
     .get(normalized) as
+    | (Omit<AttendeeRecord, 'checked_in'> & { checked_in: number })
+    | undefined;
+  return row ? { ...row, checked_in: !!row.checked_in } : null;
+}
+
+export function attendeeLookupByTelegramDisplay(
+  displayName: string,
+): AttendeeRecord | null {
+  const db = _getDb();
+  const name = displayName.trim().toLowerCase();
+  if (!name) return null;
+  const row = db
+    .prepare(
+      'SELECT * FROM attendees WHERE LOWER(telegram_display) = ?',
+    )
+    .get(name) as
     | (Omit<AttendeeRecord, 'checked_in'> & { checked_in: number })
     | undefined;
   return row ? { ...row, checked_in: !!row.checked_in } : null;

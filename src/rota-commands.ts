@@ -5,7 +5,7 @@ import {
   ROTA_GROUP_JID,
   ADMIN_TELEGRAM_ID,
 } from './config.js';
-import { isCrewMember } from './crew.js';
+
 import { loadFeatureConfig } from './feature-config.js';
 import { logger } from './logger.js';
 import {
@@ -365,19 +365,10 @@ export function registerRotaCommands(
     }
   });
 
-  // /hands or /h — crew only, broadcast to Shifts topic
+  // /hands or /h — anyone can call for kitchen help
   for (const cmd of ['hands', 'h'] as const) {
     bot.command(cmd, async (ctx) => {
       if (!isRotaEnabled(opts.registeredGroups())) return;
-
-      const sender = ctx.from?.id?.toString() || '';
-      const mainGroup = Object.values(opts.registeredGroups()).find(
-        (g) => g.isMain,
-      );
-      if (!mainGroup || !isCrewMember(mainGroup.folder, sender)) {
-        await ctx.reply('This command is for crew members only.');
-        return;
-      }
 
       const kb = new InlineKeyboard();
       kb.text("I'm coming!", `rota:coming:${Date.now()}`);

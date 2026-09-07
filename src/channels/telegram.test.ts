@@ -99,10 +99,7 @@ vi.mock('grammy', () => ({
 }));
 
 import { TelegramChannel, TelegramChannelOpts } from './telegram.js';
-import {
-  isPurchaseTopicForCategory,
-  isAnyPurchaseTopic,
-} from '../db.js';
+import { isPurchaseTopicForCategory, isAnyPurchaseTopic } from '../db.js';
 
 // --- Test helpers ---
 
@@ -1185,9 +1182,7 @@ describe('TelegramChannel', () => {
       const ctx = createTextCtx({ text: '/bar', chatType: 'private' });
       await handler(ctx);
 
-      expect(ctx.reply).not.toHaveBeenCalledWith(
-        expect.stringContaining('DM'),
-      );
+      expect(ctx.reply).not.toHaveBeenCalledWith(expect.stringContaining('DM'));
     });
 
     it('/bar blocked in group General topic', async () => {
@@ -1199,9 +1194,7 @@ describe('TelegramChannel', () => {
       const ctx = createTextCtx({ text: '/bar', chatType: 'supergroup' });
       await handler(ctx);
 
-      expect(ctx.reply).toHaveBeenCalledWith(
-        expect.stringContaining('DM'),
-      );
+      expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('DM'));
     });
 
     it('/bar allowed in matching Bar topic', async () => {
@@ -1219,9 +1212,7 @@ describe('TelegramChannel', () => {
       });
       await handler(ctx);
 
-      expect(ctx.reply).not.toHaveBeenCalledWith(
-        expect.stringContaining('DM'),
-      );
+      expect(ctx.reply).not.toHaveBeenCalledWith(expect.stringContaining('DM'));
     });
 
     it('/bbq blocked in non-matching topic', async () => {
@@ -1239,9 +1230,7 @@ describe('TelegramChannel', () => {
       });
       await handler(ctx);
 
-      expect(ctx.reply).toHaveBeenCalledWith(
-        expect.stringContaining('DM'),
-      );
+      expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('DM'));
     });
 
     it('/show_total blocked in group', async () => {
@@ -1256,9 +1245,7 @@ describe('TelegramChannel', () => {
       });
       await handler(ctx);
 
-      expect(ctx.reply).toHaveBeenCalledWith(
-        expect.stringContaining('DM'),
-      );
+      expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('DM'));
     });
 
     it('/cancel_purchase blocked in group', async () => {
@@ -1273,9 +1260,7 @@ describe('TelegramChannel', () => {
       });
       await handler(ctx);
 
-      expect(ctx.reply).toHaveBeenCalledWith(
-        expect.stringContaining('DM'),
-      );
+      expect(ctx.reply).toHaveBeenCalledWith(expect.stringContaining('DM'));
     });
   });
 

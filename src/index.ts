@@ -10,6 +10,7 @@ import {
   attendeeCheckIn,
   attendeeLookupByHandle,
   attendeeLookupByName,
+  attendeeLookupByTelegramDisplay,
   attendeeLookupByTelegramId,
   isAttendeeAdmin,
   type AttendeeRecord,
@@ -69,7 +70,7 @@ import {
   storeMessage,
   upsertTopic,
 } from './db.js';
-import { isCrewMember } from './crew.js';
+
 import { ensureCrewDigestTask, ensureDigestTask } from './digest.js';
 import {
   findCommunityForUser,
@@ -128,7 +129,13 @@ function resolveAttendee(
     if (byHandle) return byHandle;
   }
 
-  // 3. Display name match
+  // 3. Telegram display name match (from sheet export)
+  if (senderName) {
+    const byDisplay = attendeeLookupByTelegramDisplay(senderName);
+    if (byDisplay) return byDisplay;
+  }
+
+  // 4. Name match (exact, then fuzzy first-name)
   if (senderName) {
     const byName = attendeeLookupByName(senderName);
     if (byName.length === 1) return byName[0];
@@ -170,8 +177,7 @@ function bindRotaIdentity(
   const lines = future
     .slice(0, 8)
     .map(
-      (s) =>
-        `- ${s.block_label} ${s.start}–${s.end}, ${s.date} (${s.state})`,
+      (s) => `- ${s.block_label} ${s.start}–${s.end}, ${s.date} (${s.state})`,
     );
   return `This person has ${future.length} upcoming kitchen shift${future.length === 1 ? '' : 's'}:\n${lines.join('\n')}`;
 }
@@ -187,7 +193,9 @@ function buildPersonalContext(
     if (attendee.role === 'crew') {
       parts.push('They are a crew member (kitchen team).');
     } else if (attendee.role === 'organizer') {
-      parts.push('They are an organizer. Treat them as crew with admin-level trust.');
+      parts.push(
+        'They are an organizer. Treat them as crew with admin-level trust.',
+      );
     }
     if (attendee.arrival || attendee.departure) {
       const dates = [
@@ -927,15 +935,11 @@ export async function main(): Promise<void> {
               attendee?.telegram_handle || undefined,
             );
 
-            const personalContext = buildPersonalContext(
-              attendee,
-              rotaSummary,
-            );
+            const personalContext = buildPersonalContext(attendee, rotaSummary);
 
             const dmFolder = `${community.group.folder}-dm-${sanitizeForFolder(msg.sender)}`;
             registerGroup(chatJid, {
-              name:
-                attendee?.name || msg.sender_name || chatJid,
+              name: attendee?.name || msg.sender_name || chatJid,
               folder: dmFolder,
               trigger: ASSISTANT_NAME,
               added_at: new Date().toISOString(),
@@ -974,7 +978,14 @@ export async function main(): Promise<void> {
               'Auto-registered DM',
             );
 
-            if (isCrewMember(community.group.folder, msg.sender)) {
+            const adminIds = (ADMIN_TELEGRAM_ID || '')
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean);
+            if (
+              adminIds.includes(msg.sender) ||
+              isAttendeeAdmin(msg.sender)
+            ) {
               ensureCrewDigestTask(community.group, chatJid, msg.sender);
             }
           }
