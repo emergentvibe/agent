@@ -22,7 +22,12 @@ import {
   setTopicExtraction,
 } from './db.js';
 import { logger } from './logger.js';
-import { rotaGetMeta, rotaReset, rotaExportBackup } from './rota-db.js';
+import {
+  rotaGetMeta,
+  rotaReset,
+  rotaExportBackup,
+  rotaExportChangelog,
+} from './rota-db.js';
 import { generateRotaPdf, parsePrintArgs } from './rota-print.js';
 
 let silenced = false;
@@ -150,6 +155,20 @@ export async function handleAdminCommand(
     return {
       handled: true,
       file: { buffer, filename: `rota-backup-${date}.json` },
+    };
+  }
+
+  if (cmd === '/admin-rota-changelog') {
+    const changelog = rotaExportChangelog();
+    if (!changelog) {
+      return { handled: true, response: 'No rota loaded.' };
+    }
+    const json = JSON.stringify(changelog, null, 2);
+    const buffer = Buffer.from(json, 'utf-8');
+    const date = new Date().toISOString().slice(0, 10);
+    return {
+      handled: true,
+      file: { buffer, filename: `rota-changelog-${date}.json` },
     };
   }
 

@@ -1,9 +1,8 @@
 /**
  * Adapter: converts the sheet agent's export formats into our import contracts.
  *
- * The sheet agent exports rota.json and attendees.json in its own schema.
- * This module transforms them into RotaImportPayload and AttendeeImportPayload
- * so the existing import functions work unchanged.
+ * Schema 1.1: the sheet agent now issues assignment_id and slot.
+ * We adopt them as canonical rather than synthesising our own.
  */
 import type { AttendeeImportPayload } from './attendee-db.js';
 import type {
@@ -12,7 +11,7 @@ import type {
   RotaNoShiftEntry,
 } from './rota-db.js';
 
-// --- Sheet agent types (incoming) ---
+// --- Sheet agent types (incoming, schema 1.1) ---
 
 export interface SheetAttendee {
   person_id: string;
@@ -20,38 +19,51 @@ export interface SheetAttendee {
   telegram_username: string | null;
   telegram_display: string | null;
   phone: string | null;
-  role: 'organiser' | 'crew' | 'attendee';
+  role: 'organizer' | 'organiser' | 'crew' | 'attendee';
   title: string | null;
   is_admin: boolean;
 }
 
-export interface SheetRotaBlock {
-  key: string;
+export interface SheetRotaAssignment {
+  assignment_id: string;
+  slot: number;
+  state: 'assigned' | 'open';
+  original_person_id: string | null;
+  person_id: string | null;
+  name: string | null;
+  telegram_username: string | null;
+  telegram_display: string | null;
+  date: string;
+  day: number;
+  block: string;
   label: string;
   start: string;
   end: string;
   hours: number;
-  slots: number;
-}
-
-export interface SheetRotaAssignment {
-  person_id: string;
-  name: string;
-  date: string;
-  day: number;
-  block: string;
-  start: string;
-  end: string;
-  hours: number;
+  weight: number;
 }
 
 export interface SheetRotaExport {
+  export: string;
+  schema_version: string;
+  generated_at: string;
   is_test: boolean;
   supersedes_all_previous: boolean;
+  event: string;
   timezone: string;
-  blocks: SheetRotaBlock[];
+  days: Array<{ day: number; date: string }>;
+  blocks: RotaBlock[];
+  big_nights: Array<{ day: number; date: string; type: string }>;
+  weighting: {
+    rule: string;
+    big_night_multiplier: number;
+    morning_after_multiplier: number;
+  };
+  counts: { assignments: number; people: number; no_shifts: number };
   assignments: SheetRotaAssignment[];
   no_shifts: Array<{ person_id: string; name: string; reason: string }>;
+  is_sample?: boolean;
+  redactions?: string[];
 }
 
 // --- Attendee adapter ---
@@ -78,11 +90,7 @@ export function adaptAttendeeExport(
 
 // --- Rota adapter ---
 
-export function adaptRotaExport(
-  sheet: SheetRotaExport,
-  version: string,
-  attendeeLookup?: Map<string, SheetAttendee>,
-): RotaImportPayload {
+export function adaptRotaExport(sheet: SheetRotaExport): RotaImportPayload {
   if (sheet.is_test) {
     throw new Error(
       'Refusing test rota (is_test=true). Wait for the real run.',
@@ -98,37 +106,22 @@ export function adaptRotaExport(
     slots: b.slots,
   }));
 
-  const blockMap = new Map(sheet.blocks.map((b) => [b.key, b]));
-
-  // Track slot counts per day+block for auto-numbering
-  const slotCounters = new Map<string, number>();
-
   const assignments = sheet.assignments.map((a) => {
-    const counterKey = `${a.date}-${a.block}`;
-    const slot = (slotCounters.get(counterKey) || 0) + 1;
-    slotCounters.set(counterKey, slot);
-
-    const block = blockMap.get(a.block);
-    const blockLabel = block?.label || a.block;
-
-    // Cross-reference attendee for telegram handle
-    const attendee = attendeeLookup?.get(a.person_id);
-    const telegram = attendee?.telegram_username || null;
-
+    const filled = a.state === 'assigned' && a.person_id !== null;
     return {
-      id: `${a.date}-${a.block}-${slot}`,
+      id: a.assignment_id,
       day: a.day,
       date: a.date,
       block: a.block,
-      block_label: blockLabel,
-      slot,
+      block_label: a.label,
+      slot: a.slot,
       start: a.start,
       end: a.end,
       hours: a.hours,
-      weight: a.hours,
-      rota_key: a.person_id,
-      name: a.name,
-      telegram,
+      weight: a.weight,
+      rota_key: filled ? a.person_id : null,
+      name: filled ? a.name : null,
+      telegram: filled ? a.telegram_username : null,
       telegram_id: null as string | null,
     };
   });
@@ -140,10 +133,11 @@ export function adaptRotaExport(
   }));
 
   return {
-    version,
+    is_test: false,
+    version: sheet.generated_at,
     timezone: sheet.timezone,
     blocks,
-    big_nights: [],
+    big_nights: sheet.big_nights.map((bn) => bn.day),
     no_shifts: noShifts,
     assignments,
   };

@@ -747,38 +747,66 @@ export function rotaExportBackup(): object | undefined {
     .all() as RotaNoShiftEntry[];
 
   return {
-    exported_at: new Date().toISOString(),
-    version: meta.version,
+    export: 'rota_backup',
+    generated_at: new Date().toISOString(),
+    source_version: meta.version,
     timezone: meta.timezone,
     blocks,
     big_nights,
     no_shifts: noShifts,
     assignments: assignments.map((a) => ({
-      id: a.id,
-      day: a.day,
-      date: a.date,
-      block: a.block,
-      block_label: a.block_label,
+      assignment_id: a.id,
       slot: a.slot,
+      state: a.state,
+      original_person_id: a.original_person,
+      person_id: a.state === 'covered' ? a.current_person : a.original_person,
+      name: a.state === 'covered' ? a.current_name : a.original_name,
+      original_name: a.original_name,
+      telegram_username: a.original_telegram,
+      telegram_id: a.original_telegram_id,
+      date: a.date,
+      day: a.day,
+      block: a.block,
+      label: a.block_label,
       start: a.start,
       end: a.end,
       hours: a.hours,
       weight: a.weight,
-      person_id: a.original_person,
-      name: a.original_name,
-      telegram: a.original_telegram,
-      telegram_id: a.original_telegram_id,
-      state: a.state,
-      current_person_id: a.state === 'covered' ? a.current_person : undefined,
-      current_name: a.state === 'covered' ? a.current_name : undefined,
-      current_telegram: a.state === 'covered' ? a.current_telegram : undefined,
     })),
     covers: log.map((l) => ({
-      ts: l.ts,
       assignment_id: l.assignment_id,
-      from_person_id: l.from_person,
-      to_person_id: l.to_person,
-      reason: l.reason,
+      state: l.reason,
+      original_person_id: l.from_person,
+      person_id: l.to_person,
+      changed_at: l.ts,
     })),
+  };
+}
+
+// --- Changelog export (append-only, for sheet agent sync) ---
+
+export function rotaExportChangelog(): object | undefined {
+  const meta = rotaGetMeta();
+  if (!meta) return undefined;
+
+  const log = rotaGetLog();
+  const assignments = rotaGetAllAssignments();
+  const assignmentMap = new Map(assignments.map((a) => [a.id, a]));
+
+  return {
+    export: 'rota_changelog',
+    generated_at: new Date().toISOString(),
+    source_version: meta.version,
+    changes: log.map((l) => {
+      const a = assignmentMap.get(l.assignment_id);
+      return {
+        assignment_id: l.assignment_id,
+        state: a?.state || 'unknown',
+        original_person_id: l.from_person,
+        person_id: l.to_person,
+        changed_at: l.ts,
+        action: l.reason,
+      };
+    }),
   };
 }
