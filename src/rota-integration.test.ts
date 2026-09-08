@@ -228,6 +228,10 @@ describe('rota integration: full lifecycle', () => {
 });
 
 describe('rota integration: PDF generation', () => {
+  beforeEach(() => {
+    delete process.env.DATE_OVERRIDE;
+  });
+
   it('generates PDF from fixture data', async () => {
     const payload = loadFixture();
     rotaImport(payload);

@@ -63,7 +63,6 @@ export function createAttendeeSchema(database: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_attendees_handle ON attendees(telegram_handle);
     CREATE INDEX IF NOT EXISTS idx_attendees_tg_id ON attendees(telegram_id);
     CREATE INDEX IF NOT EXISTS idx_attendees_phone ON attendees(phone);
-    CREATE INDEX IF NOT EXISTS idx_attendees_person_id ON attendees(person_id);
   `);
 
   // Migrations: add columns if missing (existing DBs)
@@ -79,6 +78,11 @@ export function createAttendeeSchema(database: Database.Database): void {
       // Column already exists
     }
   }
+
+  // Index on person_id must come after migration adds the column
+  database.exec(
+    'CREATE INDEX IF NOT EXISTS idx_attendees_person_id ON attendees(person_id)',
+  );
 }
 
 // --- Import ---

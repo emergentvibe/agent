@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3';
 
 import { _getDb } from './db.js';
+import { getToday } from './config.js';
 import { logger } from './logger.js';
 
 // --- Types ---
@@ -588,7 +589,7 @@ export function rotaRerelease(
 
 export function rotaLeaveEarly(telegramId: string): string[] {
   const db = _getDb();
-  const now = new Date().toISOString().slice(0, 10);
+  const now = getToday();
 
   const future = db
     .prepare(

@@ -856,10 +856,19 @@ export async function main(): Promise<void> {
   // Channel callbacks (shared by all channels)
   const channelOpts = {
     onMessage: (chatJid: string, msg: NewMessage) => {
-      // Admin commands — intercept before storage (DM only)
+      // Admin commands — DM only
       const trimmed = msg.content.trim();
       if (trimmed.startsWith('/admin-')) {
         const channel = findChannel(channels, chatJid);
+        const isGroup = chatJid.includes(':-');
+        if (isGroup) {
+          channel
+            ?.sendMessage(chatJid, 'Use this in a DM with me.', msg.thread_id)
+            .catch((err) =>
+              logger.warn({ err }, 'Failed to send admin redirect'),
+            );
+          return;
+        }
         handleAdminCommand(trimmed, msg.sender, ADMIN_TELEGRAM_ID)
           .then((result) => {
             if (!result.handled) return;

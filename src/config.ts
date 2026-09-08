@@ -12,7 +12,13 @@ const envConfig = readEnvFile([
   'ADMIN_TELEGRAM_ID',
   'ROTA_SHIFTS_TOPIC_ID',
   'ROTA_GROUP_JID',
+  'DATE_OVERRIDE',
 ]);
+
+// Propagate DATE_OVERRIDE to process.env so all modules see it
+if (envConfig.DATE_OVERRIDE) {
+  process.env.DATE_OVERRIDE = envConfig.DATE_OVERRIDE;
+}
 
 export const ASSISTANT_NAME =
   process.env.ASSISTANT_NAME || envConfig.ASSISTANT_NAME || 'Andy';
@@ -110,3 +116,9 @@ export const MIN_CONTEXT_MESSAGES = parseInt(
 // Uses system timezone by default
 export const TIMEZONE =
   process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+// DATE_OVERRIDE: force the bot to think today is a different date (yyyy-MM-dd).
+// For testing rota commands outside the event window.
+export function getToday(): string {
+  return process.env.DATE_OVERRIDE || new Date().toISOString().slice(0, 10);
+}

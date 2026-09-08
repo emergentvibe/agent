@@ -150,6 +150,10 @@ describe('generateRotaPdf', () => {
 });
 
 describe('parsePrintArgs', () => {
+  beforeEach(() => {
+    delete process.env.DATE_OVERRIDE;
+  });
+
   it('defaults to tomorrow with no args', () => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);

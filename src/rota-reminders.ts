@@ -31,6 +31,8 @@ function formatDate(date: string): string {
 }
 
 function todayStr(tz?: string): string {
+  const override = process.env.DATE_OVERRIDE;
+  if (override) return override;
   if (tz) {
     const parts = new Intl.DateTimeFormat('en-CA', {
       timeZone: tz,

@@ -4,6 +4,7 @@ import {
   ROTA_SHIFTS_TOPIC_ID,
   ROTA_GROUP_JID,
   ADMIN_TELEGRAM_ID,
+  getToday,
 } from './config.js';
 
 import { loadFeatureConfig } from './feature-config.js';
@@ -109,7 +110,7 @@ function buildBoardContent(InlineKeyboard: typeof IKType): {
   count: number;
 } {
   const openSlots = rotaGetOpenSlots();
-  const now = new Date().toISOString().slice(0, 10);
+  const now = getToday();
   const future = openSlots.filter((a) => a.date >= now);
 
   if (future.length === 0) {
@@ -221,7 +222,7 @@ export function registerRotaCommands(
     const telegramId = ctx.from?.id?.toString() || '';
     const username = ctx.from?.username;
     const myShifts = resolveIdentity(telegramId, username);
-    const now = new Date().toISOString().slice(0, 10);
+    const now = getToday();
     const future = myShifts.filter(
       (a) => a.state === 'assigned' && a.date >= now,
     );
@@ -260,7 +261,7 @@ export function registerRotaCommands(
       return;
     }
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getToday();
     const assignments = rotaGetByDate(today);
 
     if (assignments.length === 0) {
@@ -578,7 +579,7 @@ export function registerRotaCommands(
     if (!isRotaEnabled(opts.registeredGroups())) return;
 
     const openSlots = rotaGetOpenSlots();
-    const now = new Date().toISOString().slice(0, 10);
+    const now = getToday();
     const future = openSlots.filter((a) => a.date >= now);
 
     if (future.length === 0) {

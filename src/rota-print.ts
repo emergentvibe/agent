@@ -180,16 +180,17 @@ export async function generateRotaPdf(
 
 export function parsePrintArgs(text: string): string {
   const args = text.trim().split(/\s+/).slice(1);
+  const today = process.env.DATE_OVERRIDE || new Date().toISOString().slice(0, 10);
   if (args.length === 0 || args[0] === 'tomorrow') {
-    const tomorrow = new Date();
+    const tomorrow = new Date(today + 'T12:00:00');
     tomorrow.setDate(tomorrow.getDate() + 1);
     return tomorrow.toISOString().slice(0, 10);
   }
   if (args[0] === 'today') {
-    return new Date().toISOString().slice(0, 10);
+    return today;
   }
   if (/^\d{4}-\d{2}-\d{2}$/.test(args[0])) {
     return args[0];
   }
-  return new Date().toISOString().slice(0, 10);
+  return today;
 }
