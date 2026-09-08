@@ -55,6 +55,7 @@ export function addSubscription(
   topic: string,
   chatJid: string,
 ): void {
+  if (topic.length < 3) return;
   const store = loadStore(groupFolder);
   const existing = store.subscriptions.find(
     (s) => s.userId === userId && s.topic.toLowerCase() === topic.toLowerCase(),

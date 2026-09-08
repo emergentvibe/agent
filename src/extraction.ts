@@ -294,7 +294,10 @@ async function runExtractionCycle(deps: ExtractionLoopDeps): Promise<void> {
     }
 
     // Don't advance cursor if most stores failed — retry next cycle
-    if (result.memories.length > 0 && storeFailures > result.memories.length / 2) {
+    if (
+      result.memories.length > 0 &&
+      storeFailures > result.memories.length / 2
+    ) {
       logger.warn(
         { storeFailures, total: result.memories.length, group: group.name },
         'Mem0 store failure rate >50% — cursor not advanced, will retry',
@@ -323,7 +326,7 @@ function notifySubscribers(
       const notification = {
         type: 'message',
         chatJid: sub.chatJid,
-        text: `Heads up: ${mem.text}`,
+        text: `Heads up — there's an update about "${sub.topic}". Check the group for details.`,
       };
       const filename = `sub-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.json`;
       fs.writeFileSync(

@@ -105,8 +105,17 @@ function buildVolumeMounts(
       readonly: false,
     });
 
+    // Protect CLAUDE.md from agent modification with a read-only overlay
+    const claudeMdPath = path.join(groupDir, 'CLAUDE.md');
+    if (fs.existsSync(claudeMdPath)) {
+      mounts.push({
+        hostPath: claudeMdPath,
+        containerPath: '/workspace/group/CLAUDE.md',
+        readonly: true,
+      });
+    }
+
     // Global memory directory (read-only for non-main)
-    // Only directory mounts are supported, not file mounts
     const globalDir = path.join(GROUPS_DIR, 'global');
     if (fs.existsSync(globalDir)) {
       mounts.push({
@@ -205,7 +214,7 @@ function buildVolumeMounts(
   mounts.push({
     hostPath: groupAgentRunnerDir,
     containerPath: '/app/src',
-    readonly: false,
+    readonly: true,
   });
 
   // Additional mounts validated against external allowlist (tamper-proof from containers)
@@ -226,14 +235,16 @@ function buildContainerArgs(
   containerName: string,
   model?: string,
 ): string[] {
-  const args: string[] = ['run', '-i', '--rm', '--name', containerName];
+  const args: string[] = ['run', '-i', '--rm', '--init', '--name', containerName];
 
   // Security hardening: drop all capabilities, limit resources
   args.push('--cap-drop=ALL');
   args.push('--security-opt=no-new-privileges');
   const memLimit = process.env.CONTAINER_MEMORY_LIMIT || '2g';
   args.push(`--memory=${memLimit}`);
+  args.push('--cpus=1');
   args.push('--pids-limit=256');
+  args.push('--tmpfs', '/tmp:size=512m,exec');
 
   // Pass host timezone so container's local time matches the user's
   args.push('-e', `TZ=${TIMEZONE}`);
