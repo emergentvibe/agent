@@ -27,18 +27,18 @@ function groupByBlock(assignments: RotaAssignment[]): BlockGroup[] {
 }
 
 function formatPersonLine(a: RotaAssignment): string {
-  if (a.state === 'open' && a.original_name) {
-    return `${a.original_name} — cover requested`;
-  }
+  const origLabel =
+    `${a.original_name || '???'} ${a.original_telegram || ''}`.trim();
+
   if (a.state === 'open') {
-    return 'OPEN';
+    return `${origLabel} — cover requested`;
   }
   if (a.state === 'covered') {
-    const orig = a.original_name || '???';
-    const coverer = a.current_name || '???';
-    return `${orig} → ${coverer} covering`;
+    const coverer =
+      `${a.current_name || '???'} ${a.current_telegram || ''}`.trim();
+    return `${origLabel} → ${coverer.toUpperCase()} covering`;
   }
-  return a.current_name || a.original_name || '???';
+  return origLabel;
 }
 
 function formatDateHeader(date: string, day?: number): string {
