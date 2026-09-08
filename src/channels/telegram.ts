@@ -402,7 +402,7 @@ export class TelegramChannel implements Channel {
           sender_handle: ctx.from?.username
             ? `@${ctx.from.username}`
             : undefined,
-          content: `@${ASSISTANT_NAME} hello`,
+          content: `@${ASSISTANT_NAME} introduce yourself — this is my first message`,
           timestamp,
           is_from_me: false,
         });

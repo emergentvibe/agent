@@ -931,14 +931,15 @@ export async function main(): Promise<void> {
               hasSenderInChat,
             );
 
-            // Fallback: attendee registry or single-community for NFC walk-ins
-            let attendee: AttendeeRecord | null = null;
+            // Always resolve attendee for check-in and personal context
+            const attendee = resolveAttendee(
+              msg.sender,
+              msg.sender_name,
+              msg.sender_handle,
+            );
+
+            // Fallback: single-community for NFC walk-ins who aren't in the group yet
             if (!community) {
-              attendee = resolveAttendee(
-                msg.sender,
-                msg.sender_name,
-                msg.sender_handle,
-              );
               const mainGroups = Object.entries(registeredGroups).filter(
                 ([, g]) => g.isMain,
               );
