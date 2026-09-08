@@ -376,6 +376,33 @@ export function rotaBindTelegramId(handle: string, telegramId: string): number {
   return result.changes;
 }
 
+export function rotaGetByPersonId(personId: string): RotaAssignment[] {
+  const db = _getDb();
+  return db
+    .prepare(
+      `SELECT * FROM rota_assignments WHERE original_person = ? ORDER BY day, start`,
+    )
+    .all(personId) as RotaAssignment[];
+}
+
+export function rotaBindTelegramIdByPersonId(
+  personId: string,
+  telegramId: string,
+): number {
+  const db = _getDb();
+  const result = db
+    .prepare(
+      `UPDATE rota_assignments SET original_telegram_id = ? WHERE original_person = ?`,
+    )
+    .run(telegramId, personId);
+  if (result.changes > 0) {
+    logger.info(
+      `Rota: bound person_id ${personId} → telegram_id ${telegramId} (${result.changes} rows)`,
+    );
+  }
+  return result.changes;
+}
+
 export function rotaGetById(id: string): RotaAssignment | undefined {
   const db = _getDb();
   return db.prepare('SELECT * FROM rota_assignments WHERE id = ?').get(id) as

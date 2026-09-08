@@ -101,7 +101,10 @@ import { startExtractionLoop } from './extraction.js';
 import {
   rotaGetByTelegramId,
   rotaGetByHandle,
+  rotaGetByPersonId,
   rotaBindTelegramId,
+  rotaBindTelegramIdByPersonId,
+  rotaGetNoShiftReason,
 } from './rota-db.js';
 import { startRotaReminders, stopRotaReminders } from './rota-reminders.js';
 
@@ -154,8 +157,12 @@ function resolveAttendee(
 function bindRotaIdentity(
   telegramId: string,
   handle?: string,
+  attendee?: AttendeeRecord | null,
 ): string | undefined {
+  // 1. Direct lookup by telegram_id
   let shifts = rotaGetByTelegramId(telegramId);
+
+  // 2. Match by @handle
   if (shifts.length === 0 && handle) {
     const normalized = handle.startsWith('@') ? handle : `@${handle}`;
     shifts = rotaGetByHandle(normalized);
@@ -168,7 +175,28 @@ function bindRotaIdentity(
     }
   }
 
-  if (shifts.length === 0) return undefined;
+  // 3. Match via attendee person_id
+  if (shifts.length === 0 && attendee?.person_id) {
+    shifts = rotaGetByPersonId(attendee.person_id);
+    if (shifts.length > 0) {
+      rotaBindTelegramIdByPersonId(attendee.person_id, telegramId);
+      logger.info(
+        { personId: attendee.person_id, telegramId },
+        'Rota identity bound via person_id at check-in',
+      );
+    }
+  }
+
+  if (shifts.length === 0) {
+    // Check no_shifts for people like Chefs
+    if (attendee?.person_id) {
+      const reason = rotaGetNoShiftReason(attendee.person_id);
+      if (reason) {
+        return `This person is listed as ${reason} — no kitchen shifts assigned.`;
+      }
+    }
+    return undefined;
+  }
 
   const future = shifts.filter(
     (s) => s.date >= new Date().toISOString().slice(0, 10),
@@ -192,7 +220,8 @@ function buildPersonalContext(
   if (attendee) {
     parts.push(`This is ${attendee.name}.`);
     if (attendee.role === 'crew') {
-      parts.push('They are a crew member (kitchen team).');
+      const titleSuffix = attendee.title ? ` (${attendee.title})` : '';
+      parts.push(`They are a crew member${titleSuffix}.`);
     } else if (attendee.role === 'organizer') {
       parts.push(
         'They are an organizer. Treat them as crew with admin-level trust.',
@@ -954,6 +983,7 @@ export async function main(): Promise<void> {
               const rotaSummary = bindRotaIdentity(
                 msg.sender,
                 attendee?.telegram_handle || undefined,
+                attendee,
               );
 
               const personalContext = buildPersonalContext(

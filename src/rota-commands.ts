@@ -12,8 +12,10 @@ import { attendeeLookupByTelegramId } from './attendee-db.js';
 import {
   rotaGetByTelegramId,
   rotaGetByHandle,
+  rotaGetByPersonId,
   rotaGetCoveredByPerson,
   rotaBindTelegramId,
+  rotaBindTelegramIdByPersonId,
   rotaGetById,
   rotaGetByDate,
   rotaGetOpenSlots,
@@ -47,15 +49,31 @@ function resolveIdentity(
   telegramId: string,
   username?: string,
 ): RotaAssignment[] {
+  // 1. Direct lookup by telegram_id (already bound)
   let rows = rotaGetByTelegramId(telegramId);
   if (rows.length > 0) return rows;
 
+  // 2. Match by @handle
   if (username) {
     const handle = username.startsWith('@') ? username : `@${username}`;
     rows = rotaGetByHandle(handle);
     if (rows.length > 0) {
       rotaBindTelegramId(handle, telegramId);
       logger.info({ handle, telegramId }, 'Rota: lazy-bound telegram ID');
+      return rows;
+    }
+  }
+
+  // 3. Match via attendee table → person_id
+  const attendee = attendeeLookupByTelegramId(telegramId);
+  if (attendee?.person_id) {
+    rows = rotaGetByPersonId(attendee.person_id);
+    if (rows.length > 0) {
+      rotaBindTelegramIdByPersonId(attendee.person_id, telegramId);
+      logger.info(
+        { personId: attendee.person_id, telegramId },
+        'Rota: lazy-bound via person_id',
+      );
     }
   }
   return rows;
@@ -302,8 +320,9 @@ export function registerRotaCommands(
     if (myShifts.length === 0) {
       // Check if they're in the no_shifts list (e.g. Chef, Head of Buffet)
       const attendee = attendeeLookupByTelegramId(telegramId);
-      const noShiftReason =
-        attendee?.person_id ? rotaGetNoShiftReason(attendee.person_id) : null;
+      const noShiftReason = attendee?.person_id
+        ? rotaGetNoShiftReason(attendee.person_id)
+        : null;
       if (noShiftReason) {
         await ctx.reply(
           `You're listed as ${noShiftReason} — no kitchen shifts assigned. You can still pick up shifts with /cover.`,
