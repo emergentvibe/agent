@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { _initTestDatabase } from './db.js';
+import { _initTestDatabase, _getDb } from './db.js';
 import {
   rotaImport,
   rotaGetMeta,
@@ -243,6 +243,40 @@ describe('rotaImport', () => {
     const payload = makePayload();
     payload.assignments[0].block = 'brunch';
     expect(() => rotaImport(payload)).toThrow('unknown block');
+  });
+
+  it('refuses is_test=true payloads', () => {
+    expect(() =>
+      rotaImport(makePayload({ is_test: true, version: 'LIVE-ok' })),
+    ).toThrow('is_test=true');
+  });
+
+  it('allows is_test=false payloads', () => {
+    const result = rotaImport(makePayload({ is_test: false }));
+    expect(result.inserted).toBe(6);
+  });
+
+  it('refuses reimport when covers exist (freeze guard)', () => {
+    rotaImport(makePayload());
+    // Simulate a cover by inserting a log entry (real covers always log)
+    const db = _getDb();
+    db.prepare(
+      "INSERT INTO rota_log (ts, assignment_id, from_person, to_person, reason) VALUES (datetime('now'), 'd1-lunch-1', 'tg:999', NULL, 'release')",
+    ).run();
+
+    expect(() => rotaImport(makePayload())).toThrow('mutation');
+  });
+
+  it('allows reimport with force flag when covers exist', () => {
+    rotaImport(makePayload());
+    const db = _getDb();
+    db.prepare(
+      "INSERT INTO rota_log (ts, assignment_id, from_person, to_person, reason) VALUES (datetime('now'), 'd1-lunch-1', 'tg:999', NULL, 'release')",
+    ).run();
+
+    const result = rotaImport(makePayload({ force: true }));
+    expect(result.inserted).toBe(6);
+    expect(result.replaced).toBe(true);
   });
 });
 
@@ -845,9 +879,7 @@ describe('no_shifts', () => {
       timezone: 'Europe/Berlin',
       blocks: BLOCKS,
       big_nights: [],
-      no_shifts: [
-        { person_id: 'p1', name: 'Lukas K.', reason: 'Chef' },
-      ],
+      no_shifts: [{ person_id: 'p1', name: 'Lukas K.', reason: 'Chef' }],
       assignments: [],
     };
     rotaImport(payload);
@@ -863,9 +895,7 @@ describe('no_shifts', () => {
       timezone: 'Europe/Berlin',
       blocks: BLOCKS,
       big_nights: [],
-      no_shifts: [
-        { person_id: 'p1', name: 'Lukas K.', reason: 'Chef' },
-      ],
+      no_shifts: [{ person_id: 'p1', name: 'Lukas K.', reason: 'Chef' }],
       assignments: [],
     };
     rotaImport(payload);
@@ -881,9 +911,7 @@ describe('no_shifts', () => {
       timezone: 'Europe/Berlin',
       blocks: BLOCKS,
       big_nights: [],
-      no_shifts: [
-        { person_id: 'p1', name: 'Lukas K.', reason: 'Chef' },
-      ],
+      no_shifts: [{ person_id: 'p1', name: 'Lukas K.', reason: 'Chef' }],
       assignments: [],
     };
     rotaImport(payload1);
@@ -894,9 +922,7 @@ describe('no_shifts', () => {
       timezone: 'Europe/Berlin',
       blocks: BLOCKS,
       big_nights: [],
-      no_shifts: [
-        { person_id: 'p2', name: 'Mia', reason: 'Head of Buffet' },
-      ],
+      no_shifts: [{ person_id: 'p2', name: 'Mia', reason: 'Head of Buffet' }],
       assignments: [],
     };
     rotaImport(payload2);

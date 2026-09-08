@@ -95,9 +95,7 @@ const ROTA: SheetRotaExport = {
       hours: 1,
     },
   ],
-  no_shifts: [
-    { person_id: 'a1', name: 'Loz', reason: 'Head of Dishes' },
-  ],
+  no_shifts: [{ person_id: 'a1', name: 'Loz', reason: 'Head of Dishes' }],
 };
 
 describe('sheet-adapter', () => {
@@ -151,9 +149,7 @@ describe('sheet-adapter', () => {
 
     it('generates sequential slot numbers per block per day', () => {
       const result = adaptRotaExport(ROTA, 'v1');
-      const lunchSlots = result.assignments.filter(
-        (a) => a.block === 'lunch',
-      );
+      const lunchSlots = result.assignments.filter((a) => a.block === 'lunch');
       expect(lunchSlots[0].slot).toBe(1);
       expect(lunchSlots[1].slot).toBe(2);
     });
@@ -189,9 +185,7 @@ describe('sheet-adapter', () => {
     it('cross-references telegram from attendee lookup', () => {
       const lookup = buildAttendeeLookup(ATTENDEES);
       const result = adaptRotaExport(ROTA, 'v1', lookup);
-      const simonShift = result.assignments.find(
-        (a) => a.rota_key === 'a2',
-      );
+      const simonShift = result.assignments.find((a) => a.rota_key === 'a2');
       expect(simonShift!.telegram).toBe('@simon');
       const joShift = result.assignments.find((a) => a.rota_key === 'a3');
       expect(joShift!.telegram).toBeNull();

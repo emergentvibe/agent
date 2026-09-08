@@ -200,14 +200,17 @@ export function attendeeLookupByTelegramDisplay(
   displayName: string,
 ): AttendeeRecord | null {
   const db = _getDb();
-  const name = displayName.trim().toLowerCase();
+  // Normalize unicode (variation selectors etc.) and lowercase
+  const name = displayName.trim().normalize('NFC').toLowerCase();
   if (!name) return null;
-  const row = db
+  // Only return a match if exactly one attendee has this display name
+  const rows = db
     .prepare('SELECT * FROM attendees WHERE LOWER(telegram_display) = ?')
-    .get(name) as
-    | (Omit<AttendeeRecord, 'checked_in'> & { checked_in: number })
-    | undefined;
-  return row ? { ...row, checked_in: !!row.checked_in } : null;
+    .all(name) as Array<
+    Omit<AttendeeRecord, 'checked_in'> & { checked_in: number }
+  >;
+  if (rows.length !== 1) return null;
+  return { ...rows[0], checked_in: !!rows[0].checked_in };
 }
 
 export function attendeeLookupByName(displayName: string): AttendeeRecord[] {

@@ -265,6 +265,36 @@ describe('attendee-db', () => {
       attendeeImport(PAYLOAD);
       expect(attendeeLookupByTelegramDisplay('Nobody')).toBeNull();
     });
+
+    it('by telegram_display returns null when multiple attendees share the name', () => {
+      attendeeImport({
+        version: '1',
+        event: 'Test',
+        attendees: [
+          { name: 'Person A', telegram_display: 'J', role: 'attendee' },
+          { name: 'Person B', telegram_display: 'J', role: 'attendee' },
+        ],
+      });
+      expect(attendeeLookupByTelegramDisplay('J')).toBeNull();
+    });
+
+    it('by telegram_display normalizes unicode (NFC)', () => {
+      attendeeImport({
+        version: '1',
+        event: 'Test',
+        attendees: [
+          {
+            name: 'Nana',
+            telegram_display: 'Nana ☉',
+            role: 'attendee',
+          },
+        ],
+      });
+      expect(attendeeLookupByTelegramDisplay('Nana ☉')).not.toBeNull();
+      expect(
+        attendeeLookupByTelegramDisplay('nana ☉'),
+      ).not.toBeNull();
+    });
   });
 
   describe('check-in', () => {
@@ -386,9 +416,7 @@ describe('attendee-db', () => {
       attendeeImport({
         version: '1',
         event: 'Test',
-        attendees: [
-          { name: 'Simon', person_id: 's1', role: 'organiser' },
-        ],
+        attendees: [{ name: 'Simon', person_id: 's1', role: 'organiser' }],
       });
       const found = attendeeLookupByPersonId('s1');
       expect(found!.role).toBe('organizer');
@@ -411,16 +439,12 @@ describe('attendee-db', () => {
       attendeeImport({
         version: '1',
         event: 'Test',
-        attendees: [
-          { name: 'Loz', person_id: 'abc123', role: 'crew' },
-        ],
+        attendees: [{ name: 'Loz', person_id: 'abc123', role: 'crew' }],
       });
       attendeeImport({
         version: '2',
         event: 'Test',
-        attendees: [
-          { name: 'Loz', telegram: '@lozarino', role: 'crew' },
-        ],
+        attendees: [{ name: 'Loz', telegram: '@lozarino', role: 'crew' }],
       });
       const found = attendeeLookupByHandle('@lozarino');
       expect(found!.person_id).toBe('abc123');

@@ -58,6 +58,8 @@ export interface RotaNoShiftEntry {
 }
 
 export interface RotaImportPayload {
+  is_test?: boolean;
+  force?: boolean;
   version: string;
   timezone: string;
   blocks: RotaBlock[];
@@ -191,6 +193,9 @@ export function rotaImport(payload: RotaImportPayload): {
 } {
   const db = _getDb();
 
+  if (payload.is_test === true) {
+    throw new Error('Test rota rejected (is_test=true). Wait for the real run.');
+  }
   if (payload.version.startsWith('TEST-')) {
     throw new Error('TEST- prefixed versions are rejected');
   }
@@ -202,6 +207,18 @@ export function rotaImport(payload: RotaImportPayload): {
     );
   }
   const replaced = !!existing;
+
+  // Freeze guard: refuse replacement when covers/releases have happened
+  if (replaced && !payload.force) {
+    const mutations = db
+      .prepare('SELECT COUNT(*) as c FROM rota_log')
+      .get() as { c: number };
+    if (mutations.c > 0) {
+      throw new Error(
+        `Rota has ${mutations.c} mutation(s) in the log (covers/releases). Import refused to avoid losing live data. Use force flag to override.`,
+      );
+    }
+  }
 
   const ids = new Set<string>();
   for (const a of payload.assignments) {
