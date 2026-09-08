@@ -464,10 +464,16 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
           'Agent error after output was sent, skipping cursor rollback to prevent duplicates',
         );
         try {
-          await channel.sendMessage(chatJid, "Sorry, part of my response may have been cut short.", {
-            thread_id: lastReplyThreadId[chatJid],
-          });
-        } catch { /* best effort */ }
+          await channel.sendMessage(
+            chatJid,
+            'Sorry, part of my response may have been cut short.',
+            {
+              thread_id: lastReplyThreadId[chatJid],
+            },
+          );
+        } catch {
+          /* best effort */
+        }
         return true;
       }
       // Roll back cursor so retries can re-process these messages
@@ -879,131 +885,140 @@ export async function main(): Promise<void> {
       // Auto-register DMs from community members
       if (!registeredGroups[chatJid]) {
         try {
-        const chatMeta = getChatMetadata(chatJid);
-        if (chatMeta && chatMeta.is_group === 0) {
-          let community = findCommunityForUser(
-            msg.sender,
-            registeredGroups,
-            hasSenderInChat,
-          );
-
-          // Fallback: attendee registry or single-community for NFC walk-ins
-          let attendee: AttendeeRecord | null = null;
-          if (!community) {
-            attendee = resolveAttendee(
+          const chatMeta = getChatMetadata(chatJid);
+          if (chatMeta && chatMeta.is_group === 0) {
+            let community = findCommunityForUser(
               msg.sender,
-              msg.sender_name,
-              msg.sender_handle,
+              registeredGroups,
+              hasSenderInChat,
             );
-            const mainGroups = Object.entries(registeredGroups).filter(
-              ([, g]) => g.isMain,
-            );
-            if (mainGroups.length === 1) {
-              const [jid, group] = mainGroups[0];
-              const claudeMdPath = path.join(
-                resolveGroupFolderPath(group.folder),
-                'CLAUDE.md',
-              );
-              let slug = group.folder;
-              if (fs.existsSync(claudeMdPath)) {
-                const content = fs.readFileSync(claudeMdPath, 'utf-8');
-                const slugMatch = content.match(
-                  /constitution_slug:\s*"([^"]+)"/,
-                );
-                if (slugMatch) slug = slugMatch[1];
-              }
-              community = { jid, group, slug };
-            }
-          }
 
-          if (community) {
-            // Check in attendee if matched
-            if (attendee && !attendee.checked_in) {
-              attendeeCheckIn(attendee.id, msg.sender);
-              const roleSuffix =
-                attendee.role !== 'attendee' ? ` [${attendee.role}]` : '';
-              notifyAdminSummary(
-                `Check-in: ${attendee.name} (${attendee.telegram_handle || 'no handle'})${roleSuffix}`,
-              ).catch(() => {});
+            // Fallback: attendee registry or single-community for NFC walk-ins
+            let attendee: AttendeeRecord | null = null;
+            if (!community) {
+              attendee = resolveAttendee(
+                msg.sender,
+                msg.sender_name,
+                msg.sender_handle,
+              );
+              const mainGroups = Object.entries(registeredGroups).filter(
+                ([, g]) => g.isMain,
+              );
+              if (mainGroups.length === 1) {
+                const [jid, group] = mainGroups[0];
+                const claudeMdPath = path.join(
+                  resolveGroupFolderPath(group.folder),
+                  'CLAUDE.md',
+                );
+                let slug = group.folder;
+                if (fs.existsSync(claudeMdPath)) {
+                  const content = fs.readFileSync(claudeMdPath, 'utf-8');
+                  const slugMatch = content.match(
+                    /constitution_slug:\s*"([^"]+)"/,
+                  );
+                  if (slugMatch) slug = slugMatch[1];
+                }
+                community = { jid, group, slug };
+              }
+            }
+
+            if (community) {
+              // Check in attendee if matched
+              if (attendee && !attendee.checked_in) {
+                attendeeCheckIn(attendee.id, msg.sender);
+                const roleSuffix =
+                  attendee.role !== 'attendee' ? ` [${attendee.role}]` : '';
+                notifyAdminSummary(
+                  `Check-in: ${attendee.name} (${attendee.telegram_handle || 'no handle'})${roleSuffix}`,
+                ).catch(() => {});
+                logger.info(
+                  {
+                    attendee: attendee.name,
+                    role: attendee.role,
+                    sender: msg.sender,
+                  },
+                  'Attendee checked in via /start',
+                );
+              } else if (!attendee) {
+                // Walk-in — no attendee match
+                notifyAdminSummary(
+                  `Walk-in check-in: "${msg.sender_name || 'Unknown'}" (ID: ${msg.sender}, no handle). Registered as walk-in.`,
+                ).catch(() => {});
+                logger.info(
+                  { sender: msg.sender, senderName: msg.sender_name },
+                  'Walk-in registered (no attendee match)',
+                );
+              }
+
+              // Lazy-bind rota identity
+              const rotaSummary = bindRotaIdentity(
+                msg.sender,
+                attendee?.telegram_handle || undefined,
+              );
+
+              const personalContext = buildPersonalContext(
+                attendee,
+                rotaSummary,
+              );
+
+              const dmFolder = `${community.group.folder}-dm-${sanitizeForFolder(msg.sender)}`;
+              registerGroup(chatJid, {
+                name: attendee?.name || msg.sender_name || chatJid,
+                folder: dmFolder,
+                trigger: ASSISTANT_NAME,
+                added_at: new Date().toISOString(),
+                requiresTrigger: false,
+                containerConfig: {
+                  additionalMounts: [
+                    {
+                      hostPath: path.join(
+                        resolveGroupFolderPath(community.group.folder),
+                        'community-knowledge',
+                      ),
+                      containerPath: 'community-knowledge',
+                      readonly: true,
+                    },
+                  ],
+                },
+              });
+              writeDmClaudeMd(
+                dmFolder,
+                community.group.name,
+                attendee?.name || msg.sender_name || msg.sender,
+                msg.sender,
+                community.slug,
+                undefined,
+                undefined,
+                personalContext,
+              );
               logger.info(
                 {
-                  attendee: attendee.name,
-                  role: attendee.role,
+                  chatJid,
                   sender: msg.sender,
+                  community: community.group.name,
+                  dmFolder,
+                  attendeeName: attendee?.name,
                 },
-                'Attendee checked in via /start',
+                'Auto-registered DM',
               );
-            } else if (!attendee) {
-              // Walk-in — no attendee match
-              notifyAdminSummary(
-                `Walk-in check-in: "${msg.sender_name || 'Unknown'}" (ID: ${msg.sender}, no handle). Registered as walk-in.`,
-              ).catch(() => {});
-              logger.info(
-                { sender: msg.sender, senderName: msg.sender_name },
-                'Walk-in registered (no attendee match)',
-              );
-            }
 
-            // Lazy-bind rota identity
-            const rotaSummary = bindRotaIdentity(
-              msg.sender,
-              attendee?.telegram_handle || undefined,
-            );
-
-            const personalContext = buildPersonalContext(attendee, rotaSummary);
-
-            const dmFolder = `${community.group.folder}-dm-${sanitizeForFolder(msg.sender)}`;
-            registerGroup(chatJid, {
-              name: attendee?.name || msg.sender_name || chatJid,
-              folder: dmFolder,
-              trigger: ASSISTANT_NAME,
-              added_at: new Date().toISOString(),
-              requiresTrigger: false,
-              containerConfig: {
-                additionalMounts: [
-                  {
-                    hostPath: path.join(
-                      resolveGroupFolderPath(community.group.folder),
-                      'community-knowledge',
-                    ),
-                    containerPath: 'community-knowledge',
-                    readonly: true,
-                  },
-                ],
-              },
-            });
-            writeDmClaudeMd(
-              dmFolder,
-              community.group.name,
-              attendee?.name || msg.sender_name || msg.sender,
-              msg.sender,
-              community.slug,
-              undefined,
-              undefined,
-              personalContext,
-            );
-            logger.info(
-              {
-                chatJid,
-                sender: msg.sender,
-                community: community.group.name,
-                dmFolder,
-                attendeeName: attendee?.name,
-              },
-              'Auto-registered DM',
-            );
-
-            const adminIds = (ADMIN_TELEGRAM_ID || '')
-              .split(',')
-              .map((s) => s.trim())
-              .filter(Boolean);
-            if (adminIds.includes(msg.sender) || isAttendeeAdmin(msg.sender)) {
-              ensureCrewDigestTask(community.group, chatJid, msg.sender);
+              const adminIds = (ADMIN_TELEGRAM_ID || '')
+                .split(',')
+                .map((s) => s.trim())
+                .filter(Boolean);
+              if (
+                adminIds.includes(msg.sender) ||
+                isAttendeeAdmin(msg.sender)
+              ) {
+                ensureCrewDigestTask(community.group, chatJid, msg.sender);
+              }
             }
           }
-        }
         } catch (err) {
-          logger.error({ err, chatJid, sender: msg.sender }, 'DM auto-registration failed');
+          logger.error(
+            { err, chatJid, sender: msg.sender },
+            'DM auto-registration failed',
+          );
         }
       }
     },

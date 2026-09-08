@@ -91,7 +91,9 @@ export class TelegramChannel implements Channel {
       },
     });
 
-    this.bot.api.config.use(autoRetry({ maxRetryAttempts: 3, maxDelaySeconds: 60 }));
+    this.bot.api.config.use(
+      autoRetry({ maxRetryAttempts: 3, maxDelaySeconds: 60 }),
+    );
 
     // Single source of truth for all slash commands.
     // local: handled inside TelegramChannel, NOT forwarded to the agent.

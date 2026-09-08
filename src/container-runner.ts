@@ -235,7 +235,14 @@ function buildContainerArgs(
   containerName: string,
   model?: string,
 ): string[] {
-  const args: string[] = ['run', '-i', '--rm', '--init', '--name', containerName];
+  const args: string[] = [
+    'run',
+    '-i',
+    '--rm',
+    '--init',
+    '--name',
+    containerName,
+  ];
 
   // Security hardening: drop all capabilities, limit resources
   args.push('--cap-drop=ALL');

@@ -78,10 +78,16 @@ export function startIpcWatcher(deps: IpcDeps): void {
             try {
               data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
             } catch (err) {
-              logger.error({ file, sourceGroup, err }, 'IPC message parse error (permanent)');
+              logger.error(
+                { file, sourceGroup, err },
+                'IPC message parse error (permanent)',
+              );
               const errorDir = path.join(ipcBaseDir, 'errors');
               fs.mkdirSync(errorDir, { recursive: true });
-              fs.renameSync(filePath, path.join(errorDir, `${sourceGroup}-${file}`));
+              fs.renameSync(
+                filePath,
+                path.join(errorDir, `${sourceGroup}-${file}`),
+              );
               continue;
             }
             try {
@@ -114,12 +120,21 @@ export function startIpcWatcher(deps: IpcDeps): void {
             } catch (err) {
               const retryCount = (data._retries || 0) + 1;
               if (retryCount >= 3) {
-                logger.error({ file, sourceGroup, err, retryCount }, 'IPC message failed after 3 retries (permanent)');
+                logger.error(
+                  { file, sourceGroup, err, retryCount },
+                  'IPC message failed after 3 retries (permanent)',
+                );
                 const errorDir = path.join(ipcBaseDir, 'errors');
                 fs.mkdirSync(errorDir, { recursive: true });
-                fs.renameSync(filePath, path.join(errorDir, `${sourceGroup}-${file}`));
+                fs.renameSync(
+                  filePath,
+                  path.join(errorDir, `${sourceGroup}-${file}`),
+                );
               } else {
-                logger.warn({ file, sourceGroup, err, retryCount }, 'IPC message send failed (will retry)');
+                logger.warn(
+                  { file, sourceGroup, err, retryCount },
+                  'IPC message send failed (will retry)',
+                );
                 data._retries = retryCount;
                 fs.writeFileSync(filePath, JSON.stringify(data));
               }
