@@ -1,7 +1,7 @@
 {
   "name": "nanoclaw",
   "version": "1.2.17",
-  "description": "Personal Claude assistant. Lightweight, secure, customizable.",
+  "description": "Community intelligence bot. Shared memory for real-world gatherings.",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
@@ -14,7 +14,6 @@
     "format:check": "prettier --check \"src/**/*.ts\"",
     "prepare": "husky",
     "setup": "tsx setup/index.ts",
-    "auth": "tsx src/whatsapp-auth.ts",
     "seed": "tsx src/seed.ts",
     "test": "vitest run",
     "test:watch": "vitest"

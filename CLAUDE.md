@@ -4,7 +4,7 @@
 
 A bot that serves as shared memory and connective tissue for real-world communities. People in a coliving space, a gathering, a residency can ask it about the wifi password, today's schedule, who else is into music. It reads every message but mostly stays quiet. When it speaks, it's brief, warm, and honest about what it knows and doesn't know.
 
-This is a fork of [NanoClaw](https://github.com/qwibitai/nanoclaw) (a personal Claude assistant) customized with a community intelligence layer: governance templates, Mem0-based shared memory, a triage classifier, knowledge seeding, and a simulation framework for testing behavioral design.
+This is a fork of [NanoClaw](https://github.com/qwibitai/nanoclaw) (a personal Claude assistant) customized with a community intelligence layer: governance templates, Mem0-based shared memory, knowledge seeding, and a simulation framework for testing behavioral design.
 
 ## Design Principles
 
@@ -50,9 +50,9 @@ Commands are split into visible (appear in Telegram autocomplete) and hidden (wo
 
 When someone taps an NFC tag or sends `/start`, the bot auto-registers a DM if the sender is found in a registered community group. The DM gets its own container with a personalized CLAUDE.md and read-only access to community knowledge files.
 
-The community intelligence layer is ours (`governance/`, `knowledge/`, `src/triage.ts`, `src/mem0-client.ts`, `src/seed.ts`, `src/dm-registration.ts`, `src/extraction.ts`, `src/feature-config.ts`, `src/crew.ts`, `src/digest.ts`, `src/subscriptions.ts`, `src/admin-http.ts`, `src/rota-*.ts`). The runtime (IPC, containers, queue, routing) is upstream NanoClaw.
+The community intelligence layer is ours (`governance/`, `knowledge/`, `src/mem0-client.ts`, `src/seed.ts`, `src/dm-registration.ts`, `src/extraction.ts`, `src/feature-config.ts`, `src/crew.ts`, `src/digest.ts`, `src/subscriptions.ts`, `src/admin-http.ts`, `src/rota-*.ts`). The runtime (IPC, containers, queue, routing) is upstream NanoClaw.
 
-There's a 27-scenario integration sim framework (`tests/integration/sim-runner.ts` + `../sim/scenarios/`) that replaces Telegram with a SimChannel but runs everything else as production code — Docker, Mem0, extraction, IPC.
+Two sim systems: 28 behavioral scenarios at `../sim/scenarios/` (in-memory Mem0 stub, real Anthropic API), and 27 integration sims at `tests/integration/sim-runner.ts` that replace Telegram with a SimChannel but run everything else as production code — Docker, Mem0, extraction, IPC.
 
 ## Key Files
 
