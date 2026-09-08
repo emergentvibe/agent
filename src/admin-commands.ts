@@ -27,6 +27,7 @@ import {
   rotaReset,
   rotaExportBackup,
   rotaExportChangelog,
+  rotaExportTsv,
 } from './rota-db.js';
 import { generateRotaPdf, parsePrintArgs } from './rota-print.js';
 
@@ -155,6 +156,19 @@ export async function handleAdminCommand(
     return {
       handled: true,
       file: { buffer, filename: `rota-backup-${date}.json` },
+    };
+  }
+
+  if (cmd === '/admin-rota-export') {
+    const tsv = rotaExportTsv();
+    if (!tsv) {
+      return { handled: true, response: 'No rota loaded.' };
+    }
+    const buffer = Buffer.from(tsv, 'utf-8');
+    const date = new Date().toISOString().slice(0, 10);
+    return {
+      handled: true,
+      file: { buffer, filename: `rota-export-${date}.tsv` },
     };
   }
 

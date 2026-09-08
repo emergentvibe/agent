@@ -810,3 +810,72 @@ export function rotaExportChangelog(): object | undefined {
     }),
   };
 }
+
+// --- TSV export (paste-into-sheet recovery) ---
+
+export function rotaExportTsv(): string | undefined {
+  const meta = rotaGetMeta();
+  if (!meta) return undefined;
+
+  const assignments = rotaGetAllAssignments();
+  const log = rotaGetLog();
+  const lastChange = new Map<string, string>();
+  for (const l of log) {
+    lastChange.set(l.assignment_id, l.ts);
+  }
+
+  const lines: string[] = [];
+  lines.push(`exported_at\t${new Date().toISOString()}`);
+  lines.push(
+    [
+      'assignment_id',
+      'day',
+      'date',
+      'block',
+      'label',
+      'start',
+      'end',
+      'hours',
+      'weight',
+      'original_name',
+      'original_handle',
+      'current_name',
+      'current_handle',
+      'state',
+      'changed_at',
+    ].join('\t'),
+  );
+
+  for (const a of assignments) {
+    const currentName =
+      a.state === 'covered'
+        ? a.current_name || ''
+        : a.original_name || '';
+    const currentHandle =
+      a.state === 'covered'
+        ? a.current_telegram || ''
+        : a.original_telegram || '';
+
+    lines.push(
+      [
+        a.id,
+        a.day,
+        a.date,
+        a.block,
+        a.block_label,
+        a.start,
+        a.end,
+        a.hours,
+        a.weight,
+        a.original_name || '',
+        a.original_telegram || '',
+        currentName,
+        currentHandle,
+        a.state,
+        lastChange.get(a.id) || '',
+      ].join('\t'),
+    );
+  }
+
+  return lines.join('\n');
+}
