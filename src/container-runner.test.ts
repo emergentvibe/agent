@@ -207,4 +207,49 @@ describe('container-runner timeout behavior', () => {
     expect(result.status).toBe('success');
     expect(result.newSessionId).toBe('session-456');
   });
+
+  it('malformed JSON between markers does not crash', async () => {
+    const onOutput = vi.fn(async () => {});
+    const resultPromise = runContainerAgent(
+      testGroup,
+      testInput,
+      () => {},
+      onOutput,
+    );
+
+    // Emit garbage between output markers
+    fakeProc.stdout.push(`${OUTPUT_START_MARKER}\nnot valid json{{{!\n${OUTPUT_END_MARKER}\n`);
+
+    await vi.advanceTimersByTimeAsync(10);
+
+    // Container exits normally
+    fakeProc.emit('close', 0);
+
+    await vi.advanceTimersByTimeAsync(10);
+
+    const result = await resultPromise;
+    // Malformed JSON is silently dropped — no crash, no onOutput call
+    expect(onOutput).not.toHaveBeenCalled();
+    // Container exited 0 so result is success (no parsed output)
+    expect(result.status).toBe('success');
+  });
+
+  it('container exit with no output resolves as error', async () => {
+    const onOutput = vi.fn(async () => {});
+    const resultPromise = runContainerAgent(
+      testGroup,
+      testInput,
+      () => {},
+      onOutput,
+    );
+
+    // Container exits immediately with no output
+    fakeProc.emit('close', 1);
+
+    await vi.advanceTimersByTimeAsync(10);
+
+    const result = await resultPromise;
+    expect(result.status).toBe('error');
+    expect(onOutput).not.toHaveBeenCalled();
+  });
 });

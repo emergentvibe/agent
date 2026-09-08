@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { _initTestDatabase, createTask, getTaskById } from './db.js';
+import { _initTestDatabase, createTask, getDueTasks, getTaskById, updateTaskAfterRun } from './db.js';
 import {
   _resetSchedulerLoopForTests,
   computeNextRun,
@@ -125,5 +125,81 @@ describe('task scheduler', () => {
     const offset =
       (new Date(nextRun!).getTime() - new Date(scheduledTime).getTime()) % ms;
     expect(offset).toBe(0);
+  });
+
+  it('getDueTasks returns tasks whose next_run is in the past', () => {
+    createTask({
+      id: 'due-task',
+      group_folder: 'telegram_test',
+      chat_jid: 'tg:-100',
+      prompt: 'check something',
+      schedule_type: 'interval',
+      schedule_value: '60000',
+      context_mode: 'isolated',
+      next_run: new Date(Date.now() - 5000).toISOString(),
+      status: 'active',
+      created_at: '2026-01-01T00:00:00.000Z',
+    });
+    createTask({
+      id: 'future-task',
+      group_folder: 'telegram_test',
+      chat_jid: 'tg:-100',
+      prompt: 'not yet',
+      schedule_type: 'interval',
+      schedule_value: '60000',
+      context_mode: 'isolated',
+      next_run: new Date(Date.now() + 60000).toISOString(),
+      status: 'active',
+      created_at: '2026-01-01T00:00:00.000Z',
+    });
+
+    const due = getDueTasks();
+    expect(due).toHaveLength(1);
+    expect(due[0].id).toBe('due-task');
+  });
+
+  it('updateTaskAfterRun advances next_run for interval tasks', () => {
+    const scheduledTime = new Date(Date.now() - 2000).toISOString();
+    createTask({
+      id: 'advance-test',
+      group_folder: 'telegram_test',
+      chat_jid: 'tg:-100',
+      prompt: 'test',
+      schedule_type: 'interval',
+      schedule_value: '60000',
+      context_mode: 'isolated',
+      next_run: scheduledTime,
+      status: 'active',
+      created_at: '2026-01-01T00:00:00.000Z',
+    });
+
+    const task = getTaskById('advance-test')!;
+    const nextRun = computeNextRun(task);
+    updateTaskAfterRun(task.id, nextRun, 'done');
+
+    const updated = getTaskById('advance-test')!;
+    expect(updated.last_result).toBe('done');
+    expect(updated.next_run).toBe(nextRun);
+    expect(new Date(updated.next_run!).getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it('updateTaskAfterRun sets status to completed for once-tasks', () => {
+    createTask({
+      id: 'once-complete',
+      group_folder: 'telegram_test',
+      chat_jid: 'tg:-100',
+      prompt: 'run once',
+      schedule_type: 'once',
+      schedule_value: new Date(Date.now() - 1000).toISOString(),
+      context_mode: 'isolated',
+      next_run: new Date(Date.now() - 1000).toISOString(),
+      status: 'active',
+      created_at: '2026-01-01T00:00:00.000Z',
+    });
+
+    updateTaskAfterRun('once-complete', null, 'done');
+
+    const updated = getTaskById('once-complete')!;
+    expect(updated.status).toBe('completed');
   });
 });

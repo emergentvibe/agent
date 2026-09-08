@@ -422,3 +422,90 @@ describe('purchase tracking', () => {
     expect(getUserTotal('unknown')).toBe(0);
   });
 });
+
+// --- Outbound routing ---
+
+import { routeOutbound, findChannel, formatOutbound, stripInternalTags } from './router.js';
+import type { Channel } from './types.js';
+
+function fakeChannel(prefix: string, connected = true): Channel {
+  return {
+    name: `${prefix}-channel`,
+    ownsJid: (jid: string) => jid.startsWith(prefix),
+    isConnected: () => connected,
+    sendMessage: vi.fn(async () => {}),
+    connect: vi.fn(async () => {}),
+    disconnect: vi.fn(async () => {}),
+  };
+}
+
+describe('routeOutbound', () => {
+  it('routes to the correct channel by JID prefix', async () => {
+    const tg = fakeChannel('tg:');
+    const wa = fakeChannel('wa:');
+
+    await routeOutbound([tg, wa], 'tg:-100123', 'hello');
+    expect(tg.sendMessage).toHaveBeenCalledWith('tg:-100123', 'hello', undefined);
+    expect(wa.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('passes thread_id through to channel', async () => {
+    const tg = fakeChannel('tg:');
+
+    await routeOutbound([tg], 'tg:-100', 'reply', { thread_id: 42 });
+    expect(tg.sendMessage).toHaveBeenCalledWith('tg:-100', 'reply', { thread_id: 42 });
+  });
+
+  it('throws when no channel matches JID', () => {
+    const tg = fakeChannel('tg:');
+    expect(() => routeOutbound([tg], 'dc:999', 'oops')).toThrow('No channel for JID');
+  });
+
+  it('skips disconnected channels', () => {
+    const disconnected = fakeChannel('tg:', false);
+    const connected = fakeChannel('tg:', true);
+
+    routeOutbound([disconnected, connected], 'tg:-100', 'test');
+    expect(disconnected.sendMessage).not.toHaveBeenCalled();
+    expect(connected.sendMessage).toHaveBeenCalled();
+  });
+});
+
+describe('findChannel', () => {
+  it('returns the channel that owns the JID', () => {
+    const tg = fakeChannel('tg:');
+    const wa = fakeChannel('wa:');
+    expect(findChannel([tg, wa], 'wa:123')).toBe(wa);
+  });
+
+  it('returns undefined when no channel matches', () => {
+    const tg = fakeChannel('tg:');
+    expect(findChannel([tg], 'dc:123')).toBeUndefined();
+  });
+});
+
+describe('formatOutbound', () => {
+  it('strips internal tags', () => {
+    expect(formatOutbound('<internal>debug</internal>Hello!')).toBe('Hello!');
+  });
+
+  it('returns empty string when only internal tags', () => {
+    expect(formatOutbound('<internal>all hidden</internal>')).toBe('');
+  });
+
+  it('returns text unchanged without internal tags', () => {
+    expect(formatOutbound('Just a message')).toBe('Just a message');
+  });
+});
+
+describe('stripInternalTags', () => {
+  it('handles multiple internal blocks', () => {
+    const input = 'before<internal>hidden1</internal>mid<internal>hidden2</internal>after';
+    expect(stripInternalTags(input)).toBe('beforemidafter');
+  });
+
+  it('handles multiline internal content', () => {
+    const input = 'hello<internal>\nline1\nline2\n</internal>world';
+    expect(stripInternalTags(input)).toBe('helloworld');
+  });
+});

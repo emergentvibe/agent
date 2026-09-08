@@ -6,13 +6,20 @@ import {
   deleteTask,
   getAllChats,
   getAllRegisteredGroups,
+  getAllSessions,
   getMessagesBefore,
   getMessagesSince,
   getNewMessages,
+  getRouterState,
+  getSession,
   getTaskById,
   isAnyPurchaseTopic,
+  isExtractionEnabled,
   isPurchaseTopicForCategory,
   setRegisteredGroup,
+  setRouterState,
+  setSession,
+  setTopicExtraction,
   storeChatMetadata,
   storeMessage,
   updateTask,
@@ -579,5 +586,114 @@ describe('purchase topic matching', () => {
       expect(isAnyPurchaseTopic(null)).toBe(false);
       expect(isAnyPurchaseTopic(undefined)).toBe(false);
     });
+  });
+});
+
+// --- Router state round-trip ---
+
+describe('router state', () => {
+  it('round-trips a value', () => {
+    setRouterState('cursor', '2026-09-01T00:00:00Z');
+    expect(getRouterState('cursor')).toBe('2026-09-01T00:00:00Z');
+  });
+
+  it('overwrites an existing key', () => {
+    setRouterState('cursor', 'old');
+    setRouterState('cursor', 'new');
+    expect(getRouterState('cursor')).toBe('new');
+  });
+
+  it('returns undefined for missing key', () => {
+    expect(getRouterState('nonexistent')).toBeUndefined();
+  });
+
+  it('handles JSON values', () => {
+    const timestamps = { 'tg:-100': '2026-09-01', 'tg:-200': '2026-09-02' };
+    setRouterState('extraction_ts', JSON.stringify(timestamps));
+    const retrieved = JSON.parse(getRouterState('extraction_ts')!);
+    expect(retrieved).toEqual(timestamps);
+  });
+});
+
+// --- Session round-trip ---
+
+describe('sessions', () => {
+  it('round-trips a session ID', () => {
+    setSession('telegram_topic-test', 'sess-abc123');
+    expect(getSession('telegram_topic-test')).toBe('sess-abc123');
+  });
+
+  it('overwrites session on re-set', () => {
+    setSession('telegram_topic-test', 'old-sess');
+    setSession('telegram_topic-test', 'new-sess');
+    expect(getSession('telegram_topic-test')).toBe('new-sess');
+  });
+
+  it('returns undefined for unknown group', () => {
+    expect(getSession('nonexistent-group')).toBeUndefined();
+  });
+
+  it('getAllSessions returns all stored sessions', () => {
+    setSession('group-a', 'sess-1');
+    setSession('group-b', 'sess-2');
+    setSession('group-c', 'sess-3');
+    const all = getAllSessions();
+    expect(all).toEqual({
+      'group-a': 'sess-1',
+      'group-b': 'sess-2',
+      'group-c': 'sess-3',
+    });
+  });
+
+  it('getAllSessions returns empty object when no sessions', () => {
+    expect(getAllSessions()).toEqual({});
+  });
+});
+
+// --- Extraction per-topic gating ---
+
+describe('isExtractionEnabled', () => {
+  const chatJid = 'tg:-1001234';
+
+  it('General topic (null thread) is always enabled', () => {
+    expect(isExtractionEnabled(chatJid, null)).toBe(true);
+    expect(isExtractionEnabled(chatJid, undefined)).toBe(true);
+  });
+
+  it('General topic (thread_id 1) is always enabled', () => {
+    expect(isExtractionEnabled(chatJid, 1)).toBe(true);
+  });
+
+  it('unknown topic defaults to OFF', () => {
+    expect(isExtractionEnabled(chatJid, 999)).toBe(false);
+  });
+
+  it('new topic defaults to extraction OFF', () => {
+    upsertTopic(chatJid, 42, 'Kitchen Chat');
+    expect(isExtractionEnabled(chatJid, 42)).toBe(false);
+  });
+
+  it('returns true after extraction is toggled ON', () => {
+    upsertTopic(chatJid, 50, 'Events');
+    expect(isExtractionEnabled(chatJid, 50)).toBe(false);
+    setTopicExtraction(chatJid, 50, true);
+    expect(isExtractionEnabled(chatJid, 50)).toBe(true);
+  });
+
+  it('can toggle extraction back OFF', () => {
+    upsertTopic(chatJid, 60, 'Logistics');
+    setTopicExtraction(chatJid, 60, true);
+    expect(isExtractionEnabled(chatJid, 60)).toBe(true);
+    setTopicExtraction(chatJid, 60, false);
+    expect(isExtractionEnabled(chatJid, 60)).toBe(false);
+  });
+
+  it('different chats have independent gating', () => {
+    const other = 'tg:-1005678';
+    upsertTopic(chatJid, 70, 'Music');
+    upsertTopic(other, 70, 'Music');
+    setTopicExtraction(chatJid, 70, true);
+    expect(isExtractionEnabled(chatJid, 70)).toBe(true);
+    expect(isExtractionEnabled(other, 70)).toBe(false);
   });
 });
