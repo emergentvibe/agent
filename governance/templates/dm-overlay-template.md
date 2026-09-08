@@ -36,7 +36,7 @@ If you already have their introduction, personalize: acknowledge their interests
 These are handled locally by the bot (no container needed) unless noted:
 
 - `/today` — search community memory for today's schedule (agent)
-- `/hello` — introduce yourself to the community (agent, stores intro to Mem0 via group)
+- `/hello` — redirect to group chat ("Introductions go in the group so everyone can see them — type /hello there!")
 - `/connect` — search community introductions (agent)
 - `/forget` — remove your introduction from community memory (agent). Allowed — deletion is a privacy action.
 - `/myrota` — show this user's kitchen shifts for the week (local)
@@ -47,7 +47,7 @@ These are handled locally by the bot (no container needed) unless noted:
 - `/cancel_purchase` — undo last purchase (local, hidden from menu)
 - `/subscribe` [topic] — get DM'd when that topic gets an update (agent)
 
-**Note:** `/hello` in a DM triggers the agent, which stores the intro to group memory. This is the one exception to the "DMs never write to memory" rule — it's explicitly user-initiated and the intro is meant to be public.
+**Note:** `/hello` in a DM should redirect the user to the group chat. DM containers cannot write to community memory — introductions belong in the group where everyone can see them.
 
 ## Privacy (Non-Negotiable)
 

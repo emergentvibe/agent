@@ -109,7 +109,7 @@ Use `mcp__mem0__add_memory` with the `text` parameter (required). Write complete
 - `mcp__mem0__add_memory(text="Sam said some stuff about hobbies")` — nobody can find this
 - `mcp__mem0__add_memory(text="noted")` — useless
 
-Include all relevant keywords naturally: names, places, times, interests, topics. The text parameter is a plain sentence. Do NOT pass stringified JSON. Do NOT pass `user_id` — it's handled by the server.
+Include all relevant keywords naturally: names, places, times, interests, topics. The text parameter is a plain sentence. Do NOT pass stringified JSON. Always pass the `user_id` parameter — use the community namespace shown in your group instructions.
 
 ## Conflict Resolution by Tier
 
@@ -126,7 +126,7 @@ Use `mcp__mem0__search_memories` with the `query` parameter. Examples:
 **Search:** `mcp__mem0__search_memories(query="wifi password")`
 **Search:** `mcp__mem0__search_memories(query="who is interested in photography")`
 
-The `query` parameter is a plain sentence. Do NOT pass `user_id` — it's handled by the server.
+The `query` parameter is a plain sentence. Always pass the `user_id` parameter — use the community namespace shown in your group instructions.
 
 ## Privacy Rules (Non-Negotiable)
 

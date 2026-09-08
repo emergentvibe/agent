@@ -107,6 +107,8 @@ export class TelegramChannel implements Channel {
         command: 'forget',
         description: 'Remove your introduction from memory',
       },
+      { command: 'subscribe', description: 'Get notified about a topic' },
+      { command: 'unsubscribe', description: 'Stop notifications for a topic' },
       { command: 'bar', description: 'Buy a drink', local: true },
       { command: 'bbq', description: 'Buy food from the grill', local: true },
       { command: 'purchase', description: 'Buy something', local: true },

@@ -61,11 +61,24 @@ export function loadTemplate(templateDir?: string): string {
   return base + '\n\n' + group;
 }
 
-export function buildClaudeMd(template: string, group: GroupConfig, data: ConstitutionData, apiUrl: string): string {
+function readCrewNames(groupFolder: string, basePath?: string): string | null {
+  const crewPath = path.join(basePath || process.cwd(), 'groups', groupFolder, 'crew.json');
+  try {
+    if (!fs.existsSync(crewPath)) return null;
+    const raw = JSON.parse(fs.readFileSync(crewPath, 'utf-8'));
+    const members: Array<{ name: string }> = Array.isArray(raw) ? raw : raw.members || [];
+    if (members.length === 0) return null;
+    return members.map((m) => m.name).join(', ');
+  } catch {
+    return null;
+  }
+}
+
+export function buildClaudeMd(template: string, group: GroupConfig, data: ConstitutionData, apiUrl: string, basePath?: string): string {
   const isFullGovernance = group.governance_mode === 'full';
   const govStatus = isFullGovernance ? 'ON' : 'OFF';
 
-  const crewList = group.crew_list || 'the crew';
+  const crewList = group.crew_list || readCrewNames(group.folder, basePath) || 'the crew';
   const assistantName = group.assistant_name || process.env.ASSISTANT_NAME || 'Andy';
 
   return template
@@ -114,7 +127,7 @@ export async function syncGroup(group: GroupConfig, apiUrl: string, basePath?: s
   }
 
   const template = loadTemplate();
-  const claudeMd = buildClaudeMd(template, group, data, apiUrl);
+  const claudeMd = buildClaudeMd(template, group, data, apiUrl, base);
 
   const groupDir = path.resolve(base, 'groups', group.folder);
   fs.mkdirSync(groupDir, { recursive: true });
