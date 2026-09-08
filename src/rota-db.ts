@@ -194,7 +194,9 @@ export function rotaImport(payload: RotaImportPayload): {
   const db = _getDb();
 
   if (payload.is_test === true) {
-    throw new Error('Test rota rejected (is_test=true). Wait for the real run.');
+    throw new Error(
+      'Test rota rejected (is_test=true). Wait for the real run.',
+    );
   }
   if (payload.version.startsWith('TEST-')) {
     throw new Error('TEST- prefixed versions are rejected');
@@ -714,6 +716,69 @@ export function rotaBuildStateResponse(): object | undefined {
       assignment_id: l.assignment_id,
       from: l.from_person,
       to: l.to_person,
+      reason: l.reason,
+    })),
+  };
+}
+
+// --- Backup export (full dump, reimportable + covers) ---
+
+export function rotaExportBackup(): object | undefined {
+  const db = _getDb();
+  const meta = rotaGetMeta();
+  if (!meta) return undefined;
+
+  const bigNightsRaw = db
+    .prepare("SELECT value FROM rota_meta WHERE key = 'big_nights'")
+    .get() as { value: string } | undefined;
+  const big_nights: number[] = bigNightsRaw
+    ? JSON.parse(bigNightsRaw.value)
+    : [];
+
+  const blocks = db
+    .prepare('SELECT * FROM rota_blocks ORDER BY start')
+    .all() as RotaBlock[];
+
+  const assignments = rotaGetAllAssignments();
+  const log = rotaGetLog();
+
+  const noShifts = db
+    .prepare('SELECT * FROM rota_no_shifts')
+    .all() as RotaNoShiftEntry[];
+
+  return {
+    exported_at: new Date().toISOString(),
+    version: meta.version,
+    timezone: meta.timezone,
+    blocks,
+    big_nights,
+    no_shifts: noShifts,
+    assignments: assignments.map((a) => ({
+      id: a.id,
+      day: a.day,
+      date: a.date,
+      block: a.block,
+      block_label: a.block_label,
+      slot: a.slot,
+      start: a.start,
+      end: a.end,
+      hours: a.hours,
+      weight: a.weight,
+      person_id: a.original_person,
+      name: a.original_name,
+      telegram: a.original_telegram,
+      telegram_id: a.original_telegram_id,
+      state: a.state,
+      current_person_id: a.state === 'covered' ? a.current_person : undefined,
+      current_name: a.state === 'covered' ? a.current_name : undefined,
+      current_telegram:
+        a.state === 'covered' ? a.current_telegram : undefined,
+    })),
+    covers: log.map((l) => ({
+      ts: l.ts,
+      assignment_id: l.assignment_id,
+      from_person_id: l.from_person,
+      to_person_id: l.to_person,
       reason: l.reason,
     })),
   };
