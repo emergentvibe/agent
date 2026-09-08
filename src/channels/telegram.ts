@@ -1,6 +1,7 @@
 import fs from 'fs';
 import https from 'https';
 import path from 'path';
+import { autoRetry } from '@grammyjs/auto-retry';
 import { Api, Bot, InlineKeyboard, InputFile } from 'grammy';
 
 import {
@@ -89,6 +90,8 @@ export class TelegramChannel implements Channel {
         baseFetchConfig: { agent: https.globalAgent, compress: true },
       },
     });
+
+    this.bot.api.config.use(autoRetry({ maxRetryAttempts: 3, maxDelaySeconds: 60 }));
 
     // Single source of truth for all slash commands.
     // local: handled inside TelegramChannel, NOT forwarded to the agent.

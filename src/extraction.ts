@@ -277,18 +277,29 @@ async function runExtractionCycle(deps: ExtractionLoopDeps): Promise<void> {
       group.name,
     );
 
+    let storeFailures = 0;
     for (const mem of result.memories) {
       try {
         await storeMemory(mem.text, mem.user_id, mem.metadata);
       } catch (err) {
+        storeFailures++;
         logger.warn({ err }, 'Failed to store extracted memory');
       }
     }
 
-    // Notify subscribers of matching memories
+    // Notify subscribers even on partial success
     const features = loadFeatureConfig(group.folder);
     if (features.commands.subscribe && result.memories.length > 0) {
       notifySubscribers(group.folder, result.memories);
+    }
+
+    // Don't advance cursor if most stores failed — retry next cycle
+    if (result.memories.length > 0 && storeFailures > result.memories.length / 2) {
+      logger.warn(
+        { storeFailures, total: result.memories.length, group: group.name },
+        'Mem0 store failure rate >50% — cursor not advanced, will retry',
+      );
+      continue;
     }
 
     extractionTimestamps[chatJid] =

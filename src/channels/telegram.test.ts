@@ -55,6 +55,7 @@ vi.mock('grammy', () => ({
       sendMessage: vi.fn().mockResolvedValue(undefined),
       sendChatAction: vi.fn().mockResolvedValue(undefined),
       setMyCommands: vi.fn().mockResolvedValue(undefined),
+      config: { use: vi.fn() },
     };
 
     constructor(token: string) {

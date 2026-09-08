@@ -74,10 +74,18 @@ export function startIpcWatcher(deps: IpcDeps): void {
             .filter((f) => f.endsWith('.json'));
           for (const file of messageFiles) {
             const filePath = path.join(messagesDir, file);
+            let data: any;
             try {
-              const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+              data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+            } catch (err) {
+              logger.error({ file, sourceGroup, err }, 'IPC message parse error (permanent)');
+              const errorDir = path.join(ipcBaseDir, 'errors');
+              fs.mkdirSync(errorDir, { recursive: true });
+              fs.renameSync(filePath, path.join(errorDir, `${sourceGroup}-${file}`));
+              continue;
+            }
+            try {
               if (data.type === 'message' && data.chatJid && data.text) {
-                // Authorization: verify this group can send to this chatJid
                 const targetGroup = registeredGroups[data.chatJid];
                 if (
                   isMain ||
@@ -104,16 +112,17 @@ export function startIpcWatcher(deps: IpcDeps): void {
               }
               fs.unlinkSync(filePath);
             } catch (err) {
-              logger.error(
-                { file, sourceGroup, err },
-                'Error processing IPC message',
-              );
-              const errorDir = path.join(ipcBaseDir, 'errors');
-              fs.mkdirSync(errorDir, { recursive: true });
-              fs.renameSync(
-                filePath,
-                path.join(errorDir, `${sourceGroup}-${file}`),
-              );
+              const retryCount = (data._retries || 0) + 1;
+              if (retryCount >= 3) {
+                logger.error({ file, sourceGroup, err, retryCount }, 'IPC message failed after 3 retries (permanent)');
+                const errorDir = path.join(ipcBaseDir, 'errors');
+                fs.mkdirSync(errorDir, { recursive: true });
+                fs.renameSync(filePath, path.join(errorDir, `${sourceGroup}-${file}`));
+              } else {
+                logger.warn({ file, sourceGroup, err, retryCount }, 'IPC message send failed (will retry)');
+                data._retries = retryCount;
+                fs.writeFileSync(filePath, JSON.stringify(data));
+              }
             }
           }
         }

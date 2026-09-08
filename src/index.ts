@@ -463,6 +463,11 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
           { group: group.name },
           'Agent error after output was sent, skipping cursor rollback to prevent duplicates',
         );
+        try {
+          await channel.sendMessage(chatJid, "Sorry, part of my response may have been cut short.", {
+            thread_id: lastReplyThreadId[chatJid],
+          });
+        } catch { /* best effort */ }
         return true;
       }
       // Roll back cursor so retries can re-process these messages
@@ -873,6 +878,7 @@ export async function main(): Promise<void> {
 
       // Auto-register DMs from community members
       if (!registeredGroups[chatJid]) {
+        try {
         const chatMeta = getChatMetadata(chatJid);
         if (chatMeta && chatMeta.is_group === 0) {
           let community = findCommunityForUser(
@@ -995,6 +1001,9 @@ export async function main(): Promise<void> {
               ensureCrewDigestTask(community.group, chatJid, msg.sender);
             }
           }
+        }
+        } catch (err) {
+          logger.error({ err, chatJid, sender: msg.sender }, 'DM auto-registration failed');
         }
       }
     },
