@@ -90,8 +90,11 @@ export function adaptAttendeeExport(
 
 // --- Rota adapter ---
 
-export function adaptRotaExport(sheet: SheetRotaExport): RotaImportPayload {
-  if (sheet.is_test) {
+export function adaptRotaExport(
+  sheet: SheetRotaExport,
+  opts?: { allowTest?: boolean },
+): RotaImportPayload {
+  if (sheet.is_test && !opts?.allowTest) {
     throw new Error(
       'Refusing test rota (is_test=true). Wait for the real run.',
     );
@@ -132,9 +135,11 @@ export function adaptRotaExport(sheet: SheetRotaExport): RotaImportPayload {
     reason: ns.reason,
   }));
 
+  const version = sheet.generated_at.replace(/^TEST-\s*/, '');
+
   return {
     is_test: false,
-    version: sheet.generated_at,
+    version,
     timezone: sheet.timezone,
     blocks,
     big_nights: sheet.big_nights.map((bn) => bn.day),

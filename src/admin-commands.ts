@@ -12,6 +12,7 @@ import {
   isAttendeeAdmin,
   type AttendeeImportPayload,
 } from './attendee-db.js';
+import { adaptAttendeeExport } from './sheet-adapter.js';
 import {
   getAllPurchases,
   getAllPurchaseTotals,
@@ -279,13 +280,25 @@ export function handleAttendeeImportFile(
 ): AdminCommandResult {
   clearAttendeeImportState();
   try {
-    const payload = JSON.parse(jsonString) as AttendeeImportPayload;
-    if (!payload.attendees || !Array.isArray(payload.attendees)) {
+    const parsed = JSON.parse(jsonString);
+
+    let payload: AttendeeImportPayload;
+    if (Array.isArray(parsed.people)) {
+      payload = adaptAttendeeExport(
+        parsed.people,
+        parsed.generated_at || 'unknown',
+        parsed.event || 'unknown',
+      );
+    } else if (Array.isArray(parsed.attendees)) {
+      payload = parsed as AttendeeImportPayload;
+    } else {
       return {
         handled: true,
-        response: 'Invalid format: expected { attendees: [...] }',
+        response:
+          'Invalid format: expected { people: [...] } or { attendees: [...] }',
       };
     }
+
     const result = attendeeImport(payload);
     return {
       handled: true,

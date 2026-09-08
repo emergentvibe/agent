@@ -29,6 +29,7 @@ import {
 } from '../admin-commands.js';
 import { rotaImport, rotaReset, rotaGetMeta } from '../rota-db.js';
 import type { RotaImportPayload } from '../rota-db.js';
+import { adaptRotaExport, type SheetRotaExport } from '../sheet-adapter.js';
 import { isCrewMember } from '../crew.js';
 import { rotaCommandEntries, registerRotaCommands } from '../rota-commands.js';
 import { registerChannel, ChannelOpts } from './registry.js';
@@ -677,12 +678,31 @@ export class TelegramChannel implements Channel {
       }
 
       const text = await response.text();
-      let payload: RotaImportPayload;
+      let parsed: any;
       try {
-        payload = JSON.parse(text);
+        parsed = JSON.parse(text);
       } catch {
         await ctx.reply('Invalid JSON. Check the file and try again.');
         return;
+      }
+
+      let payload: RotaImportPayload;
+      if (parsed.schema_version) {
+        try {
+          payload = adaptRotaExport(parsed as SheetRotaExport, {
+            allowTest: true,
+          });
+          if (parsed.is_test) {
+            await ctx.reply(
+              `Note: this is a test rota (${parsed.test_reason || 'is_test=true'}). Importing anyway.`,
+            );
+          }
+        } catch (err: any) {
+          await ctx.reply(`Sheet adapter failed: ${err.message}`);
+          return;
+        }
+      } else {
+        payload = parsed as RotaImportPayload;
       }
 
       if (!payload.version || !payload.assignments || !payload.blocks) {
