@@ -336,7 +336,8 @@ export function registerRotaCommands(
     }
 
     const lines: string[] = ['*Your shifts*\n'];
-    let totalWeighted = 0;
+    let totalHours = 0;
+    let totalLoad = 0;
 
     for (const a of myShifts) {
       let status = '';
@@ -344,10 +345,15 @@ export function registerRotaCommands(
       else if (a.state === 'covered')
         status = ` — covered by ${a.current_name || '???'}`;
       lines.push(`${formatDate(a.date)}: ${formatAssignment(a)}${status}`);
-      totalWeighted += a.weight;
+      totalHours += a.hours;
+      totalLoad += a.weight;
     }
 
-    lines.push(`\nWeighted hours: ${totalWeighted.toFixed(1)}`);
+    const summary =
+      totalHours === totalLoad
+        ? `\nTotal: ${totalHours.toFixed(1)} hours`
+        : `\nYou've worked ${totalHours.toFixed(1)} hours (load ${totalLoad.toFixed(1)})`;
+    lines.push(summary);
     await ctx.reply(lines.join('\n'), { parse_mode: 'Markdown' });
   });
 

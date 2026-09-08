@@ -28,30 +28,27 @@ function groupByBlock(assignments: RotaAssignment[]): BlockGroup[] {
 
 function formatPersonLine(a: RotaAssignment): string {
   if (a.state === 'open' && a.original_name) {
-    return `${a.original_name} ${a.original_telegram || ''} — cover requested`.trim();
+    return `${a.original_name} — cover requested`;
   }
   if (a.state === 'open') {
-    return 'OPEN — tap to claim';
+    return 'OPEN';
   }
   if (a.state === 'covered') {
     const orig = a.original_name || '???';
-    const coverer =
-      `${a.current_name || '???'} ${a.current_telegram || ''}`.trim();
-    return `${orig} → ${coverer.toUpperCase()} covering`;
+    const coverer = a.current_name || '???';
+    return `${orig} → ${coverer} covering`;
   }
-  return `${a.current_name || a.original_name || '???'} ${a.original_telegram || ''}`.trim();
+  return a.current_name || a.original_name || '???';
 }
 
 function formatDateHeader(date: string, day?: number): string {
   const d = new Date(date + 'T12:00:00');
-  const weekday = d
-    .toLocaleDateString('en-GB', { weekday: 'long' })
-    .toUpperCase();
+  const weekday = d.toLocaleDateString('en-GB', { weekday: 'short' });
   const dateStr = d.toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'short',
   });
-  const dayLabel = day ? `  ·  day ${day}` : '';
+  const dayLabel = day ? `  ·  Day ${day}` : '';
   return `${weekday} ${dateStr}${dayLabel}`;
 }
 
