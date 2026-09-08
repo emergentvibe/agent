@@ -51,11 +51,18 @@ export interface RotaMeta {
   imported_at: string;
 }
 
+export interface RotaNoShiftEntry {
+  person_id: string;
+  name: string;
+  reason: string;
+}
+
 export interface RotaImportPayload {
   version: string;
   timezone: string;
   blocks: RotaBlock[];
   big_nights: number[];
+  no_shifts?: RotaNoShiftEntry[];
   assignments: Array<{
     id: string;
     day: number;
@@ -127,6 +134,12 @@ export function createRotaSchema(database: Database.Database): void {
       assignment_id TEXT NOT NULL,
       from_person TEXT,
       to_person TEXT,
+      reason TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS rota_no_shifts (
+      person_id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
       reason TEXT NOT NULL
     );
 
@@ -212,6 +225,7 @@ export function rotaImport(payload: RotaImportPayload): {
     db.prepare('DELETE FROM rota_blocks').run();
     db.prepare('DELETE FROM rota_log').run();
     db.prepare('DELETE FROM rota_notifications').run();
+    db.prepare('DELETE FROM rota_no_shifts').run();
 
     db.prepare('DELETE FROM rota_meta').run();
     db.prepare('INSERT INTO rota_meta (key, value) VALUES (?, ?)').run(
@@ -274,12 +288,21 @@ export function rotaImport(payload: RotaImportPayload): {
         null,
       );
     }
+
+    if (payload.no_shifts && payload.no_shifts.length > 0) {
+      const insertNoShift = db.prepare(
+        'INSERT INTO rota_no_shifts (person_id, name, reason) VALUES (?, ?, ?)',
+      );
+      for (const ns of payload.no_shifts) {
+        insertNoShift.run(ns.person_id, ns.name, ns.reason);
+      }
+    }
   });
 
   txn();
 
   logger.info(
-    `Rota imported: ${payload.assignments.length} assignments, version=${payload.version}, replaced=${replaced}`,
+    `Rota imported: ${payload.assignments.length} assignments, ${payload.no_shifts?.length || 0} no-shift entries, version=${payload.version}, replaced=${replaced}`,
   );
   return { inserted: payload.assignments.length, replaced };
 }
@@ -383,6 +406,22 @@ export function rotaGetCoveredByPerson(telegramId: string): RotaAssignment[] {
       `SELECT * FROM rota_assignments WHERE current_person = ? AND state = 'covered' ORDER BY day, start`,
     )
     .all(telegramId) as RotaAssignment[];
+}
+
+export function rotaGetNoShiftReason(personId: string): string | null {
+  const db = _getDb();
+  const row = db
+    .prepare('SELECT reason FROM rota_no_shifts WHERE person_id = ?')
+    .get(personId) as { reason: string } | undefined;
+  return row?.reason ?? null;
+}
+
+export function rotaGetNoShiftByName(name: string): RotaNoShiftEntry | null {
+  const db = _getDb();
+  const row = db
+    .prepare('SELECT * FROM rota_no_shifts WHERE LOWER(name) = LOWER(?)')
+    .get(name) as RotaNoShiftEntry | undefined;
+  return row ?? null;
 }
 
 // --- Mutations ---
@@ -539,6 +578,7 @@ export function rotaReset(): void {
     db.prepare('DELETE FROM rota_meta').run();
     db.prepare('DELETE FROM rota_log').run();
     db.prepare('DELETE FROM rota_notifications').run();
+    db.prepare('DELETE FROM rota_no_shifts').run();
   });
   txn();
   logger.info('Rota: all tables cleared');

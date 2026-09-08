@@ -11,6 +11,7 @@ import {
   attendeeImport,
   attendeeLookupByHandle,
   attendeeLookupByName,
+  attendeeLookupByPersonId,
   attendeeLookupByPhone,
   attendeeLookupByTelegramDisplay,
   attendeeLookupByTelegramId,
@@ -347,6 +348,82 @@ describe('attendee-db', () => {
       expect(attendeeGetAll().length).toBe(4);
       attendeeClear();
       expect(attendeeGetAll().length).toBe(0);
+    });
+  });
+
+  describe('person_id and title', () => {
+    it('stores and retrieves person_id', () => {
+      attendeeImport({
+        version: '1',
+        event: 'Test',
+        attendees: [
+          { name: 'Loz', person_id: 'abc123', telegram: '@loz', role: 'crew' },
+        ],
+      });
+      const found = attendeeLookupByPersonId('abc123');
+      expect(found).not.toBeNull();
+      expect(found!.name).toBe('Loz');
+    });
+
+    it('stores and retrieves title', () => {
+      attendeeImport({
+        version: '1',
+        event: 'Test',
+        attendees: [
+          {
+            name: 'Loz',
+            person_id: 'abc123',
+            role: 'crew',
+            title: 'Head of Dishes',
+          },
+        ],
+      });
+      const found = attendeeLookupByPersonId('abc123');
+      expect(found!.title).toBe('Head of Dishes');
+    });
+
+    it('normalizes organiser to organizer', () => {
+      attendeeImport({
+        version: '1',
+        event: 'Test',
+        attendees: [
+          { name: 'Simon', person_id: 's1', role: 'organiser' },
+        ],
+      });
+      const found = attendeeLookupByPersonId('s1');
+      expect(found!.role).toBe('organizer');
+    });
+
+    it('accepts telegram_username field', () => {
+      attendeeImport({
+        version: '1',
+        event: 'Test',
+        attendees: [
+          { name: 'Jo', telegram_username: '@jo_tg', role: 'attendee' },
+        ],
+      });
+      const found = attendeeLookupByHandle('@jo_tg');
+      expect(found).not.toBeNull();
+      expect(found!.name).toBe('Jo');
+    });
+
+    it('upsert preserves person_id on re-import', () => {
+      attendeeImport({
+        version: '1',
+        event: 'Test',
+        attendees: [
+          { name: 'Loz', person_id: 'abc123', role: 'crew' },
+        ],
+      });
+      attendeeImport({
+        version: '2',
+        event: 'Test',
+        attendees: [
+          { name: 'Loz', telegram: '@lozarino', role: 'crew' },
+        ],
+      });
+      const found = attendeeLookupByHandle('@lozarino');
+      expect(found!.person_id).toBe('abc123');
     });
   });
 });

@@ -425,7 +425,12 @@ describe('purchase tracking', () => {
 
 // --- Outbound routing ---
 
-import { routeOutbound, findChannel, formatOutbound, stripInternalTags } from './router.js';
+import {
+  routeOutbound,
+  findChannel,
+  formatOutbound,
+  stripInternalTags,
+} from './router.js';
 import type { Channel } from './types.js';
 
 function fakeChannel(prefix: string, connected = true): Channel {
@@ -445,7 +450,11 @@ describe('routeOutbound', () => {
     const wa = fakeChannel('wa:');
 
     await routeOutbound([tg, wa], 'tg:-100123', 'hello');
-    expect(tg.sendMessage).toHaveBeenCalledWith('tg:-100123', 'hello', undefined);
+    expect(tg.sendMessage).toHaveBeenCalledWith(
+      'tg:-100123',
+      'hello',
+      undefined,
+    );
     expect(wa.sendMessage).not.toHaveBeenCalled();
   });
 
@@ -453,12 +462,16 @@ describe('routeOutbound', () => {
     const tg = fakeChannel('tg:');
 
     await routeOutbound([tg], 'tg:-100', 'reply', { thread_id: 42 });
-    expect(tg.sendMessage).toHaveBeenCalledWith('tg:-100', 'reply', { thread_id: 42 });
+    expect(tg.sendMessage).toHaveBeenCalledWith('tg:-100', 'reply', {
+      thread_id: 42,
+    });
   });
 
   it('throws when no channel matches JID', () => {
     const tg = fakeChannel('tg:');
-    expect(() => routeOutbound([tg], 'dc:999', 'oops')).toThrow('No channel for JID');
+    expect(() => routeOutbound([tg], 'dc:999', 'oops')).toThrow(
+      'No channel for JID',
+    );
   });
 
   it('skips disconnected channels', () => {
@@ -500,7 +513,8 @@ describe('formatOutbound', () => {
 
 describe('stripInternalTags', () => {
   it('handles multiple internal blocks', () => {
-    const input = 'before<internal>hidden1</internal>mid<internal>hidden2</internal>after';
+    const input =
+      'before<internal>hidden1</internal>mid<internal>hidden2</internal>after';
     expect(stripInternalTags(input)).toBe('beforemidafter');
   });
 

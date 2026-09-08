@@ -218,7 +218,9 @@ describe('container-runner timeout behavior', () => {
     );
 
     // Emit garbage between output markers
-    fakeProc.stdout.push(`${OUTPUT_START_MARKER}\nnot valid json{{{!\n${OUTPUT_END_MARKER}\n`);
+    fakeProc.stdout.push(
+      `${OUTPUT_START_MARKER}\nnot valid json{{{!\n${OUTPUT_END_MARKER}\n`,
+    );
 
     await vi.advanceTimersByTimeAsync(10);
 

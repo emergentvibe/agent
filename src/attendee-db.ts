@@ -7,12 +7,14 @@ import { logger } from './logger.js';
 
 export interface AttendeeRecord {
   id: number;
+  person_id: string | null;
   name: string;
   telegram_handle: string | null;
   telegram_display: string | null;
   telegram_id: string | null;
   phone: string | null;
   role: 'attendee' | 'crew' | 'organizer';
+  title: string | null;
   arrival: string | null;
   departure: string | null;
   checked_in: boolean;
@@ -24,12 +26,15 @@ export interface AttendeeImportPayload {
   event: string;
   dates?: { start: string; end: string };
   attendees: Array<{
+    person_id?: string | null;
     name: string;
     telegram?: string | null;
     telegram_handle?: string | null;
+    telegram_username?: string | null;
     telegram_display?: string | null;
     phone?: string | null;
-    role?: 'attendee' | 'crew' | 'organizer';
+    role?: 'attendee' | 'crew' | 'organizer' | 'organiser';
+    title?: string | null;
     arrival?: string | null;
     departure?: string | null;
   }>;
@@ -41,12 +46,14 @@ export function createAttendeeSchema(database: Database.Database): void {
   database.exec(`
     CREATE TABLE IF NOT EXISTS attendees (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      person_id TEXT,
       name TEXT NOT NULL UNIQUE,
       telegram_handle TEXT,
       telegram_display TEXT,
       telegram_id TEXT,
       phone TEXT,
       role TEXT NOT NULL DEFAULT 'attendee',
+      title TEXT,
       arrival TEXT,
       departure TEXT,
       checked_in INTEGER DEFAULT 0,
@@ -56,13 +63,21 @@ export function createAttendeeSchema(database: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_attendees_handle ON attendees(telegram_handle);
     CREATE INDEX IF NOT EXISTS idx_attendees_tg_id ON attendees(telegram_id);
     CREATE INDEX IF NOT EXISTS idx_attendees_phone ON attendees(phone);
+    CREATE INDEX IF NOT EXISTS idx_attendees_person_id ON attendees(person_id);
   `);
 
-  // Migration: add telegram_display if missing (existing DBs)
-  try {
-    database.exec('ALTER TABLE attendees ADD COLUMN telegram_display TEXT');
-  } catch {
-    // Column already exists
+  // Migrations: add columns if missing (existing DBs)
+  const migrations = [
+    'ALTER TABLE attendees ADD COLUMN telegram_display TEXT',
+    'ALTER TABLE attendees ADD COLUMN person_id TEXT',
+    'ALTER TABLE attendees ADD COLUMN title TEXT',
+  ];
+  for (const sql of migrations) {
+    try {
+      database.exec(sql);
+    } catch {
+      // Column already exists
+    }
   }
 }
 
@@ -76,13 +91,15 @@ export function attendeeImport(payload: AttendeeImportPayload): {
   const db = _getDb();
 
   const upsert = db.prepare(`
-    INSERT INTO attendees (name, telegram_handle, telegram_display, phone, role, arrival, departure)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO attendees (person_id, name, telegram_handle, telegram_display, phone, role, title, arrival, departure)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(name) DO UPDATE SET
+      person_id = COALESCE(excluded.person_id, attendees.person_id),
       telegram_handle = COALESCE(excluded.telegram_handle, attendees.telegram_handle),
       telegram_display = COALESCE(excluded.telegram_display, attendees.telegram_display),
       phone = COALESCE(excluded.phone, attendees.phone),
       role = excluded.role,
+      title = COALESCE(excluded.title, attendees.title),
       arrival = COALESCE(excluded.arrival, attendees.arrival),
       departure = COALESCE(excluded.departure, attendees.departure)
   `);
@@ -94,26 +111,32 @@ export function attendeeImport(payload: AttendeeImportPayload): {
     for (const a of payload.attendees) {
       if (!a.name || typeof a.name !== 'string') continue;
 
-      // Accept both `telegram` (legacy) and `telegram_handle` fields
-      const rawHandle = a.telegram_handle || a.telegram;
+      // Accept `telegram_username`, `telegram_handle`, and `telegram` (legacy)
+      const rawHandle = a.telegram_handle || a.telegram_username || a.telegram;
       const handle = rawHandle && rawHandle.trim() ? rawHandle.trim() : null;
       const display =
         a.telegram_display && a.telegram_display.trim()
           ? a.telegram_display.trim()
           : null;
       const phone = a.phone && a.phone.trim() ? a.phone.trim() : null;
-      const role = a.role || 'attendee';
+      // Normalize British spelling: organiser → organizer
+      const rawRole = a.role === 'organiser' ? 'organizer' : a.role;
+      const role: 'attendee' | 'crew' | 'organizer' = rawRole || 'attendee';
+      const personId = a.person_id || null;
+      const title = a.title && a.title.trim() ? a.title.trim() : null;
 
       const existing = db
         .prepare('SELECT id FROM attendees WHERE name = ?')
         .get(a.name) as { id: number } | undefined;
 
       upsert.run(
+        personId,
         a.name,
         handle,
         display,
         phone,
         role,
+        title,
         a.arrival || null,
         a.departure || null,
       );
@@ -137,6 +160,18 @@ export function attendeeImport(payload: AttendeeImportPayload): {
 }
 
 // --- Lookup ---
+
+export function attendeeLookupByPersonId(
+  personId: string,
+): AttendeeRecord | null {
+  const db = _getDb();
+  const row = db
+    .prepare('SELECT * FROM attendees WHERE person_id = ?')
+    .get(personId) as
+    | (Omit<AttendeeRecord, 'checked_in'> & { checked_in: number })
+    | undefined;
+  return row ? { ...row, checked_in: !!row.checked_in } : null;
+}
 
 export function attendeeLookupByTelegramId(
   telegramId: string,

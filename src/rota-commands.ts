@@ -8,6 +8,7 @@ import {
 
 import { loadFeatureConfig } from './feature-config.js';
 import { logger } from './logger.js';
+import { attendeeLookupByTelegramId } from './attendee-db.js';
 import {
   rotaGetByTelegramId,
   rotaGetByHandle,
@@ -24,6 +25,7 @@ import {
   rotaGetBoardMessageId,
   rotaSetBoardMessageId,
   rotaClearBoardMessageId,
+  rotaGetNoShiftReason,
   type RotaAssignment,
 } from './rota-db.js';
 
@@ -298,7 +300,19 @@ export function registerRotaCommands(
     const myShifts = resolveIdentity(telegramId, username);
 
     if (myShifts.length === 0) {
-      await ctx.reply("You're not on the rota.");
+      // Check if they're in the no_shifts list (e.g. Chef, Head of Buffet)
+      const attendee = attendeeLookupByTelegramId(telegramId);
+      const noShiftReason =
+        attendee?.person_id ? rotaGetNoShiftReason(attendee.person_id) : null;
+      if (noShiftReason) {
+        await ctx.reply(
+          `You're listed as ${noShiftReason} — no kitchen shifts assigned. You can still pick up shifts with /cover.`,
+        );
+      } else {
+        await ctx.reply(
+          "I couldn't find you on the rota. If you think that's wrong, ask an organiser to check.",
+        );
+      }
       return;
     }
 

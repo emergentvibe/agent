@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { _initTestDatabase, createTask, getDueTasks, getTaskById, updateTaskAfterRun } from './db.js';
+import {
+  _initTestDatabase,
+  createTask,
+  getDueTasks,
+  getTaskById,
+  updateTaskAfterRun,
+} from './db.js';
 import {
   _resetSchedulerLoopForTests,
   computeNextRun,

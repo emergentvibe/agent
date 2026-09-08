@@ -24,6 +24,8 @@ import {
   rotaHasPinged,
   rotaRecordPing,
   rotaBuildStateResponse,
+  rotaGetNoShiftReason,
+  rotaGetNoShiftByName,
   type RotaImportPayload,
 } from './rota-db.js';
 
@@ -792,5 +794,113 @@ describe('contract fixture import', () => {
       (a) => a.original_name === 'Alexander',
     );
     expect(alexanders.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('no_shifts', () => {
+  beforeEach(() => {
+    _initTestDatabase();
+  });
+
+  it('imports and queries no_shifts entries', () => {
+    const payload: RotaImportPayload = {
+      version: 'LIVE-2026-09-20',
+      timezone: 'Europe/Berlin',
+      blocks: BLOCKS,
+      big_nights: [],
+      no_shifts: [
+        { person_id: 'p1', name: 'Lukas K.', reason: 'Chef' },
+        { person_id: 'p2', name: 'Mia', reason: 'Head of Buffet' },
+      ],
+      assignments: [
+        {
+          id: 'd1-lunch-1',
+          day: 1,
+          date: '2026-09-22',
+          block: 'lunch',
+          block_label: 'Lunch Cooks',
+          slot: 1,
+          start: '10:30',
+          end: '13:00',
+          hours: 2.5,
+          weight: 2.5,
+          rota_key: 'p3',
+          name: 'Alice',
+          telegram: '@alice',
+        },
+      ],
+    };
+
+    const result = rotaImport(payload);
+    expect(result.inserted).toBe(1);
+
+    expect(rotaGetNoShiftReason('p1')).toBe('Chef');
+    expect(rotaGetNoShiftReason('p2')).toBe('Head of Buffet');
+    expect(rotaGetNoShiftReason('p999')).toBeNull();
+  });
+
+  it('rotaGetNoShiftByName is case-insensitive', () => {
+    const payload: RotaImportPayload = {
+      version: 'LIVE-2026-09-20',
+      timezone: 'Europe/Berlin',
+      blocks: BLOCKS,
+      big_nights: [],
+      no_shifts: [
+        { person_id: 'p1', name: 'Lukas K.', reason: 'Chef' },
+      ],
+      assignments: [],
+    };
+    rotaImport(payload);
+
+    const result = rotaGetNoShiftByName('lukas k.');
+    expect(result).not.toBeNull();
+    expect(result!.reason).toBe('Chef');
+  });
+
+  it('rotaReset clears no_shifts', () => {
+    const payload: RotaImportPayload = {
+      version: 'LIVE-2026-09-20',
+      timezone: 'Europe/Berlin',
+      blocks: BLOCKS,
+      big_nights: [],
+      no_shifts: [
+        { person_id: 'p1', name: 'Lukas K.', reason: 'Chef' },
+      ],
+      assignments: [],
+    };
+    rotaImport(payload);
+    expect(rotaGetNoShiftReason('p1')).toBe('Chef');
+
+    rotaReset();
+    expect(rotaGetNoShiftReason('p1')).toBeNull();
+  });
+
+  it('reimport replaces no_shifts', () => {
+    const payload1: RotaImportPayload = {
+      version: 'LIVE-2026-09-20',
+      timezone: 'Europe/Berlin',
+      blocks: BLOCKS,
+      big_nights: [],
+      no_shifts: [
+        { person_id: 'p1', name: 'Lukas K.', reason: 'Chef' },
+      ],
+      assignments: [],
+    };
+    rotaImport(payload1);
+    expect(rotaGetNoShiftReason('p1')).toBe('Chef');
+
+    const payload2: RotaImportPayload = {
+      version: 'LIVE-2026-09-20',
+      timezone: 'Europe/Berlin',
+      blocks: BLOCKS,
+      big_nights: [],
+      no_shifts: [
+        { person_id: 'p2', name: 'Mia', reason: 'Head of Buffet' },
+      ],
+      assignments: [],
+    };
+    rotaImport(payload2);
+    expect(rotaGetNoShiftReason('p1')).toBeNull();
+    expect(rotaGetNoShiftReason('p2')).toBe('Head of Buffet');
   });
 });

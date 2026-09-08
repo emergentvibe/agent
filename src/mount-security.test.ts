@@ -3,9 +3,18 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-import { validateMount, validateAdditionalMounts, loadMountAllowlist } from './mount-security.js';
+import {
+  validateMount,
+  validateAdditionalMounts,
+  loadMountAllowlist,
+} from './mount-security.js';
 
-const FAKE_ALLOWLIST_PATH = path.join(os.homedir(), '.config', 'nanoclaw', 'mount-allowlist.json');
+const FAKE_ALLOWLIST_PATH = path.join(
+  os.homedir(),
+  '.config',
+  'nanoclaw',
+  'mount-allowlist.json',
+);
 
 function resetAllowlistCache() {
   // The module caches the allowlist; we need to reset it between tests.
@@ -51,10 +60,7 @@ describe('mount-security', () => {
         blockedPatterns: [],
         nonMainReadOnly: false,
       });
-      const result = validateMount(
-        { hostPath: '/home/user/.ssh/keys' },
-        true,
-      );
+      const result = validateMount({ hostPath: '/home/user/.ssh/keys' }, true);
       expect(result.allowed).toBe(false);
       expect(result.reason).toMatch(/blocked pattern.*\.ssh/);
     });
@@ -114,7 +120,10 @@ describe('mount-security', () => {
         nonMainReadOnly: false,
       });
       const result = validateMount(
-        { hostPath: '/home/user/projects/safe', containerPath: '../../etc/passwd' },
+        {
+          hostPath: '/home/user/projects/safe',
+          containerPath: '../../etc/passwd',
+        },
         true,
       );
       expect(result.allowed).toBe(false);
@@ -171,7 +180,13 @@ describe('mount-security', () => {
     it('allows mount under an allowed root', async () => {
       const { validateMount } = await import('./mount-security.js');
       setAllowlist({
-        allowedRoots: [{ path: '/home/user/projects', allowReadWrite: true, description: 'dev' }],
+        allowedRoots: [
+          {
+            path: '/home/user/projects',
+            allowReadWrite: true,
+            description: 'dev',
+          },
+        ],
         blockedPatterns: [],
         nonMainReadOnly: false,
       });
@@ -221,10 +236,7 @@ describe('mount-security', () => {
         blockedPatterns: [],
         nonMainReadOnly: false,
       });
-      const result = validateMount(
-        { hostPath: '/var/secrets/data' },
-        true,
-      );
+      const result = validateMount({ hostPath: '/var/secrets/data' }, true);
       expect(result.allowed).toBe(false);
       expect(result.reason).toMatch(/not under any allowed root/);
     });
@@ -326,7 +338,9 @@ describe('mount-security', () => {
       readFileSyncSpy.mockImplementation((p: fs.PathOrFileDescriptor) => {
         if (String(p) === FAKE_ALLOWLIST_PATH) {
           return JSON.stringify({
-            allowedRoots: [{ path: '/home/user/projects', allowReadWrite: true }],
+            allowedRoots: [
+              { path: '/home/user/projects', allowReadWrite: true },
+            ],
             blockedPatterns: [],
             nonMainReadOnly: false,
           });
@@ -334,7 +348,8 @@ describe('mount-security', () => {
         throw new Error(`Unexpected read: ${p}`);
       });
       realpathSyncSpy.mockImplementation((p: fs.PathLike) => {
-        if (String(p) === '/home/user/projects/nonexistent') throw new Error('ENOENT');
+        if (String(p) === '/home/user/projects/nonexistent')
+          throw new Error('ENOENT');
         return String(p);
       });
 

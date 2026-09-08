@@ -1002,6 +1002,10 @@ export async function main(): Promise<void> {
                 'Auto-registered DM',
               );
 
+              // Re-wake message loop so the stored /start message is processed immediately
+              // (the first wakeMessageLoop fired before registration completed)
+              wakeMessageLoop?.();
+
               const adminIds = (ADMIN_TELEGRAM_ID || '')
                 .split(',')
                 .map((s) => s.trim())
