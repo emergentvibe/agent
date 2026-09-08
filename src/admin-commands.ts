@@ -431,6 +431,13 @@ function buildTabReport(arg: string): string {
   return lines.join('\n');
 }
 
+function csvSafe(value: string): string {
+  if (/^[=+\-@\t\r]/.test(value)) return `'${value}`;
+  if (value.includes(',') || value.includes('"'))
+    return `"${value.replace(/"/g, '""')}"`;
+  return value;
+}
+
 function buildTabExportFile():
   | { buffer: Buffer; filename: string }
   | { error: string } {
@@ -439,7 +446,7 @@ function buildTabExportFile():
   const lines = ['user_id,user_name,item,price,timestamp'];
   for (const p of purchases) {
     lines.push(
-      `${p.user_id},${p.user_name},${p.item},${p.price},${p.timestamp}`,
+      `${csvSafe(p.user_id)},${csvSafe(p.user_name)},${csvSafe(p.item)},${p.price},${p.timestamp}`,
     );
   }
   lines.push('');
@@ -447,7 +454,7 @@ function buildTabExportFile():
   const totals = getAllPurchaseTotals();
   lines.push('user_name,total');
   for (const t of totals) {
-    lines.push(`${t.user_name},${t.total.toFixed(2)}`);
+    lines.push(`${csvSafe(t.user_name)},${t.total.toFixed(2)}`);
   }
   const grandTotal = totals.reduce((sum, t) => sum + t.total, 0);
   lines.push(`TOTAL,${grandTotal.toFixed(2)}`);

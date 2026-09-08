@@ -915,6 +915,7 @@ export function storePurchase(
   item: string,
   price: number,
 ): number {
+  if (price <= 0) return -1;
   const result = db
     .prepare(
       `INSERT INTO purchases (chat_jid, user_id, user_name, item, price, timestamp, cancelled)

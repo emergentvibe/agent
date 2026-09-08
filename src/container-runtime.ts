@@ -20,8 +20,16 @@ export const CONTAINER_HOST_GATEWAY = 'host.docker.internal';
  * Docker (Linux): bind to the docker0 bridge IP so only containers can reach it,
  *   falling back to 0.0.0.0 if the interface isn't found.
  */
-export const PROXY_BIND_HOST =
-  process.env.CREDENTIAL_PROXY_HOST || detectProxyBindHost();
+export const PROXY_BIND_HOST = (() => {
+  const override = process.env.CREDENTIAL_PROXY_HOST;
+  if (override === '0.0.0.0') {
+    logger.warn(
+      'CREDENTIAL_PROXY_HOST=0.0.0.0 exposes API keys to the network — using 127.0.0.1',
+    );
+    return '127.0.0.1';
+  }
+  return override || detectProxyBindHost();
+})();
 
 function detectProxyBindHost(): string {
   if (os.platform() === 'darwin') return '127.0.0.1';
