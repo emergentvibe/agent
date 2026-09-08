@@ -771,8 +771,7 @@ export function rotaExportBackup(): object | undefined {
       state: a.state,
       current_person_id: a.state === 'covered' ? a.current_person : undefined,
       current_name: a.state === 'covered' ? a.current_name : undefined,
-      current_telegram:
-        a.state === 'covered' ? a.current_telegram : undefined,
+      current_telegram: a.state === 'covered' ? a.current_telegram : undefined,
     })),
     covers: log.map((l) => ({
       ts: l.ts,

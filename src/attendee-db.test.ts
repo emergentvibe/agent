@@ -291,9 +291,7 @@ describe('attendee-db', () => {
         ],
       });
       expect(attendeeLookupByTelegramDisplay('Nana ☉')).not.toBeNull();
-      expect(
-        attendeeLookupByTelegramDisplay('nana ☉'),
-      ).not.toBeNull();
+      expect(attendeeLookupByTelegramDisplay('nana ☉')).not.toBeNull();
     });
   });
 
