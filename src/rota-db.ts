@@ -848,9 +848,7 @@ export function rotaExportTsv(): string | undefined {
 
   for (const a of assignments) {
     const currentName =
-      a.state === 'covered'
-        ? a.current_name || ''
-        : a.original_name || '';
+      a.state === 'covered' ? a.current_name || '' : a.original_name || '';
     const currentHandle =
       a.state === 'covered'
         ? a.current_telegram || ''
