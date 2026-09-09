@@ -1,6 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { loadConfig, GroupConfig } from './config.js';
+import {
+  loadFeatureConfig,
+  stripDisabledFeatures,
+} from '../../src/feature-config.js';
 
 export interface ConstitutionData {
   slug: string;
@@ -81,7 +85,10 @@ export function buildClaudeMd(template: string, group: GroupConfig, data: Consti
   const crewList = group.crew_list || readCrewNames(group.folder, basePath) || 'the crew';
   const assistantName = group.assistant_name || process.env.ASSISTANT_NAME || 'Andy';
 
-  return template
+  const features = loadFeatureConfig(group.folder);
+  const stripped = stripDisabledFeatures(template, features);
+
+  return stripped
     .replace(/\{\{community_name\}\}/g, group.community_name)
     .replace(/\{\{crew_list\}\}/g, crewList)
     .replace(/\{\{assistant_name\}\}/g, assistantName)

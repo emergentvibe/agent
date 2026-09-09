@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
-import { loadFeatureConfig, DEFAULT_FEATURES } from './feature-config.js';
+import {
+  loadFeatureConfig,
+  DEFAULT_FEATURES,
+  stripDisabledFeatures,
+} from './feature-config.js';
 
 vi.mock('./group-folder.js', () => ({
   resolveGroupFolderPath: (folder: string) => `/tmp/test-groups/${folder}`,
@@ -50,5 +54,64 @@ describe('loadFeatureConfig', () => {
     fs.writeFileSync(path.join(TEST_DIR, 'features.json'), 'not json');
     const config = loadFeatureConfig('test-group');
     expect(config).toEqual(DEFAULT_FEATURES);
+  });
+});
+
+describe('stripDisabledFeatures', () => {
+  const allEnabled: typeof DEFAULT_FEATURES = {
+    commands: { purchase: true, subscribe: true, rota: true },
+    behaviors: { daily_digest: true, crew_digest: true },
+  };
+
+  const template = [
+    'Header',
+    '<!-- feature:purchase -->',
+    'Buy stuff here',
+    '<!-- /feature:purchase -->',
+    '<!-- feature:rota -->',
+    'Shifts here',
+    '<!-- /feature:rota -->',
+    '<!-- feature:subscribe -->',
+    'Subscribe info',
+    '<!-- /feature:subscribe -->',
+    'Footer',
+  ].join('\n');
+
+  it('keeps all sections when all features enabled', () => {
+    const result = stripDisabledFeatures(template, allEnabled);
+    expect(result).toContain('Buy stuff here');
+    expect(result).toContain('Shifts here');
+    expect(result).toContain('Subscribe info');
+    expect(result).toContain('Footer');
+  });
+
+  it('strips purchase section when purchase disabled', () => {
+    const features = {
+      ...allEnabled,
+      commands: { ...allEnabled.commands, purchase: false },
+    };
+    const result = stripDisabledFeatures(template, features);
+    expect(result).not.toContain('Buy stuff here');
+    expect(result).toContain('Shifts here');
+    expect(result).toContain('Subscribe info');
+  });
+
+  it('strips multiple sections when multiple features disabled', () => {
+    const features = {
+      commands: { purchase: false, subscribe: false, rota: true },
+      behaviors: { daily_digest: true, crew_digest: true },
+    };
+    const result = stripDisabledFeatures(template, features);
+    expect(result).not.toContain('Buy stuff here');
+    expect(result).not.toContain('Subscribe info');
+    expect(result).toContain('Shifts here');
+    expect(result).toContain('Header');
+    expect(result).toContain('Footer');
+  });
+
+  it('returns template unchanged when no markers present', () => {
+    const plain = 'No markers here';
+    const result = stripDisabledFeatures(plain, DEFAULT_FEATURES);
+    expect(result).toBe(plain);
   });
 });

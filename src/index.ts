@@ -1030,6 +1030,7 @@ export async function main(): Promise<void> {
                 undefined,
                 undefined,
                 personalContext,
+                community.group.folder,
               );
               logger.info(
                 {

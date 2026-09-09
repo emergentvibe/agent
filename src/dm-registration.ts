@@ -7,6 +7,10 @@ import fs from 'fs';
 import path from 'path';
 
 import { GROUPS_DIR } from './config.js';
+import {
+  loadFeatureConfig,
+  stripDisabledFeatures,
+} from './feature-config.js';
 import { resolveGroupFolderPath } from './group-folder.js';
 import { logger } from './logger.js';
 import { RegisteredGroup } from './types.js';
@@ -46,6 +50,7 @@ export function buildDmClaudeMd(
   crewList?: string,
   communityStartDate?: string,
   personalContext?: string,
+  groupFolder?: string,
 ): string {
   const base = fs.readFileSync(
     path.join(TEMPLATE_DIR, 'base-template.md'),
@@ -59,6 +64,12 @@ export function buildDmClaudeMd(
   if (personalContext) {
     template += '\n\n## Personal Context\n\n' + personalContext;
   }
+
+  if (groupFolder) {
+    const features = loadFeatureConfig(groupFolder);
+    template = stripDisabledFeatures(template, features);
+  }
+
   return template
     .replace(/\{\{community_name\}\}/g, communityName)
     .replace(/\{\{user_name\}\}/g, userName)
@@ -83,6 +94,7 @@ export function writeDmClaudeMd(
   crewList?: string,
   communityStartDate?: string,
   personalContext?: string,
+  groupFolder?: string,
 ): void {
   const dmDir = resolveGroupFolderPath(dmFolder);
   fs.mkdirSync(dmDir, { recursive: true });
@@ -95,6 +107,7 @@ export function writeDmClaudeMd(
     crewList,
     communityStartDate,
     personalContext,
+    groupFolder,
   );
   fs.writeFileSync(path.join(dmDir, 'CLAUDE.md'), content, 'utf-8');
 

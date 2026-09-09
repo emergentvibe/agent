@@ -107,7 +107,10 @@ export function startIpcWatcher(deps: IpcDeps): void {
                   );
                 }
               } else if (data.type === 'escalation') {
-                logger.debug({ sourceGroup }, 'Escalation IPC received but feature removed — discarding');
+                logger.debug(
+                  { sourceGroup },
+                  'Escalation IPC received but feature removed — discarding',
+                );
               }
               fs.unlinkSync(filePath);
             } catch (err) {
@@ -485,4 +488,3 @@ export async function processTaskIpc(
       logger.warn({ type: data.type }, 'Unknown IPC task type');
   }
 }
-

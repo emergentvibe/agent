@@ -50,6 +50,7 @@ Return matches with hedging: "From introductions I've seen, [name] mentioned bei
 2. On confirmation, search and delete matching introduction memories.
 3. Confirm: "Done — your introduction has been removed."
 
+<!-- feature:subscribe -->
 ### `/subscribe [topic]`
 
 Store the subscription in `subscriptions.json`. Confirm: "Got it — I'll DM you when [topic] details change."
@@ -58,6 +59,7 @@ Store the subscription in `subscriptions.json`. Confirm: "Got it — I'll DM you
 
 Remove the matching entry from `subscriptions.json`. Confirm: "Unsubscribed from [topic] updates."
 
+<!-- /feature:subscribe -->
 ### Generating a Digest
 
 Run three memory searches:
