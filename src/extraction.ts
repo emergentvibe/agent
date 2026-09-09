@@ -105,7 +105,7 @@ WISHES and CONCERNS — things people want or worry about:
 - Social coordination between specific people
 - Arguments or opinions (unless they contain a factual update)
 - Anything from the CONTEXT section (already processed)
-- Health conditions, medical information, or medications (dietary preferences like "vegetarian" are OK)
+- Third-party claims about someone's private life (health, emotional state, relationships). First-person self-declarations are OK (dietary preferences, pronouns, etc).
 
 ## Output format
 JSON array: [{"text": "...", "user_id": "community:${communitySlug}", "metadata": {"type": "fact|introduction|wish|concern|pattern", "topic": "...", "tier": "operational|social", "source": "[name]", "source_context": "group"}}]
