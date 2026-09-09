@@ -1,24 +1,54 @@
 /**
- * Lightweight Mem0 API client for storing community memories.
- * Bypasses MCP — direct HTTP to Mem0 cloud API.
+ * Mem0 client — routes to self-hosted (OpenMemory via MCP) or cloud (HTTP API).
+ *
+ * Toggle: set MEM0_SSE_URL for self-hosted, MEM0_API_KEY for cloud.
+ * If both are set, self-hosted wins.
  */
 import { logger } from './logger.js';
 import { readEnvFile } from './env.js';
+import {
+  initLocalMem0,
+  localStoreMemory,
+  localSearchMemories,
+  localDeleteMemoriesByUser,
+  closeLocalMem0,
+  type LocalMem0Memory,
+} from './mem0-local.js';
 
-const MEM0_API_URL = 'https://api.mem0.ai/v1/memories/';
+const MEM0_CLOUD_URL = 'https://api.mem0.ai/v1/memories/';
 
-let apiKey: string | null = null;
+let backend: 'local' | 'cloud' | 'disabled' = 'disabled';
+let cloudApiKey: string | null = null;
 
-function getApiKey(): string | null {
-  if (apiKey !== null) return apiKey || null;
-  const envConfig = readEnvFile(['MEM0_API_KEY']);
-  apiKey = process.env.MEM0_API_KEY || envConfig.MEM0_API_KEY || '';
-  return apiKey || null;
+function detectBackend(): void {
+  if (backend !== 'disabled') return;
+
+  const envConfig = readEnvFile(['MEM0_SSE_URL', 'MEM0_API_KEY']);
+  const sseUrl = process.env.MEM0_SSE_URL || envConfig.MEM0_SSE_URL;
+  const apiKey = process.env.MEM0_API_KEY || envConfig.MEM0_API_KEY;
+
+  if (sseUrl) {
+    initLocalMem0(sseUrl);
+    backend = 'local';
+    logger.info('Mem0 backend: self-hosted (OpenMemory)');
+  } else if (apiKey) {
+    cloudApiKey = apiKey;
+    backend = 'cloud';
+    logger.info('Mem0 backend: cloud API');
+  } else {
+    logger.debug('No Mem0 config — memory storage disabled');
+  }
 }
 
 /** Visible for testing */
 export function _setApiKey(key: string | null): void {
-  apiKey = key;
+  cloudApiKey = key;
+  backend = key ? 'cloud' : 'disabled';
+}
+
+/** Visible for testing */
+export function _setBackend(b: 'local' | 'cloud' | 'disabled'): void {
+  backend = b;
 }
 
 export async function storeMemory(
@@ -26,12 +56,19 @@ export async function storeMemory(
   userId: string,
   metadata?: Record<string, string>,
 ): Promise<void> {
-  const key = getApiKey();
-  if (!key) {
-    logger.debug('MEM0_API_KEY not set, skipping memory storage');
+  detectBackend();
+
+  if (backend === 'disabled') {
+    logger.debug('Mem0 disabled, skipping memory storage');
     return;
   }
 
+  if (backend === 'local') {
+    await localStoreMemory(text, userId, metadata);
+    return;
+  }
+
+  // Cloud path
   const body: Record<string, unknown> = {
     messages: [{ role: 'user', content: text }],
     user_id: userId,
@@ -40,11 +77,11 @@ export async function storeMemory(
     body.metadata = metadata;
   }
 
-  const response = await fetch(MEM0_API_URL, {
+  const response = await fetch(MEM0_CLOUD_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Token ${key}`,
+      Authorization: `Token ${cloudApiKey}`,
     },
     body: JSON.stringify(body),
   });
@@ -69,14 +106,27 @@ export async function searchMemories(
   query: string,
   userId: string,
 ): Promise<Mem0Memory[]> {
-  const key = getApiKey();
-  if (!key) return [];
+  detectBackend();
 
+  if (backend === 'disabled') return [];
+
+  if (backend === 'local') {
+    const results = await localSearchMemories(query, userId);
+    return results.map((r: LocalMem0Memory) => ({
+      id: r.id,
+      memory: r.memory,
+      user_id: r.user_id,
+      metadata: r.metadata,
+      created_at: r.created_at,
+    }));
+  }
+
+  // Cloud path
   const response = await fetch('https://api.mem0.ai/v1/memories/search/', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Token ${key}`,
+      Authorization: `Token ${cloudApiKey}`,
     },
     body: JSON.stringify({ query, user_id: userId }),
   });
@@ -90,14 +140,21 @@ export async function searchMemories(
 }
 
 export async function deleteMemoriesByUser(userId: string): Promise<void> {
-  const key = getApiKey();
-  if (!key) return;
+  detectBackend();
 
+  if (backend === 'disabled') return;
+
+  if (backend === 'local') {
+    await localDeleteMemoriesByUser(userId);
+    return;
+  }
+
+  // Cloud path
   const response = await fetch(
     `https://api.mem0.ai/v1/memories/?user_id=${encodeURIComponent(userId)}`,
     {
       method: 'DELETE',
-      headers: { Authorization: `Token ${key}` },
+      headers: { Authorization: `Token ${cloudApiKey}` },
     },
   );
 
@@ -106,5 +163,11 @@ export async function deleteMemoriesByUser(userId: string): Promise<void> {
       { userId, status: response.status },
       'Failed to delete memories',
     );
+  }
+}
+
+export async function closeMem0(): Promise<void> {
+  if (backend === 'local') {
+    await closeLocalMem0();
   }
 }

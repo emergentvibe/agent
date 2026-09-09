@@ -15,6 +15,13 @@
 import fs from 'fs';
 import path from 'path';
 import { readEnvFile } from './env.js';
+import {
+  storeMemory,
+  searchMemories as sharedSearchMemories,
+  deleteMemoriesByUser,
+  closeMem0,
+  _setApiKey,
+} from './mem0-client.js';
 
 const MEM0_API_URL = 'https://api.mem0.ai/v1';
 
@@ -376,18 +383,33 @@ async function main() {
   const opts = parseArgs(process.argv);
   const userId = `community:${opts.community}`;
 
-  // Get API key
+  // Detect backend: MEM0_SSE_URL = self-hosted, MEM0_API_KEY = cloud
+  const envConfig = readEnvFile(['MEM0_SSE_URL', 'MEM0_API_KEY']);
+  const sseUrl = process.env.MEM0_SSE_URL || envConfig.MEM0_SSE_URL;
   const apiKey =
-    process.env.MEM0_API_KEY || readEnvFile(['MEM0_API_KEY']).MEM0_API_KEY;
-  if (!apiKey) {
-    console.error('MEM0_API_KEY not found in environment or .env file');
+    process.env.MEM0_API_KEY || envConfig.MEM0_API_KEY;
+  const isLocal = !!sseUrl;
+
+  if (!sseUrl && !apiKey) {
+    console.error('Set MEM0_SSE_URL (self-hosted) or MEM0_API_KEY (cloud) in environment or .env');
     process.exit(1);
   }
 
-  // ── List ──
+  if (isLocal) {
+    console.log(`Backend: self-hosted (${sseUrl})`);
+  } else {
+    console.log('Backend: Mem0 cloud');
+    _setApiKey(apiKey!);
+  }
+
+  // ── List (cloud-only — local uses MCP search) ──
   if (opts.list) {
+    if (isLocal) {
+      console.log('\nList is not supported with self-hosted backend. Use --search instead.');
+      return;
+    }
     console.log(`\nMemories for ${userId}:\n`);
-    const memories = await listMemories(apiKey, userId);
+    const memories = await listMemories(apiKey!, userId);
     if (memories.length === 0) {
       console.log('  (none)');
     } else {
@@ -405,29 +427,48 @@ async function main() {
   // ── Search ──
   if (opts.search) {
     console.log(`\nSearching ${userId} for "${opts.search}":\n`);
-    const results = await searchMemories(apiKey, userId, opts.search);
-    if (results.length === 0) {
-      console.log('  No results.');
+    if (isLocal) {
+      const results = await sharedSearchMemories(opts.search, userId);
+      if (results.length === 0) {
+        console.log('  No results.');
+      } else {
+        for (const m of results) {
+          console.log(`  • ${m.memory}`);
+        }
+      }
     } else {
-      for (const m of results) {
-        console.log(`  • ${m.memory}`);
+      const results = await searchMemories(apiKey!, userId, opts.search);
+      if (results.length === 0) {
+        console.log('  No results.');
+      } else {
+        for (const m of results) {
+          console.log(`  • ${m.memory}`);
+        }
       }
     }
+    await closeMem0();
     return;
   }
 
   // ── Clear ──
   if (opts.clear) {
-    const memories = await listMemories(apiKey, userId);
-    if (memories.length === 0) {
-      console.log('No memories to clear.');
-      return;
+    if (isLocal) {
+      console.log(`Clearing all memories for ${userId} via MCP...`);
+      await deleteMemoriesByUser(userId);
+      console.log('Done.');
+    } else {
+      const memories = await listMemories(apiKey!, userId);
+      if (memories.length === 0) {
+        console.log('No memories to clear.');
+        return;
+      }
+      console.log(`Deleting ${memories.length} memories for ${userId}...`);
+      for (const m of memories) {
+        await deleteMemory(apiKey!, m.id);
+      }
+      console.log('Done.');
     }
-    console.log(`Deleting ${memories.length} memories for ${userId}...`);
-    for (const m of memories) {
-      await deleteMemory(apiKey, m.id);
-    }
-    console.log('Done.');
+    await closeMem0();
     return;
   }
 
@@ -473,13 +514,13 @@ async function main() {
     return;
   }
 
-  // Store each chunk
+  // Store each chunk — uses shared client (auto-detects backend)
   console.log(`\nSeeding ${allChunks.length} memories into ${userId}...\n`);
   let stored = 0;
   let failed = 0;
   for (const chunk of allChunks) {
     try {
-      await addMemory(apiKey, userId, chunk.text, chunk.metadata);
+      await storeMemory(chunk.text, userId, chunk.metadata);
       stored++;
       process.stdout.write(`  ${stored}/${allChunks.length}\r`);
     } catch (err) {
@@ -495,12 +536,16 @@ async function main() {
     console.log('\n── Verification ──');
     const sample = allChunks[0];
     const keyword = sample.metadata.topic;
-    const results = await searchMemories(apiKey, userId, keyword);
+    const results = isLocal
+      ? await sharedSearchMemories(keyword, userId)
+      : await searchMemories(apiKey!, userId, keyword);
     console.log(`  Search for "${keyword}": ${results.length} results`);
     if (results.length > 0) {
       console.log(`  Top result: ${results[0].memory}`);
     }
   }
+
+  await closeMem0();
 }
 
 // Only run CLI when executed directly (not imported by tests)
