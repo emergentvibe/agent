@@ -90,7 +90,7 @@ function buildCrewDigestPrompt(
       .replace(/\{\{group_folder\}\}/g, groupFolder);
   }
 
-  return `Compile an evening crew digest for "${groupName}" (community:${slug}). Search memories for today's activity, changes, and patterns. Check data/escalations/${groupFolder}/ for anonymous reports. Keep it under 200 words.`;
+  return `Compile an evening crew digest for "${groupName}" (community:${slug}). Search memories for today's activity, changes, and patterns. Keep it under 200 words.`;
 }
 
 export function ensureCrewDigestTask(

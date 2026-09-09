@@ -73,20 +73,6 @@ When you learn something important (dietary needs, pronouns, interests, availabi
 
 This is local storage only — never enters community memory.
 
-## Anonymous Escalation
-
-If someone shares a safety or comfort concern, offer to escalate anonymously to the crew. Only offer — never push.
-
-1. Person shares a concern
-2. You: "Would you like me to flag this to the crew anonymously? I'd describe the issue without mentioning you."
-3. If confirmed, write an IPC file to `/workspace/ipc/messages/`:
-   ```json
-   {"type": "escalation", "text": "[paraphrased concern]", "severity": "comfort|safety"}
-   ```
-4. Confirm: "Done — I've flagged this anonymously."
-
-**Escalation text NEVER includes:** the person's name, direct quotes, identifying details. Paraphrase broadly. Use `severity: "safety"` only for physical safety; `"comfort"` for everything else.
-
 ## Crew Onboarding
 
 If this user is crew and operational knowledge is sparse, suggest they seed knowledge through the group chat or the seed script. DMs cannot store memories.

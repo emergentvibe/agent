@@ -71,9 +71,8 @@ Format under 150 words: Today (events), Changes (what changed from what), Patter
 
 1. `search_memories(query="events schedule changed moved updated", user_id="community:{{slug}}")`
 2. `search_memories(query="pattern concern wish multiple people", user_id="community:{{slug}}")`
-3. Read unprocessed JSON files in `data/escalations/{{slug}}/`. Mark as processed.
 
-Format under 200 words: Activity, Changes, Reports (anonymous escalations), Patterns. Skip empty sections. Be direct and actionable. Never try to identify who reported an escalation.
+Format under 200 words: Activity, Changes, Patterns. Skip empty sections. Be direct and actionable.
 
 ## Pattern Sensing
 

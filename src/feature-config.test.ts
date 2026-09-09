@@ -26,8 +26,8 @@ describe('loadFeatureConfig', () => {
   it('returns a copy, not a reference to defaults', () => {
     const a = loadFeatureConfig('test-group');
     const b = loadFeatureConfig('test-group');
-    a.commands.today = false;
-    expect(b.commands.today).toBe(true);
+    a.commands.purchase = true;
+    expect(b.commands.purchase).toBe(false);
   });
 
   it('merges partial overrides with defaults', () => {
@@ -42,8 +42,8 @@ describe('loadFeatureConfig', () => {
     const config = loadFeatureConfig('test-group');
     expect(config.commands.subscribe).toBe(false);
     expect(config.behaviors.daily_digest).toBe(true);
-    expect(config.commands.today).toBe(true);
-    expect(config.behaviors.memory_extraction).toBe(true);
+    expect(config.commands.purchase).toBe(false);
+    expect(config.behaviors.crew_digest).toBe(false);
   });
 
   it('returns defaults on invalid JSON', () => {
