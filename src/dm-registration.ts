@@ -7,10 +7,7 @@ import fs from 'fs';
 import path from 'path';
 
 import { GROUPS_DIR } from './config.js';
-import {
-  loadFeatureConfig,
-  stripDisabledFeatures,
-} from './feature-config.js';
+import { loadFeatureConfig, stripDisabledFeatures } from './feature-config.js';
 import { resolveGroupFolderPath } from './group-folder.js';
 import { logger } from './logger.js';
 import { RegisteredGroup } from './types.js';

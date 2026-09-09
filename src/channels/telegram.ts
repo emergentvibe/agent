@@ -31,6 +31,7 @@ import { rotaImport, rotaReset, rotaGetMeta } from '../rota-db.js';
 import type { RotaImportPayload } from '../rota-db.js';
 import { adaptRotaExport, type SheetRotaExport } from '../sheet-adapter.js';
 import { isCrewMember } from '../crew.js';
+import { loadFeatureConfig } from '../feature-config.js';
 import { rotaCommandEntries, registerRotaCommands } from '../rota-commands.js';
 import { registerChannel, ChannelOpts } from './registry.js';
 import {
@@ -96,15 +97,35 @@ export class TelegramChannel implements Channel {
       autoRetry({ maxRetryAttempts: 3, maxDelaySeconds: 60 }),
     );
 
+    const getMainGroupFolder = (): string | null => {
+      const groups = this.opts.registeredGroups();
+      const main = Object.values(groups).find((g) => g.isMain);
+      return main?.folder ?? null;
+    };
+
+    const isPurchaseEnabled = (): boolean => {
+      const folder = getMainGroupFolder();
+      if (!folder) return true;
+      return loadFeatureConfig(folder).commands.purchase;
+    };
+
+    const isSubscribeEnabled = (): boolean => {
+      const folder = getMainGroupFolder();
+      if (!folder) return true;
+      return loadFeatureConfig(folder).commands.subscribe;
+    };
+
     // Single source of truth for all slash commands.
     // local: handled inside TelegramChannel, NOT forwarded to the agent.
     // agent (the default): forwarded to the agent and rewritten with the
     // trigger prefix so they match TRIGGER_PATTERN in groups.
+    // featureGate: if set, command only appears in menu when that feature is enabled.
     const COMMANDS: Array<{
       command: string;
       description: string;
       local?: boolean;
       visible?: boolean;
+      featureGate?: 'purchase' | 'subscribe' | 'rota';
     }> = [
       { command: 'today', description: "Today's events and schedule" },
       { command: 'hello', description: 'Introduce yourself to the community' },
@@ -113,21 +134,23 @@ export class TelegramChannel implements Channel {
         command: 'forget',
         description: 'Remove your introduction from memory',
       },
-      { command: 'subscribe', description: 'Get notified about a topic' },
-      { command: 'unsubscribe', description: 'Stop notifications for a topic' },
-      { command: 'bar', description: 'Buy a drink', local: true },
-      { command: 'bbq', description: 'Buy food from the grill', local: true },
-      { command: 'purchase', description: 'Buy something', local: true },
+      { command: 'subscribe', description: 'Get notified about a topic', featureGate: 'subscribe' },
+      { command: 'unsubscribe', description: 'Stop notifications for a topic', featureGate: 'subscribe' },
+      { command: 'bar', description: 'Buy a drink', local: true, featureGate: 'purchase' },
+      { command: 'bbq', description: 'Buy food from the grill', local: true, featureGate: 'purchase' },
+      { command: 'purchase', description: 'Buy something', local: true, featureGate: 'purchase' },
       {
         command: 'show_total',
         description: 'See your tab',
         local: true,
+        featureGate: 'purchase',
       },
       {
         command: 'cancel_purchase',
         description: 'Undo your last purchase',
         local: true,
         visible: false,
+        featureGate: 'purchase',
       },
       {
         command: 'chatid',
@@ -144,10 +167,17 @@ export class TelegramChannel implements Channel {
       ...rotaCommandEntries(),
     ];
 
-    // Only register visible commands for Telegram autocomplete menu.
-    // Hidden commands still work when typed — they just don't clutter the menu.
+    // Filter commands by feature flags, then register visible ones for Telegram autocomplete.
+    const mainFolder = getMainGroupFolder();
+    const features = mainFolder ? loadFeatureConfig(mainFolder) : null;
+    const activeCommands = COMMANDS.filter((c) => {
+      if (!c.featureGate) return true;
+      if (!features) return true;
+      return features.commands[c.featureGate];
+    });
+
     await this.bot.api.setMyCommands(
-      COMMANDS.filter((c) => c.visible !== false).map(
+      activeCommands.filter((c) => c.visible !== false).map(
         ({ command, description }) => ({ command, description }),
       ),
     );
@@ -220,7 +250,13 @@ export class TelegramChannel implements Channel {
 
     const PURCHASE_REDIRECT = 'Use this in a DM with me or the right topic.';
 
+    const PURCHASE_DISABLED = 'Purchases are not available.';
+
     const handlePurchaseCommand = async (ctx: any, category?: string) => {
+      if (!isPurchaseEnabled()) {
+        await ctx.reply(PURCHASE_DISABLED);
+        return;
+      }
       if (!isPurchaseAllowed(ctx, category as 'bar' | 'bbq' | undefined)) {
         await ctx.reply(PURCHASE_REDIRECT);
         return;
@@ -261,6 +297,10 @@ export class TelegramChannel implements Channel {
     this.bot.command('purchase', (ctx) => handlePurchaseCommand(ctx));
 
     this.bot.command('show_total', async (ctx) => {
+      if (!isPurchaseEnabled()) {
+        await ctx.reply(PURCHASE_DISABLED);
+        return;
+      }
       if (!isPurchaseAllowed(ctx)) {
         await ctx.reply(PURCHASE_REDIRECT);
         return;
@@ -278,6 +318,10 @@ export class TelegramChannel implements Channel {
     });
 
     this.bot.command('cancel_purchase', async (ctx) => {
+      if (!isPurchaseEnabled()) {
+        await ctx.reply(PURCHASE_DISABLED);
+        return;
+      }
       if (!isPurchaseAllowed(ctx)) {
         await ctx.reply(PURCHASE_REDIRECT);
         return;
@@ -296,6 +340,10 @@ export class TelegramChannel implements Channel {
 
     // Handle inline keyboard button taps for purchases
     this.bot.callbackQuery(/^buy:(.+):(.+)$/, async (ctx) => {
+      if (!isPurchaseEnabled()) {
+        await ctx.answerCallbackQuery({ text: 'Purchases are not available.' });
+        return;
+      }
       const match = ctx.callbackQuery.data.match(/^buy:(.+):(.+)$/);
       if (!match) return;
       const [, category, item] = match;
@@ -415,6 +463,10 @@ export class TelegramChannel implements Channel {
           await handlePurchaseCommand(ctx, payload);
           break;
         case 'tab': {
+          if (!isPurchaseEnabled()) {
+            await ctx.reply(PURCHASE_DISABLED);
+            break;
+          }
           const userId = ctx.from?.id?.toString() || '';
           const purchases = getUserPurchases(userId);
           if (purchases.length === 0) {
@@ -478,6 +530,14 @@ export class TelegramChannel implements Channel {
       if (ctx.message.text.startsWith('/')) {
         parsedCmd = ctx.message.text.slice(1).split(/[\s@]/)[0].toLowerCase();
         if (LOCAL_COMMANDS.has(parsedCmd)) return;
+
+        if (
+          (parsedCmd === 'subscribe' || parsedCmd === 'unsubscribe') &&
+          !isSubscribeEnabled()
+        ) {
+          await ctx.reply('Subscriptions are not available.');
+          return;
+        }
       }
 
       const chatJid = `tg:${ctx.chat.id}`;

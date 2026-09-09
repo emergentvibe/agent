@@ -168,34 +168,39 @@ export function rotaCommandEntries(): Array<{
   description: string;
   local: true;
   visible?: boolean;
+  featureGate?: 'rota';
 }> {
   return [
-    { command: 'cover', description: 'Request cover for a shift', local: true },
-    { command: 'shifts', description: "Today's kitchen schedule", local: true },
-    { command: 'myrota', description: 'See your full rota', local: true },
+    { command: 'cover', description: 'Request cover for a shift', local: true, featureGate: 'rota' },
+    { command: 'shifts', description: "Today's kitchen schedule", local: true, featureGate: 'rota' },
+    { command: 'myrota', description: 'See your full rota', local: true, featureGate: 'rota' },
     {
       command: 'leaveearly',
       description: 'Release all remaining shifts',
       local: true,
       visible: false,
+      featureGate: 'rota',
     },
     {
       command: 'openshifts',
       description: 'See open shifts you can claim',
       local: true,
       visible: false,
+      featureGate: 'rota',
     },
     {
       command: 'hands',
       description: 'Kitchen needs help! (crew only)',
       local: true,
       visible: false,
+      featureGate: 'rota',
     },
     {
       command: 'h',
       description: 'Kitchen needs help! (crew only)',
       local: true,
       visible: false,
+      featureGate: 'rota',
     },
   ];
 }
@@ -207,7 +212,10 @@ export function registerRotaCommands(
 ): void {
   // /cover — DM only, shows sender's shifts as buttons
   bot.command('cover', async (ctx) => {
-    if (!isRotaEnabled(opts.registeredGroups())) return;
+    if (!isRotaEnabled(opts.registeredGroups())) {
+      await ctx.reply('Kitchen rota is not set up yet.');
+      return;
+    }
     if (ctx.chat.type !== 'private') {
       await ctx.reply('Please use /cover in a DM with me.');
       return;
@@ -253,7 +261,10 @@ export function registerRotaCommands(
 
   // /shifts — today's schedule
   bot.command('shifts', async (ctx) => {
-    if (!isRotaEnabled(opts.registeredGroups())) return;
+    if (!isRotaEnabled(opts.registeredGroups())) {
+      await ctx.reply('Kitchen rota is not set up yet.');
+      return;
+    }
 
     const meta = rotaGetMeta();
     if (!meta) {
@@ -302,7 +313,10 @@ export function registerRotaCommands(
 
   // /myrota — DM only, full week
   bot.command('myrota', async (ctx) => {
-    if (!isRotaEnabled(opts.registeredGroups())) return;
+    if (!isRotaEnabled(opts.registeredGroups())) {
+      await ctx.reply('Kitchen rota is not set up yet.');
+      return;
+    }
     if (ctx.chat.type !== 'private') {
       await ctx.reply('Please use /myrota in a DM with me.');
       return;
@@ -360,7 +374,10 @@ export function registerRotaCommands(
 
   // /leaveearly — admin only, DM only, release all future shifts for a person
   bot.command('leaveearly', async (ctx) => {
-    if (!isRotaEnabled(opts.registeredGroups())) return;
+    if (!isRotaEnabled(opts.registeredGroups())) {
+      await ctx.reply('Kitchen rota is not set up yet.');
+      return;
+    }
     if (ctx.chat.type !== 'private') {
       await ctx.reply('Please use /leaveearly in a DM with me.');
       return;
@@ -408,7 +425,10 @@ export function registerRotaCommands(
   // /hands or /h — anyone can call for kitchen help
   for (const cmd of ['hands', 'h'] as const) {
     bot.command(cmd, async (ctx) => {
-      if (!isRotaEnabled(opts.registeredGroups())) return;
+      if (!isRotaEnabled(opts.registeredGroups())) {
+      await ctx.reply('Kitchen rota is not set up yet.');
+      return;
+    }
 
       const kb = new InlineKeyboard();
       kb.text("I'm coming!", `rota:coming:${Date.now()}`);
@@ -576,7 +596,10 @@ export function registerRotaCommands(
 
   // /openshifts — text-only list, claim from Kitchen Shifts topic
   bot.command('openshifts', async (ctx) => {
-    if (!isRotaEnabled(opts.registeredGroups())) return;
+    if (!isRotaEnabled(opts.registeredGroups())) {
+      await ctx.reply('Kitchen rota is not set up yet.');
+      return;
+    }
 
     const openSlots = rotaGetOpenSlots();
     const now = getToday();
