@@ -171,9 +171,24 @@ export function rotaCommandEntries(): Array<{
   featureGate?: 'rota';
 }> {
   return [
-    { command: 'cover', description: 'Request cover for a shift', local: true, featureGate: 'rota' },
-    { command: 'shifts', description: "Today's kitchen schedule", local: true, featureGate: 'rota' },
-    { command: 'myrota', description: 'See your full rota', local: true, featureGate: 'rota' },
+    {
+      command: 'cover',
+      description: 'Request cover for a shift',
+      local: true,
+      featureGate: 'rota',
+    },
+    {
+      command: 'shifts',
+      description: "Today's kitchen schedule",
+      local: true,
+      featureGate: 'rota',
+    },
+    {
+      command: 'myrota',
+      description: 'See your full rota',
+      local: true,
+      featureGate: 'rota',
+    },
     {
       command: 'leaveearly',
       description: 'Release all remaining shifts',
@@ -426,9 +441,9 @@ export function registerRotaCommands(
   for (const cmd of ['hands', 'h'] as const) {
     bot.command(cmd, async (ctx) => {
       if (!isRotaEnabled(opts.registeredGroups())) {
-      await ctx.reply('Kitchen rota is not set up yet.');
-      return;
-    }
+        await ctx.reply('Kitchen rota is not set up yet.');
+        return;
+      }
 
       const kb = new InlineKeyboard();
       kb.text("I'm coming!", `rota:coming:${Date.now()}`);

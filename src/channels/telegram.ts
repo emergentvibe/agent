@@ -134,11 +134,34 @@ export class TelegramChannel implements Channel {
         command: 'forget',
         description: 'Remove your introduction from memory',
       },
-      { command: 'subscribe', description: 'Get notified about a topic', featureGate: 'subscribe' },
-      { command: 'unsubscribe', description: 'Stop notifications for a topic', featureGate: 'subscribe' },
-      { command: 'bar', description: 'Buy a drink', local: true, featureGate: 'purchase' },
-      { command: 'bbq', description: 'Buy food from the grill', local: true, featureGate: 'purchase' },
-      { command: 'purchase', description: 'Buy something', local: true, featureGate: 'purchase' },
+      {
+        command: 'subscribe',
+        description: 'Get notified about a topic',
+        featureGate: 'subscribe',
+      },
+      {
+        command: 'unsubscribe',
+        description: 'Stop notifications for a topic',
+        featureGate: 'subscribe',
+      },
+      {
+        command: 'bar',
+        description: 'Buy a drink',
+        local: true,
+        featureGate: 'purchase',
+      },
+      {
+        command: 'bbq',
+        description: 'Buy food from the grill',
+        local: true,
+        featureGate: 'purchase',
+      },
+      {
+        command: 'purchase',
+        description: 'Buy something',
+        local: true,
+        featureGate: 'purchase',
+      },
       {
         command: 'show_total',
         description: 'See your tab',
@@ -177,9 +200,9 @@ export class TelegramChannel implements Channel {
     });
 
     await this.bot.api.setMyCommands(
-      activeCommands.filter((c) => c.visible !== false).map(
-        ({ command, description }) => ({ command, description }),
-      ),
+      activeCommands
+        .filter((c) => c.visible !== false)
+        .map(({ command, description }) => ({ command, description })),
     );
 
     const LOCAL_COMMANDS = new Set(

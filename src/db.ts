@@ -183,6 +183,7 @@ export function initDatabase(): void {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
   db = new Database(dbPath);
+  db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   createSchema(db);
 

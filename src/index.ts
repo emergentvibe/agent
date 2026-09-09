@@ -78,6 +78,7 @@ import {
   writeDmClaudeMd,
 } from './dm-registration.js';
 import { GroupQueue } from './group-queue.js';
+import { checkRateLimit } from './rate-limit.js';
 import { resolveGroupFolderPath } from './group-folder.js';
 import { startIpcWatcher } from './ipc.js';
 import { findChannel, formatMessages, formatOutbound } from './router.js';
@@ -386,6 +387,23 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
     if (!hasTrigger) return true;
   }
 
+  // Rate-limit DM container invocations per user
+  const isDmChat = !isMainGroup && group.folder.includes('-dm-');
+  if (isDmChat) {
+    const sender = missedMessages[0]?.sender || chatJid;
+    const { allowed } = checkRateLimit(sender);
+    if (!allowed) {
+      await channel.sendMessage(
+        chatJid,
+        "You've been chatting a lot! Give me a few minutes.",
+      );
+      lastAgentTimestamp[chatJid] =
+        missedMessages[missedMessages.length - 1].timestamp;
+      saveState();
+      return true;
+    }
+  }
+
   const prompt = formatMessages(missedMessages, TIMEZONE);
 
   // Find the thread_id of the trigger message so replies go to the correct topic.
@@ -575,6 +593,9 @@ async function runAgent(
     ? process.env.DM_MODEL || process.env.CLAUDE_MODEL
     : process.env.GROUP_MODEL || process.env.CLAUDE_MODEL;
 
+  const defaultMaxTurns = isDm ? 5 : 3;
+  const maxTurns = parseInt(process.env.AGENT_MAX_TURNS || '', 10) || defaultMaxTurns;
+
   try {
     const output = await runContainerAgent(
       group,
@@ -587,6 +608,7 @@ async function runAgent(
         isDm,
         assistantName: ASSISTANT_NAME,
         model: model || undefined,
+        maxTurns,
         mcpServers: group.containerConfig?.mcpServers,
       },
       (proc, containerName) =>

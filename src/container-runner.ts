@@ -44,6 +44,7 @@ export interface ContainerInput {
   isScheduledTask?: boolean;
   assistantName?: string;
   model?: string;
+  maxTurns?: number;
   mcpServers?: Record<string, import('./types.js').McpServerConfig>;
 }
 

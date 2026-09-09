@@ -43,6 +43,7 @@ interface ContainerInput {
   isScheduledTask?: boolean;
   assistantName?: string;
   model?: string;
+  maxTurns?: number;
   mcpServers?: Record<string, McpServerConfig>; // Per-group MCP servers
 }
 
@@ -412,6 +413,10 @@ async function runQuery(
     log(`Additional directories: ${extraDirs.join(', ')}`);
   }
 
+  const maxTurns = containerInput.maxTurns
+    || parseInt(process.env.AGENT_MAX_TURNS || '', 10)
+    || undefined;
+
   for await (const message of query({
     prompt: stream,
     options: {
@@ -419,6 +424,7 @@ async function runQuery(
       additionalDirectories: extraDirs.length > 0 ? extraDirs : undefined,
       resume: sessionId,
       resumeSessionAt: resumeAt,
+      ...(maxTurns ? { maxTurns } : {}),
       systemPrompt: globalClaudeMd
         ? { type: 'preset' as const, preset: 'claude_code' as const, append: globalClaudeMd }
         : undefined,
