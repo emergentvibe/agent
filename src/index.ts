@@ -886,7 +886,7 @@ export async function main(): Promise<void> {
         const isGroup = chatJid.includes(':-');
         if (isGroup) {
           channel
-            ?.sendMessage(chatJid, 'Use this in a DM with me.', msg.thread_id)
+            ?.sendMessage(chatJid, 'Use this in a DM with me.', { thread_id: msg.thread_id })
             .catch((err) =>
               logger.warn({ err }, 'Failed to send admin redirect'),
             );

@@ -437,9 +437,13 @@ async function runQuery(
         'TodoWrite', 'ToolSearch', 'Skill',
         'NotebookEdit',
         'mcp__nanoclaw__*',
-        // DM containers: search-only (privacy wall — nothing in DMs enters shared memory)
+        // DM containers: search + delete only (privacy wall — nothing in DMs enters shared memory)
+        // Both cloud (search_memories, delete_memory) and OpenMemory (search_memory, delete_all_memories, list_memories) names
         ...(containerInput.isDm
-          ? ['mcp__mem0__search_memories', 'mcp__mem0__delete_memory']
+          ? [
+              'mcp__mem0__search_memories', 'mcp__mem0__delete_memory',
+              'mcp__mem0__search_memory', 'mcp__mem0__delete_all_memories', 'mcp__mem0__list_memories',
+            ]
           : ['mcp__mem0__*']),
       ],
       env: sdkEnv,
@@ -458,12 +462,19 @@ async function runQuery(
         },
         // Mem0 MCP server for personal + community memory
         // SSE (self-hosted OpenMemory) takes priority over hosted API
-        ...(process.env.MEM0_SSE_URL ? {
-          mem0: {
-            type: 'sse' as const,
-            url: process.env.MEM0_SSE_URL,
-          },
-        } : process.env.MEM0_API_KEY ? {
+        // OpenMemory SSE URL format: {base}/mcp/{client}/sse/{user_id}
+        ...(process.env.MEM0_SSE_URL ? (() => {
+          const rawUrl = new URL(process.env.MEM0_SSE_URL);
+          const baseUrl = `${rawUrl.protocol}//${rawUrl.host}`;
+          const mem0UserId = `community:${containerInput.groupFolder}`;
+          const sseUrl = `${baseUrl}/mcp/nanoclaw/sse/${encodeURIComponent(mem0UserId)}`;
+          return {
+            mem0: {
+              type: 'sse' as const,
+              url: sseUrl,
+            },
+          };
+        })() : process.env.MEM0_API_KEY ? {
           mem0: {
             command: '/home/node/.local/bin/mem0-mcp-server',
             args: [],

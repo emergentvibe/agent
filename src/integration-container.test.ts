@@ -387,19 +387,26 @@ describe('Context file verification', () => {
 
 describe('Mem0 MCP config construction', () => {
   /**
-   * Replicates the Mem0 config logic from container/agent-runner/src/index.ts
-   * (lines ~444-457). We can't import the agent-runner directly because it
-   * has side effects (reads stdin, calls main()), so we replicate the logic
-   * and verify it matches.
+   * Replicates the Mem0 config logic from container/agent-runner/src/index.ts.
+   * We can't import the agent-runner directly because it has side effects
+   * (reads stdin, calls main()), so we replicate the logic and verify it matches.
+   *
+   * The SSE path constructs the full OpenMemory MCP URL:
+   *   {base}/mcp/nanoclaw/sse/{encoded_user_id}
    */
   function buildMem0Config(
     env: Record<string, string | undefined>,
+    groupFolder = 'test-group',
   ): Record<string, McpServerConfig> {
     if (env.MEM0_SSE_URL) {
+      const rawUrl = new URL(env.MEM0_SSE_URL);
+      const baseUrl = `${rawUrl.protocol}//${rawUrl.host}`;
+      const mem0UserId = `community:${groupFolder}`;
+      const sseUrl = `${baseUrl}/mcp/nanoclaw/sse/${encodeURIComponent(mem0UserId)}`;
       return {
         mem0: {
           type: 'sse' as const,
-          url: env.MEM0_SSE_URL,
+          url: sseUrl,
         },
       };
     }
@@ -422,11 +429,13 @@ describe('Mem0 MCP config construction', () => {
   it('SSE config when MEM0_SSE_URL is set', () => {
     const config = buildMem0Config({
       MEM0_SSE_URL: 'http://localhost:8080/sse',
-    });
+    }, 'treeweek');
 
     expect(config.mem0).toBeDefined();
     expect((config.mem0 as any).type).toBe('sse');
-    expect((config.mem0 as any).url).toBe('http://localhost:8080/sse');
+    expect((config.mem0 as any).url).toBe(
+      'http://localhost:8080/mcp/nanoclaw/sse/community%3Atreeweek',
+    );
   });
 
   it('stdio config when MEM0_API_KEY is set (no SSE)', () => {
@@ -448,11 +457,13 @@ describe('Mem0 MCP config construction', () => {
     const config = buildMem0Config({
       MEM0_SSE_URL: 'http://localhost:8080/sse',
       MEM0_API_KEY: 'mem0-key-abc123',
-    });
+    }, 'treeweek');
 
     expect(config.mem0).toBeDefined();
     expect((config.mem0 as any).type).toBe('sse');
-    expect((config.mem0 as any).url).toBe('http://localhost:8080/sse');
+    expect((config.mem0 as any).url).toBe(
+      'http://localhost:8080/mcp/nanoclaw/sse/community%3Atreeweek',
+    );
     // Should NOT have command/args from stdio config
     expect((config.mem0 as any).command).toBeUndefined();
   });
@@ -472,8 +483,6 @@ describe('Mem0 MCP config construction', () => {
   });
 
   it('matches the agent-runner source logic', () => {
-    // Read the actual agent-runner source and verify our replicated logic
-    // matches the conditional structure
     const agentRunnerPath = path.resolve(
       import.meta.dirname ?? '.',
       '../container/agent-runner/src/index.ts',
@@ -484,9 +493,10 @@ describe('Mem0 MCP config construction', () => {
     expect(source).toContain('process.env.MEM0_SSE_URL');
     expect(source).toContain('process.env.MEM0_API_KEY');
 
-    // Verify SSE uses type: 'sse' and url
+    // Verify SSE constructs MCP URL with user_id path (not raw env var)
     expect(source).toContain("type: 'sse'");
-    expect(source).toContain('url: process.env.MEM0_SSE_URL');
+    expect(source).toContain('/mcp/nanoclaw/sse/');
+    expect(source).toContain('containerInput.groupFolder');
 
     // Verify stdio uses mem0-mcp-server binary
     expect(source).toContain(
@@ -498,6 +508,11 @@ describe('Mem0 MCP config construction', () => {
     const sseIndex = source.indexOf('process.env.MEM0_SSE_URL');
     const apiKeyIndex = source.indexOf('process.env.MEM0_API_KEY');
     expect(sseIndex).toBeLessThan(apiKeyIndex);
+
+    // Verify DM allowedTools includes both cloud and OpenMemory tool names
+    expect(source).toContain('mcp__mem0__search_memories');
+    expect(source).toContain('mcp__mem0__search_memory');
+    expect(source).toContain('mcp__mem0__delete_all_memories');
   });
 });
 

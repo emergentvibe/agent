@@ -86,6 +86,7 @@ vi.mock('child_process', async () => {
   };
 });
 
+import { spawn } from 'child_process';
 import { runContainerAgent, ContainerOutput } from './container-runner.js';
 import type { RegisteredGroup } from './types.js';
 
@@ -253,5 +254,92 @@ describe('container-runner timeout behavior', () => {
     const result = await resultPromise;
     expect(result.status).toBe('error');
     expect(onOutput).not.toHaveBeenCalled();
+  });
+});
+
+describe('container-runner Mem0 URL rewriting', () => {
+  const origEnv = { ...process.env };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    fakeProc = createFakeProcess();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    process.env = { ...origEnv };
+  });
+
+  it('rewrites localhost MEM0_SSE_URL to host.docker.internal for containers', async () => {
+    process.env.MEM0_SSE_URL = 'http://localhost:8765/sse';
+    delete process.env.MEM0_API_KEY;
+
+    const resultPromise = runContainerAgent(
+      testGroup,
+      testInput,
+      () => {},
+      vi.fn(async () => {}),
+    );
+
+    const spawnCall = vi.mocked(spawn).mock.calls.at(-1);
+    const args = spawnCall?.[1] as string[];
+    const mem0Arg = args?.find((a) => a.startsWith('MEM0_SSE_URL='));
+
+    expect(mem0Arg).toBe('MEM0_SSE_URL=http://host.docker.internal:8765/sse');
+
+    // Clean up: emit output + close
+    emitOutputMarker(fakeProc, { status: 'success', result: 'ok' });
+    await vi.advanceTimersByTimeAsync(10);
+    fakeProc.emit('close', 0);
+    await vi.advanceTimersByTimeAsync(10);
+    await resultPromise;
+  });
+
+  it('rewrites 127.0.0.1 MEM0_SSE_URL for containers', async () => {
+    process.env.MEM0_SSE_URL = 'http://127.0.0.1:8765/sse';
+    delete process.env.MEM0_API_KEY;
+
+    const resultPromise = runContainerAgent(
+      testGroup,
+      testInput,
+      () => {},
+      vi.fn(async () => {}),
+    );
+
+    const spawnCall = vi.mocked(spawn).mock.calls.at(-1);
+    const args = spawnCall?.[1] as string[];
+    const mem0Arg = args?.find((a) => a.startsWith('MEM0_SSE_URL='));
+
+    expect(mem0Arg).toBe('MEM0_SSE_URL=http://host.docker.internal:8765/sse');
+
+    emitOutputMarker(fakeProc, { status: 'success', result: 'ok' });
+    await vi.advanceTimersByTimeAsync(10);
+    fakeProc.emit('close', 0);
+    await vi.advanceTimersByTimeAsync(10);
+    await resultPromise;
+  });
+
+  it('does not pass MEM0_SSE_URL when not set', async () => {
+    delete process.env.MEM0_SSE_URL;
+    delete process.env.MEM0_API_KEY;
+
+    const resultPromise = runContainerAgent(
+      testGroup,
+      testInput,
+      () => {},
+      vi.fn(async () => {}),
+    );
+
+    const spawnCall = vi.mocked(spawn).mock.calls.at(-1);
+    const args = spawnCall?.[1] as string[];
+    const mem0Arg = args?.find((a) => a.startsWith('MEM0_SSE_URL='));
+
+    expect(mem0Arg).toBeUndefined();
+
+    emitOutputMarker(fakeProc, { status: 'success', result: 'ok' });
+    await vi.advanceTimersByTimeAsync(10);
+    fakeProc.emit('close', 0);
+    await vi.advanceTimersByTimeAsync(10);
+    await resultPromise;
   });
 });

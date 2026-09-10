@@ -23,6 +23,7 @@ import {
   CONTAINER_RUNTIME_BIN,
   hostGatewayArgs,
   readonlyMountArgs,
+  rewriteUrlForContainer,
   stopContainer,
 } from './container-runtime.js';
 import { detectAuthMode } from './credential-proxy.js';
@@ -285,7 +286,7 @@ function buildContainerArgs(
   const mem0SseUrl = process.env.MEM0_SSE_URL || mem0Env.MEM0_SSE_URL;
   const mem0ApiKey = process.env.MEM0_API_KEY || mem0Env.MEM0_API_KEY;
   if (mem0SseUrl) {
-    args.push('-e', `MEM0_SSE_URL=${mem0SseUrl}`);
+    args.push('-e', `MEM0_SSE_URL=${rewriteUrlForContainer(mem0SseUrl)}`);
   }
   if (mem0ApiKey) {
     args.push('-e', `MEM0_API_KEY=${mem0ApiKey}`);

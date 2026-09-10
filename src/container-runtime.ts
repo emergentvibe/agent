@@ -62,6 +62,25 @@ export function hostGatewayArgs(): string[] {
   return [];
 }
 
+/** Rewrite localhost/127.0.0.1 in a URL so it resolves inside a container. */
+export function rewriteUrlForContainer(url: string): string {
+  return url.replace(/\blocalhost\b|127\.0\.0\.1/, CONTAINER_HOST_GATEWAY);
+}
+
+/**
+ * Build the OpenMemory MCP SSE URL for a container.
+ * OpenMemory expects: {base}/mcp/{client}/sse/{user_id}
+ */
+export function buildMem0SseUrl(
+  baseUrl: string,
+  groupFolder: string,
+): string {
+  const parsed = new URL(baseUrl);
+  const base = `${parsed.protocol}//${parsed.host}`;
+  const userId = `community:${groupFolder}`;
+  return `${base}/mcp/nanoclaw/sse/${encodeURIComponent(userId)}`;
+}
+
 /** Returns CLI args for a readonly bind mount. */
 export function readonlyMountArgs(
   hostPath: string,
