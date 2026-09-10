@@ -20,6 +20,20 @@ services:
     ports: ["8765:8765"]
     env_file: .env
     depends_on: [mem0_store]
+    # Patch: disable broken categorization (SDK 1.88.0 lacks with_response_format).
+    # The SQLAlchemy after_insert listener retries 3x with exponential backoff,
+    # adding ~15s per store. This no-ops categorization.py and clears .pyc cache
+    # before starting the server.
+    # Remove when mem0/openmemory-mcp ships a fix (check categorization.py for
+    # with_response_format — if gone or SDK upgraded past 1.88, drop this override).
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        printf 'from typing import List\ndef get_categories_for_memory(memory: str) -> List[str]:\n    return []\n' > /usr/src/openmemory/app/utils/categorization.py
+        rm -f /usr/src/openmemory/app/utils/__pycache__/categorization*.pyc
+        exec uvicorn main:app --host 0.0.0.0 --port 8765
+    working_dir: /usr/src/openmemory
     restart: unless-stopped
 
 volumes:

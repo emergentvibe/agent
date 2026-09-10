@@ -277,13 +277,16 @@ async function runExtractionCycle(deps: ExtractionLoopDeps): Promise<void> {
       group.name,
     );
 
+    const storeResults = await Promise.allSettled(
+      result.memories.map((mem) =>
+        storeMemory(mem.text, mem.user_id, mem.metadata),
+      ),
+    );
     let storeFailures = 0;
-    for (const mem of result.memories) {
-      try {
-        await storeMemory(mem.text, mem.user_id, mem.metadata);
-      } catch (err) {
+    for (const r of storeResults) {
+      if (r.status === 'rejected') {
         storeFailures++;
-        logger.warn({ err }, 'Failed to store extracted memory');
+        logger.warn({ err: r.reason }, 'Failed to store extracted memory');
       }
     }
 

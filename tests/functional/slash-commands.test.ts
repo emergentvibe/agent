@@ -278,28 +278,30 @@ describeFn('Functional: Slash Commands with Real Mem0', () => {
 
     console.log(`\n  Seeding test namespace: ${COMMUNITY_NS}`);
 
-    await storeMemory('Yoga sessions every Tuesday and Thursday at 7am in the garden.', COMMUNITY_NS, {
-      type: 'fact', topic: 'events', tier: 'operational',
-    });
-    await storeMemory('Community welcome meeting every Monday at 10am in the common room.', COMMUNITY_NS, {
-      type: 'fact', topic: 'events', tier: 'operational',
-    });
-    await storeMemory('Kitchen is in Building A, ground floor. Open 6am-11pm.', COMMUNITY_NS, {
-      type: 'fact', topic: 'spaces', tier: 'operational',
-    });
-    await storeMemory('Co-working space is in Building B, second floor. Open 24/7.', COMMUNITY_NS, {
-      type: 'fact', topic: 'spaces', tier: 'operational',
-    });
-    await storeMemory('Breakfast: 7:30am-9:00am in main dining area, Building A.', COMMUNITY_NS, {
-      type: 'fact', topic: 'meals', tier: 'operational',
-    });
-    await storeMemory('Dinner: 7:00pm-9:00pm in main dining area. Vegetarian option always available.', COMMUNITY_NS, {
-      type: 'fact', topic: 'meals', tier: 'operational',
-    });
+    await Promise.all([
+      storeMemory('Yoga sessions every Tuesday and Thursday at 7am in the garden.', COMMUNITY_NS, {
+        type: 'fact', topic: 'events', tier: 'operational',
+      }),
+      storeMemory('Community welcome meeting every Monday at 10am in the common room.', COMMUNITY_NS, {
+        type: 'fact', topic: 'events', tier: 'operational',
+      }),
+      storeMemory('Kitchen is in Building A, ground floor. Open 6am-11pm.', COMMUNITY_NS, {
+        type: 'fact', topic: 'spaces', tier: 'operational',
+      }),
+      storeMemory('Co-working space is in Building B, second floor. Open 24/7.', COMMUNITY_NS, {
+        type: 'fact', topic: 'spaces', tier: 'operational',
+      }),
+      storeMemory('Breakfast: 7:30am-9:00am in main dining area, Building A.', COMMUNITY_NS, {
+        type: 'fact', topic: 'meals', tier: 'operational',
+      }),
+      storeMemory('Dinner: 7:00pm-9:00pm in main dining area. Vegetarian option always available.', COMMUNITY_NS, {
+        type: 'fact', topic: 'meals', tier: 'operational',
+      }),
+    ]);
 
     await new Promise(r => setTimeout(r, 2000));
     console.log('  Seeding complete.\n');
-  }, 60000);
+  }, 120000);
 
   afterAll(async () => {
     console.log(`\n  Cleaning up test namespaces...`);
