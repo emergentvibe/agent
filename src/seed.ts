@@ -386,12 +386,13 @@ async function main() {
   // Detect backend: MEM0_SSE_URL = self-hosted, MEM0_API_KEY = cloud
   const envConfig = readEnvFile(['MEM0_SSE_URL', 'MEM0_API_KEY']);
   const sseUrl = process.env.MEM0_SSE_URL || envConfig.MEM0_SSE_URL;
-  const apiKey =
-    process.env.MEM0_API_KEY || envConfig.MEM0_API_KEY;
+  const apiKey = process.env.MEM0_API_KEY || envConfig.MEM0_API_KEY;
   const isLocal = !!sseUrl;
 
   if (!sseUrl && !apiKey) {
-    console.error('Set MEM0_SSE_URL (self-hosted) or MEM0_API_KEY (cloud) in environment or .env');
+    console.error(
+      'Set MEM0_SSE_URL (self-hosted) or MEM0_API_KEY (cloud) in environment or .env',
+    );
     process.exit(1);
   }
 
@@ -405,7 +406,9 @@ async function main() {
   // ── List (cloud-only — local uses MCP search) ──
   if (opts.list) {
     if (isLocal) {
-      console.log('\nList is not supported with self-hosted backend. Use --search instead.');
+      console.log(
+        '\nList is not supported with self-hosted backend. Use --search instead.',
+      );
       return;
     }
     console.log(`\nMemories for ${userId}:\n`);

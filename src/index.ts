@@ -594,7 +594,8 @@ async function runAgent(
     : process.env.GROUP_MODEL || process.env.CLAUDE_MODEL;
 
   const defaultMaxTurns = isDm ? 5 : 3;
-  const maxTurns = parseInt(process.env.AGENT_MAX_TURNS || '', 10) || defaultMaxTurns;
+  const maxTurns =
+    parseInt(process.env.AGENT_MAX_TURNS || '', 10) || defaultMaxTurns;
 
   try {
     const output = await runContainerAgent(

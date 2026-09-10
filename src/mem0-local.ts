@@ -28,7 +28,8 @@ async function getConnection(userId: string): Promise<McpConnection> {
   const existing = connections.get(userId);
   if (existing) return existing;
 
-  if (!baseUrl) throw new Error('Local Mem0 not initialized — call initLocalMem0()');
+  if (!baseUrl)
+    throw new Error('Local Mem0 not initialized — call initLocalMem0()');
 
   const sseUrl = new URL(
     `/mcp/${CLIENT_NAME}/sse/${encodeURIComponent(userId)}`,
@@ -96,7 +97,13 @@ export async function localSearchMemories(
     const parsed = JSON.parse(responseText);
     if (Array.isArray(parsed)) {
       return parsed.map(
-        (m: { id?: string; memory?: string; text?: string; created_at?: string; metadata?: Record<string, unknown> }) => ({
+        (m: {
+          id?: string;
+          memory?: string;
+          text?: string;
+          created_at?: string;
+          metadata?: Record<string, unknown>;
+        }) => ({
           id: m.id || '',
           memory: m.memory || m.text || '',
           user_id: userId,
@@ -111,9 +118,7 @@ export async function localSearchMemories(
   }
 }
 
-export async function localDeleteMemoriesByUser(
-  userId: string,
-): Promise<void> {
+export async function localDeleteMemoriesByUser(userId: string): Promise<void> {
   const conn = await getConnection(userId);
   const result = await conn.client.callTool({
     name: 'delete_all_memories',
@@ -124,7 +129,10 @@ export async function localDeleteMemoriesByUser(
   const responseText = content?.find((c) => c.type === 'text')?.text || '';
 
   if (responseText.startsWith('Error:')) {
-    logger.warn({ userId, response: responseText }, 'Failed to delete memories (local)');
+    logger.warn(
+      { userId, response: responseText },
+      'Failed to delete memories (local)',
+    );
   }
 }
 
