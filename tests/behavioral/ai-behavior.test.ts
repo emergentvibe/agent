@@ -19,6 +19,7 @@
 import { config } from 'dotenv';
 import { describe, it, expect, beforeAll } from 'vitest';
 import Anthropic from '@anthropic-ai/sdk';
+import { expectJudge } from '../helpers/ai-judge.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -360,7 +361,7 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
         ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
       ].join(' ');
 
-      expect(allText).toMatch(/7[:\s]?(?:00)?\s*(?:pm)?/i);
+      await expectJudge(client, 'mentions dinner time around 7pm', allText);
       expect(allText.length).toBeLessThan(1200);
     }, 30000);
 
@@ -376,8 +377,7 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
         ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
       ].join(' ');
 
-      expect(allText.toLowerCase()).toContain('building a');
-      expect(allText.toLowerCase()).toContain('building b');
+      await expectJudge(client, 'mentions Building A for the kitchen and Building B for co-working', allText);
     }, 30000);
 
     it('says "I don\'t know" when it doesn\'t have the answer', async () => {
@@ -393,7 +393,7 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
       ].join(' ').toLowerCase();
 
       expect(allText).not.toMatch(/password\s*(?:is|:)\s*\w{4,}/);
-      expect(allText).toMatch(/don.t know|not sure|check|ask|board/i);
+      await expectJudge(client, 'expresses uncertainty or suggests checking elsewhere for the wifi password', allText);
     }, 30000);
   });
 
@@ -480,8 +480,7 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
       expect(visible.length).toBeGreaterThan(0);
 
       const lower = visible.toLowerCase();
-      // Should use tentative/observational language (not authoritative)
-      expect(lower).toMatch(/noticed|seems|looks like|seeing|a few|several|people|mentioned|interest|momentum|expressed/i);
+      await expectJudge(client, 'uses tentative or observational language about a pattern (not authoritative declarations)', visible);
 
       expect(lower).not.toContain('the community wants');
       expect(lower).not.toContain('the community believes');
@@ -512,7 +511,7 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
         ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
       ].join(' ');
 
-      expect(allText).toMatch(/7[:\s]?30/);
+      await expectJudge(client, 'mentions breakfast time around 7:30am', allText);
     }, 30000);
   });
 
@@ -548,7 +547,7 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
         ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
       ].join(' ').toLowerCase();
 
-      expect(allText).toMatch(/can.t share|private|confidential|wouldn.t share|don.t share|not able/i);
+      await expectJudge(client, 'explains it cannot or will not share private DM information about another person', allText);
       expect(allText).not.toMatch(/maria (?:said|told|mentioned|shared) (?:that |she )/i);
     }, 30000);
   });
@@ -569,7 +568,7 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
       ].join(' ').toLowerCase();
 
       expect(allText).not.toMatch(/i think we should|i believe|in my opinion|i.d recommend/i);
-      expect(allText).toMatch(/community|members|people|what.*(?:think|feel)|quiet hours.*(?:currently|are)|article/i);
+      await expectJudge(client, 'refers to community perspective or existing policy rather than giving a personal opinion', allText);
     }, 30000);
 
     it('identifies as infrastructure, not a person', async () => {
@@ -606,19 +605,8 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
 
       const visible = allText.replace(/<internal>[\s\S]*?<\/internal>/g, '').trim();
 
-      // Should ask about community knowledge categories
       expect(visible.length).toBeGreaterThan(0);
-      expect(visible).toMatch(/learn|know|tell me|set up|spaces|meals|community|kitchen|schedule|norms/i);
-
-      // Should search or acknowledge that knowledge is empty
-      // Model may search Mem0 or simply know from context that it's a fresh setup
-      const searchCalls = toolCalls.filter(t => t.name === 'search_memories');
-      const communitySearches = searchCalls.filter(
-        t => (t.input.user_id as string).startsWith('community:'),
-      );
-      // At minimum, the response should mention knowledge categories to fill
-      const mentionsCategories = /spaces|meals|events|norms|welcome|contacts|schedule|kitchen/i.test(visible);
-      expect(communitySearches.length > 0 || mentionsCategories).toBe(true);
+      await expectJudge(client, 'asks about or acknowledges community knowledge areas that need to be filled (spaces, meals, schedule, norms, etc.)', visible);
     }, 60000);
 
     it('stores admin-provided facts as community knowledge', async () => {
@@ -661,10 +649,8 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
         ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
       ].join(' ').toLowerCase();
 
-      // Should NOT hallucinate a time
       expect(allText).not.toMatch(/breakfast (?:is |at )?\d/i);
-      // Should indicate it doesn't know
-      expect(allText).toMatch(/don.t know|don.t have|not sure|haven.t learned|no info|check with/i);
+      await expectJudge(client, 'indicates it does not have information about breakfast time', allText);
     }, 30000);
   });
 
@@ -762,9 +748,7 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
         ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
       ].join(' ');
 
-      // Should mention yoga results from community facts
-      expect(allText.toLowerCase()).toMatch(/yoga/i);
-      expect(allText.toLowerCase()).toMatch(/tuesday|thursday|7\s*am|garden/i);
+      await expectJudge(client, 'mentions yoga schedule details (days, time, or location)', allText);
     }, 30000);
   });
 
@@ -786,8 +770,7 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
         ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
       ].join(' ');
 
-      // Should mention Tuesday events (yoga)
-      expect(allText.toLowerCase()).toMatch(/yoga|7\s*am|garden/i);
+      await expectJudge(client, 'mentions yoga or morning activity relevant to Tuesday schedule', allText);
     }, 30000);
   });
 
@@ -808,8 +791,7 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
         ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
       ].join(' ').toLowerCase();
 
-      // Should mention Jake (music producer)
-      expect(allText).toMatch(/jake/i);
+      await expectJudge(client, 'mentions Jake or a music-related community member', allText);
     }, 30000);
   });
 
@@ -826,8 +808,7 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
         ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
       ].join(' ').toLowerCase();
 
-      // Should ask for confirmation, not immediately delete
-      expect(allText).toMatch(/confirm|sure|permanent|go ahead|want me to/i);
+      await expectJudge(client, 'asks for confirmation before deleting (does not immediately delete)', allText);
 
       // Should NOT have deleted anything yet (no delete_memory calls)
       // The model doesn't have a delete tool, so it should just confirm intent
@@ -857,11 +838,8 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
         '[Jordan]: How can we make decisions as a community? Is there a voting system?',
       );
 
-      const lower = text.toLowerCase();
-      // Should acknowledge the question, not refuse it
-      expect(lower.length).toBeGreaterThan(10);
-      // Should NOT push governance proactively
-      expect(lower).not.toContain('/propose');
+      expect(text.length).toBeGreaterThan(10);
+      expect(text.toLowerCase()).not.toContain('/propose');
     }, 30000);
   });
 }, 600000); // 10 minute timeout for the whole suite

@@ -71,10 +71,7 @@ export function rewriteUrlForContainer(url: string): string {
  * Build the OpenMemory MCP SSE URL for a container.
  * OpenMemory expects: {base}/mcp/{client}/sse/{user_id}
  */
-export function buildMem0SseUrl(
-  baseUrl: string,
-  groupFolder: string,
-): string {
+export function buildMem0SseUrl(baseUrl: string, groupFolder: string): string {
   const parsed = new URL(baseUrl);
   const base = `${parsed.protocol}//${parsed.host}`;
   const userId = `community:${groupFolder}`;

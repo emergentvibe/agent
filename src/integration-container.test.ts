@@ -427,9 +427,12 @@ describe('Mem0 MCP config construction', () => {
   }
 
   it('SSE config when MEM0_SSE_URL is set', () => {
-    const config = buildMem0Config({
-      MEM0_SSE_URL: 'http://localhost:8080/sse',
-    }, 'treeweek');
+    const config = buildMem0Config(
+      {
+        MEM0_SSE_URL: 'http://localhost:8080/sse',
+      },
+      'treeweek',
+    );
 
     expect(config.mem0).toBeDefined();
     expect((config.mem0 as any).type).toBe('sse');
@@ -454,10 +457,13 @@ describe('Mem0 MCP config construction', () => {
   });
 
   it('SSE takes priority when both are set', () => {
-    const config = buildMem0Config({
-      MEM0_SSE_URL: 'http://localhost:8080/sse',
-      MEM0_API_KEY: 'mem0-key-abc123',
-    }, 'treeweek');
+    const config = buildMem0Config(
+      {
+        MEM0_SSE_URL: 'http://localhost:8080/sse',
+        MEM0_API_KEY: 'mem0-key-abc123',
+      },
+      'treeweek',
+    );
 
     expect(config.mem0).toBeDefined();
     expect((config.mem0 as any).type).toBe('sse');

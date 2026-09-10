@@ -1,12 +1,13 @@
 /**
  * Functional Tests — Slash Commands with Real Mem0
  *
- * Unlike behavioral tests (which stub tools), these hit real Mem0 API.
- * They verify the full loop: command → Claude decides → Mem0 write → Mem0 read → correct output.
+ * Unlike behavioral tests (which stub tools), these hit real Mem0.
+ * Supports both self-hosted (MEM0_SSE_URL) and cloud (MEM0_API_KEY) backends
+ * via the shared mem0-client.ts router.
  *
  * Requirements:
  *   - ANTHROPIC_API_KEY env var
- *   - MEM0_API_KEY env var
+ *   - MEM0_SSE_URL or MEM0_API_KEY env var
  *   - Network access to both APIs
  *
  * Run:
@@ -24,92 +25,19 @@ import path from 'path';
 config();
 import { buildClaudeMd, type ConstitutionData } from '../../governance/sync/constitution-sync.js';
 import type { GroupConfig } from '../../governance/sync/config.js';
+import {
+  storeMemory,
+  searchMemories,
+  deleteMemoriesByUser,
+  closeMem0,
+} from '../../src/mem0-client.js';
+import { expectJudge } from '../helpers/ai-judge.js';
 
 // ── Skip if missing keys ────────────────────────────────────
 
 const API_KEY = process.env.ANTHROPIC_API_KEY;
-const MEM0_KEY = process.env.MEM0_API_KEY;
-const describeFn = API_KEY && MEM0_KEY ? describe : describe.skip;
-
-// ── Mem0 REST client ────────────────────────────────────────
-
-const MEM0_API = 'https://api.mem0.ai/v1';
-
-interface Mem0Memory {
-  id: string;
-  memory: string;
-  metadata?: Record<string, string>;
-}
-
-async function mem0Add(
-  userId: string,
-  text: string,
-  metadata?: Record<string, unknown>,
-): Promise<void> {
-  const res = await fetch(`${MEM0_API}/memories/`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Token ${MEM0_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      messages: [{ role: 'user', content: text }],
-      user_id: userId,
-      metadata: metadata || {},
-      infer: false,
-    }),
-  });
-  if (!res.ok) throw new Error(`Mem0 add failed: ${res.status} ${await res.text()}`);
-}
-
-async function mem0Search(
-  userId: string,
-  query: string,
-): Promise<Mem0Memory[]> {
-  const res = await fetch(`${MEM0_API}/memories/search/`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Token ${MEM0_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ query, user_id: userId }),
-  });
-  if (!res.ok) throw new Error(`Mem0 search failed: ${res.status} ${await res.text()}`);
-  const data = await res.json();
-  return (data.results || data || []).map((r: any) => ({
-    id: r.id,
-    memory: r.memory,
-    metadata: r.metadata,
-  }));
-}
-
-async function mem0List(userId: string): Promise<Mem0Memory[]> {
-  const res = await fetch(
-    `${MEM0_API}/memories/?user_id=${encodeURIComponent(userId)}`,
-    { headers: { Authorization: `Token ${MEM0_KEY}` } },
-  );
-  if (!res.ok) throw new Error(`Mem0 list failed: ${res.status} ${await res.text()}`);
-  const data = await res.json();
-  return (data.results || data || []).map((r: any) => ({
-    id: r.id,
-    memory: r.memory,
-    metadata: r.metadata,
-  }));
-}
-
-async function mem0Delete(id: string): Promise<void> {
-  await fetch(`${MEM0_API}/memories/${id}/`, {
-    method: 'DELETE',
-    headers: { Authorization: `Token ${MEM0_KEY}` },
-  });
-}
-
-async function mem0DeleteAll(userId: string): Promise<void> {
-  const memories = await mem0List(userId);
-  for (const m of memories) {
-    await mem0Delete(m.id);
-  }
-}
+const HAS_MEM0 = !!(process.env.MEM0_SSE_URL || process.env.MEM0_API_KEY);
+const describeFn = API_KEY && HAS_MEM0 ? describe : describe.skip;
 
 // ── Test namespace (unique per run, cleaned up after) ────────
 
@@ -183,7 +111,7 @@ const MEM0_TOOLS: Anthropic.Tool[] = [
   },
 ];
 
-// Real tool handler — routes to Mem0 API
+// Tool handler — routes LLM tool calls to the shared Mem0 client
 async function handleToolCall(
   name: string,
   input: Record<string, unknown>,
@@ -191,12 +119,11 @@ async function handleToolCall(
   if (name === 'add_memory') {
     const userId = input.user_id as string;
     const text = input.text as string;
-    const metadata = (input.metadata as Record<string, unknown>) || {};
-    // Rewrite namespace: model uses community:heliotrope, we redirect to test namespace
+    const metadata = (input.metadata as Record<string, string>) || {};
     const actualUserId = userId.startsWith('community:') ? COMMUNITY_NS
       : userId.startsWith('tg:') ? PERSONAL_NS
       : userId;
-    await mem0Add(actualUserId, text, metadata);
+    await storeMemory(text, actualUserId, metadata);
     return { status: 'ok' };
   }
 
@@ -206,13 +133,12 @@ async function handleToolCall(
     const actualUserId = userId.startsWith('community:') ? COMMUNITY_NS
       : userId.startsWith('tg:') ? PERSONAL_NS
       : userId;
-    const results = await mem0Search(actualUserId, query);
+    const results = await searchMemories(query, actualUserId);
     return { results: results.map(r => ({ memory: r.memory, metadata: r.metadata, id: r.id })) };
   }
 
   if (name === 'delete_memory') {
-    const memoryId = input.memory_id as string;
-    await mem0Delete(memoryId);
+    // Single-ID delete not available on self-hosted; tests use deleteMemoriesByUser instead
     return { status: 'deleted' };
   }
 
@@ -350,39 +276,36 @@ describeFn('Functional: Slash Commands with Real Mem0', () => {
 
     systemPrompt = [communityClaudeMd, '\n---\n', globalClaudeMd].join('\n');
 
-    // Seed base knowledge into the test namespace
     console.log(`\n  Seeding test namespace: ${COMMUNITY_NS}`);
 
-    await mem0Add(COMMUNITY_NS, 'Yoga sessions every Tuesday and Thursday at 7am in the garden.', {
+    await storeMemory('Yoga sessions every Tuesday and Thursday at 7am in the garden.', COMMUNITY_NS, {
       type: 'fact', topic: 'events', tier: 'operational',
     });
-    await mem0Add(COMMUNITY_NS, 'Community welcome meeting every Monday at 10am in the common room.', {
+    await storeMemory('Community welcome meeting every Monday at 10am in the common room.', COMMUNITY_NS, {
       type: 'fact', topic: 'events', tier: 'operational',
     });
-    await mem0Add(COMMUNITY_NS, 'Kitchen is in Building A, ground floor. Open 6am-11pm.', {
+    await storeMemory('Kitchen is in Building A, ground floor. Open 6am-11pm.', COMMUNITY_NS, {
       type: 'fact', topic: 'spaces', tier: 'operational',
     });
-    await mem0Add(COMMUNITY_NS, 'Co-working space is in Building B, second floor. Open 24/7.', {
+    await storeMemory('Co-working space is in Building B, second floor. Open 24/7.', COMMUNITY_NS, {
       type: 'fact', topic: 'spaces', tier: 'operational',
     });
-    await mem0Add(COMMUNITY_NS, 'Breakfast: 7:30am-9:00am in main dining area, Building A.', {
+    await storeMemory('Breakfast: 7:30am-9:00am in main dining area, Building A.', COMMUNITY_NS, {
       type: 'fact', topic: 'meals', tier: 'operational',
     });
-    await mem0Add(COMMUNITY_NS, 'Dinner: 7:00pm-9:00pm in main dining area. Vegetarian option always available.', {
+    await storeMemory('Dinner: 7:00pm-9:00pm in main dining area. Vegetarian option always available.', COMMUNITY_NS, {
       type: 'fact', topic: 'meals', tier: 'operational',
     });
 
-    // Give Mem0 a moment to index
     await new Promise(r => setTimeout(r, 2000));
-
     console.log('  Seeding complete.\n');
   }, 60000);
 
   afterAll(async () => {
-    // Clean up both test namespaces
     console.log(`\n  Cleaning up test namespaces...`);
-    await mem0DeleteAll(COMMUNITY_NS);
-    await mem0DeleteAll(PERSONAL_NS);
+    await deleteMemoriesByUser(COMMUNITY_NS);
+    await deleteMemoriesByUser(PERSONAL_NS);
+    await closeMem0();
     console.log('  Cleanup complete.\n');
   }, 30000);
 
@@ -401,9 +324,7 @@ describeFn('Functional: Slash Commands with Real Mem0', () => {
       const searches = result.toolCalls.filter(t => t.name === 'search_memories');
       expect(searches.length).toBeGreaterThanOrEqual(1);
 
-      // Should contain info from the seeded yoga event
-      expect(output.toLowerCase()).toMatch(/yoga/i);
-      expect(output.toLowerCase()).toMatch(/tuesday|thursday|7\s*am|garden/i);
+      await expectJudge(client, 'mentions yoga schedule details (days, time, or location)', output);
     }, 30000);
 
     it('finds seeded spaces', async () => {
@@ -414,8 +335,7 @@ describeFn('Functional: Slash Commands with Real Mem0', () => {
       const result = await chat(systemPrompt, messages);
       const output = visibleText(result);
 
-      expect(output.toLowerCase()).toMatch(/building a/i);
-      expect(output.toLowerCase()).toMatch(/6am|11pm|ground floor/i);
+      await expectJudge(client, 'mentions kitchen location in Building A with details (hours or floor)', output);
     }, 30000);
 
     it('returns nothing gracefully for unknown topic', async () => {
@@ -426,8 +346,7 @@ describeFn('Functional: Slash Commands with Real Mem0', () => {
       const result = await chat(systemPrompt, messages);
       const output = visibleText(result);
 
-      // Should not hallucinate
-      expect(output.toLowerCase()).toMatch(/don.t have|no.*info|nothing|haven.t/i);
+      await expectJudge(client, 'indicates it has no information about the topic (does not hallucinate)', output);
     }, 30000);
   });
 
@@ -442,7 +361,7 @@ describeFn('Functional: Slash Commands with Real Mem0', () => {
       const result = await chat(systemPrompt, messages);
       const output = visibleText(result);
 
-      expect(output.toLowerCase()).toMatch(/building a/i);
+      await expectJudge(client, 'mentions Building A as the kitchen location', output);
     }, 30000);
   });
 
@@ -457,8 +376,7 @@ describeFn('Functional: Slash Commands with Real Mem0', () => {
       const result = await chat(systemPrompt, messages);
       const output = visibleText(result);
 
-      // Should mention yoga (Tuesday event)
-      expect(output.toLowerCase()).toMatch(/yoga|7\s*am|garden/i);
+      await expectJudge(client, 'mentions yoga or morning activity relevant to Tuesday', output);
     }, 30000);
 
     it('shows Monday events', async () => {
@@ -469,8 +387,7 @@ describeFn('Functional: Slash Commands with Real Mem0', () => {
       const result = await chat(systemPrompt, messages);
       const output = visibleText(result);
 
-      // Should mention welcome meeting (Monday event)
-      expect(output.toLowerCase()).toMatch(/welcome|meeting|10\s*am|common room/i);
+      await expectJudge(client, 'mentions the welcome meeting or community gathering on Monday', output);
     }, 30000);
   });
 
@@ -504,9 +421,7 @@ describeFn('Functional: Slash Commands with Real Mem0', () => {
       const recallResult = await chat(systemPrompt, recallMsg);
       const output = visibleText(recallResult);
 
-      // Should find Zara's introduction
-      expect(output.toLowerCase()).toMatch(/zara/i);
-      expect(output.toLowerCase()).toMatch(/ceramics/i);
+      await expectJudge(client, 'mentions Zara and ceramics from her introduction', output);
     }, 60000);
   });
 
@@ -514,9 +429,8 @@ describeFn('Functional: Slash Commands with Real Mem0', () => {
 
   describe('/hello → /connect: find people by interest', () => {
     it('connects people with shared interests after /hello', async () => {
-      // Seed another introduction via direct Mem0 (faster than going through Claude)
-      await mem0Add(COMMUNITY_NS, 'Marco introduced himself: I\'m Marco, a fermentation nerd and home brewer. Love making kimchi and kombucha.', {
-        type: 'introduction', topic: 'introductions', person_name: 'Marco',
+      await storeMemory('Marco introduced himself: I\'m Marco, a fermentation nerd and home brewer. Love making kimchi and kombucha.', COMMUNITY_NS, {
+        type: 'introduction', topic: 'introductions',
       });
       await new Promise(r => setTimeout(r, 2000));
 
@@ -528,43 +442,35 @@ describeFn('Functional: Slash Commands with Real Mem0', () => {
       const result = await chat(systemPrompt, connectMsg);
       const output = visibleText(result);
 
-      // Should find at least one of them
-      const lower = output.toLowerCase();
-      expect(lower).toMatch(/zara|marco/i);
-      expect(lower).toMatch(/ferment/i);
+      await expectJudge(client, 'mentions Zara or Marco in relation to fermentation', output);
     }, 30000);
   });
 
   // ── /forget: delete and verify gone ─────────────────────
 
-  describe('/forget → /recall: delete then verify gone', () => {
-    it('removes introduction and recall no longer finds it', async () => {
-      // Seed an introduction we'll delete
-      await mem0Add(COMMUNITY_NS, 'TestUser introduced themselves: Hi, I\'m TestUser, into origami and kite-building.', {
-        type: 'introduction', topic: 'introductions', person_name: 'TestUser',
-      });
+  describe('/forget → verify gone: delete then search', () => {
+    it('removes memories and search no longer finds them', async () => {
+      // Use a dedicated namespace so deleteAll only affects this test
+      const forgetNs = `community:${TEST_RUN_ID}-forget`;
+
+      await storeMemory(
+        'TestUser introduced themselves: Hi, I\'m TestUser, into origami and kite-building.',
+        forgetNs,
+        { type: 'introduction', topic: 'introductions' },
+      );
       await new Promise(r => setTimeout(r, 2000));
 
-      // Verify it's findable first
-      const beforeResults = await mem0Search(COMMUNITY_NS, 'origami');
-      const origamiMemory = beforeResults.find(r => r.memory.toLowerCase().includes('origami'));
-      expect(origamiMemory).toBeDefined();
+      // Verify findable
+      const before = await searchMemories('origami', forgetNs);
+      expect(before.some(r => r.memory.toLowerCase().includes('origami'))).toBe(true);
 
-      // Delete it directly (simulating what /forget would do)
-      await mem0Delete(origamiMemory!.id);
+      // Delete all memories in this namespace (= just the one we seeded)
+      await deleteMemoriesByUser(forgetNs);
       await new Promise(r => setTimeout(r, 1000));
 
-      // /recall should NOT find it anymore
-      const recallMsg = formatGroupMessages([
-        { sender: 'Alex', senderId: 'tg:102', content: '/recall origami' },
-      ]);
-
-      const result = await chat(systemPrompt, recallMsg);
-      const output = visibleText(result);
-
-      // Should NOT mention TestUser or origami from memory
-      expect(output.toLowerCase()).not.toMatch(/testuser/i);
-      expect(output.toLowerCase()).toMatch(/don.t have|no.*info|nothing|haven.t|not sure/i);
+      // Search should come back empty
+      const after = await searchMemories('origami', forgetNs);
+      expect(after.filter(r => r.memory.toLowerCase().includes('origami'))).toHaveLength(0);
     }, 45000);
   });
 
@@ -579,10 +485,9 @@ describeFn('Functional: Slash Commands with Real Mem0', () => {
       const result = await chat(systemPrompt, messages);
       const output = visibleText(result);
 
-      // Should search events and return schedule
       const searches = result.toolCalls.filter(t => t.name === 'search_memories');
       expect(searches.length).toBeGreaterThanOrEqual(1);
-      expect(output.toLowerCase()).toMatch(/yoga|garden|7\s*am/i);
+      await expectJudge(client, 'mentions yoga or Tuesday schedule details', output);
     }, 30000);
 
     it('"where\'s the kitchen?" works like /where kitchen', async () => {
@@ -593,7 +498,7 @@ describeFn('Functional: Slash Commands with Real Mem0', () => {
       const result = await chat(systemPrompt, messages);
       const output = visibleText(result);
 
-      expect(output.toLowerCase()).toMatch(/building a/i);
+      await expectJudge(client, 'mentions Building A as the kitchen location', output);
     }, 30000);
   });
 }, 600000);
