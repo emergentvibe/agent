@@ -28,7 +28,7 @@ Telegram Forum mode is supported: `thread_id` flows through the entire message p
 
 A background extraction loop (`src/extraction.ts`) runs every 5 minutes, using Haiku to process group messages and store facts, introductions, wishes, patterns, and concerns to Mem0. `MIN_CONTEXT_MESSAGES=20` ensures cross-batch context even when messages are spaced far apart. Only topics with extraction enabled are processed.
 
-Per-group feature flags (`src/feature-config.ts`) control which commands and behaviors are active. Phase C features (escalation, crew digest, subscriptions) default to off and are enabled via `groups/{name}/features.json`.
+Per-group feature flags (`src/feature-config.ts`) control which commands and behaviors are active. Subscribe, daily digest, and crew digest default to on; escalation has been removed. Flags are set per group via `groups/{name}/features.json`.
 
 Three bot modes: `normal` (full operation), `silenced` (complete stop), `degraded` (fixed "taking a break" response to triggers, extraction continues). Controlled via Telegram admin commands (`/admin-silence`, `/admin-degrade`) or HTTP admin endpoint (port 3002, bearer token auth).
 
@@ -44,11 +44,11 @@ Bar/BBQ tab tracking via inline Telegram keyboards — pure SQLite, no container
 
 ### Command Visibility
 
-Commands are split into visible (appear in Telegram autocomplete) and hidden (work when typed, not in menu). Visible: `today`, `hello`, `connect`, `forget`, `bar`, `bbq`, `purchase`, `show_total`, `cover`, `shifts`, `myrota`. Hidden: `cancel_purchase`, `chatid`, `ping`, `leaveearly`, `openshifts`, `hands`, `h`.
+Commands are split into visible (appear in Telegram autocomplete) and hidden (work when typed, not in menu). Visible: `today`, `hello`, `connect`, `bar`, `bbq`, `purchase`, `show_total`, `cover`, `shifts`, `myrota`. Hidden: `subscribe`, `unsubscribe`, `cancel_purchase`, `chatid`, `ping`, `leaveearly`, `openshifts`, `hands`, `h`.
 
 ### DM Registration & NFC Check-in
 
-When someone taps an NFC tag or sends `/start`, the bot auto-registers a DM if the sender is found in a registered community group. The DM gets its own container with a personalized CLAUDE.md and read-only access to community knowledge files.
+When someone taps an NFC tag or sends `/start`, the bot auto-registers a DM if the sender is found in a registered community group. The DM gets its own container with a personalized CLAUDE.md and read-only Mem0 search (community namespace). DM containers cannot write to Mem0 (enforced by `allowedTools`). Note: DMs access community knowledge only through Mem0 search, not the group's local `community-knowledge/` files.
 
 The community intelligence layer is ours (`governance/`, `knowledge/`, `src/mem0-client.ts`, `src/seed.ts`, `src/dm-registration.ts`, `src/extraction.ts`, `src/feature-config.ts`, `src/crew.ts`, `src/digest.ts`, `src/subscriptions.ts`, `src/admin-http.ts`, `src/rota-*.ts`). The runtime (IPC, containers, queue, routing) is upstream NanoClaw.
 
@@ -108,7 +108,7 @@ Run commands directly—don't tell the user to run them.
 ```bash
 npm run dev          # Run with hot reload
 npm run build        # Compile TypeScript
-npm test             # Run unit tests (697 pass, 15 pre-existing LLM-flaky/Mem0 failures)
+npm test             # Run unit tests (794 pass, ~14 pre-existing LLM-flaky failures skipped)
 ./container/build.sh # Rebuild agent container
 
 # Integration sims (requires Docker + ANTHROPIC_API_KEY + MEM0_API_KEY)
