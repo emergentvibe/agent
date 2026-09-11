@@ -3,23 +3,18 @@
 ## Prerequisites
 
 1. NanoClaw agent running with Telegram bot token
-2. Constitution created on emergentvibe.com
-3. Mem0 API key (free tier: https://app.mem0.ai)
+2. Self-hosted Mem0 via OpenMemory (`docker compose -f docker-compose.mem0.yml up -d`)
 
 ## Environment Variables
 
 Add to NanoClaw's environment (`.env` or deployment config):
 
 ```bash
-# Memory (activates Mem0 MCP — code already exists in agent-runner)
-MEM0_API_KEY=your_mem0_api_key
+# Memory (self-hosted Mem0 via OpenMemory — no cloud API key needed)
+MEM0_SSE_URL=http://localhost:8765/sse
 
-# Constitution sync
+# Constitution sync (optional)
 EMERGENTVIBE_API_URL=https://emergentvibe.com
-GROUPS_CONFIG='[{"folder":"edge-esmeralda","slug":"emergentvibe","community_name":"Edge Esmeralda"}]'
-
-# Bot auth
-BOT_API_SECRET=your_bot_secret
 ```
 
 ## Community Knowledge Setup

@@ -1,13 +1,15 @@
 # Deploy NanoClaw on a VPS
 
-NanoClaw needs Docker-in-Docker (it spawns containers per conversation), so PaaS like Railway/Fly won't work. A cheap VPS with Docker is the simplest path.
+NanoClaw needs Docker-in-Docker (it spawns containers per conversation), so PaaS like Railway/Fly won't work. A VPS with Docker is the simplest path.
 
 ## 1. Get a VPS
 
 Any VPS with Docker support. Recommended: 2+ vCPU, 4GB RAM, 40GB+ disk.
 
 - **DigitalOcean**: 4GB Droplet (~$24/mo). Pick region closest to venue.
-- **Hetzner CX22**: (~€4/mo). Cheapest option.
+- **Hetzner CX22**: (~€4/mo). Cheapest but tight on RAM for Qdrant + Docker.
+
+4GB minimum recommended — the stack runs Docker containers, Qdrant (vector DB), OpenMemory server, and Node.js concurrently.
 
 Pick Ubuntu 24.04 LTS. Add your SSH key.
 
@@ -31,21 +33,39 @@ node --version
 ## 3. Clone and build
 
 ```bash
-# Clone the repo
-git clone https://github.com/emergentvibe/agent.git /opt/nanoclaw
+# Clone the repo (treeweek branch)
+git clone -b treeweek https://github.com/emergentvibe/agent.git /opt/nanoclaw
 cd /opt/nanoclaw
 
 # Install deps
 npm install
 
 # Build the agent container image
-docker build -t nanoclaw-agent:latest -f container/Dockerfile .
+./container/build.sh
 
 # Build NanoClaw
 npm run build
 ```
 
-## 4. Configure
+## 4. Start OpenMemory (self-hosted Mem0)
+
+Community memory uses self-hosted Mem0 via OpenMemory (Qdrant + MCP SSE server). No cloud API key needed.
+
+```bash
+cd /opt/nanoclaw
+docker compose -f docker-compose.mem0.yml up -d
+
+# Verify Qdrant is healthy
+curl -s http://localhost:6333/healthz
+```
+
+Seed community knowledge after the bot is configured:
+
+```bash
+MEM0_SSE_URL=http://localhost:8765/sse npx tsx src/seed.ts community:treeweek knowledge/treeweek/
+```
+
+## 5. Configure
 
 ```bash
 cp .env.example .env
@@ -57,7 +77,9 @@ Fill in (see `.env.example` for all options):
 # Required
 ANTHROPIC_API_KEY=sk-ant-...
 TELEGRAM_BOT_TOKEN=...          # from @BotFather
-MEM0_API_KEY=m0-...             # from mem0.ai dashboard
+
+# Self-hosted Mem0 (OpenMemory)
+MEM0_SSE_URL=http://localhost:8765/sse
 
 # Bot identity
 ASSISTANT_NAME=YourBot          # trigger word (@YourBot in chat)
@@ -74,16 +96,13 @@ ADMIN_HTTP_TOKEN=...            # openssl rand -hex 32
 # Logging (optional)
 # AXIOM_TOKEN=...
 # AXIOM_DATASET=nanoclaw
-
-# Group config
-GROUPS_CONFIG='[{"folder":"my-community","slug":"my-community","community_name":"My Community","admin_id":"YOUR_TELEGRAM_ID","admin_name":"admin","community_start_date":"2026-09-22","governance_mode":"memory-only"}]'
 ```
 
-## 5. Run
+## 6. Run
 
 ```bash
 # Test run (foreground, see logs)
-npm start
+node dist/src/index.js
 
 # Production (systemd)
 cat > /etc/systemd/system/nanoclaw.service << 'EOF'
@@ -95,7 +114,7 @@ Requires=docker.service
 [Service]
 Type=simple
 WorkingDirectory=/opt/nanoclaw
-ExecStart=/usr/bin/node dist/index.js
+ExecStart=/usr/bin/node dist/src/index.js
 Restart=always
 RestartSec=10
 EnvironmentFile=/opt/nanoclaw/.env
@@ -109,13 +128,15 @@ systemctl start nanoclaw
 journalctl -u nanoclaw -f  # watch logs
 ```
 
-## 6. Verify
+## 7. Verify
 
 1. Send a message in your Telegram group mentioning @BotName
 2. Check logs: `journalctl -u nanoclaw -f`
 3. You should see container spawn → Claude response → container cleanup
+4. Check extraction: wait 5 minutes, look for "Running memory extraction" in logs
+5. Check Mem0: `curl -s http://localhost:6333/collections` should show data
 
-## 7. Monitoring
+## 8. Monitoring
 
 ```bash
 # Health check via admin HTTP endpoint
@@ -128,18 +149,21 @@ curl -X POST -H "Authorization: Bearer $ADMIN_HTTP_TOKEN" http://localhost:3002/
 
 # Credential proxy health
 curl -s http://localhost:3001/health || echo "Proxy down"
+
+# OpenMemory / Qdrant health
+curl -s http://localhost:6333/healthz || echo "Qdrant down"
 ```
 
-If `AXIOM_TOKEN` is set, structured logs ship to Axiom automatically. Check the Axiom dashboard for errors, container events, and extraction results.
+If `AXIOM_TOKEN` is set, structured logs ship to Axiom automatically.
 
-## 8. Update
+## 9. Update
 
 ```bash
 cd /opt/nanoclaw
 git pull
 npm install
 npm run build
-docker build -t nanoclaw-agent:latest -f container/Dockerfile .
+./container/build.sh
 systemctl restart nanoclaw
 ```
 
@@ -147,15 +171,15 @@ systemctl restart nanoclaw
 
 | Item | Cost |
 |------|------|
-| Hetzner CX22 | ~€4/mo |
-| Anthropic API | ~$5-50/mo depending on usage |
-| Mem0 cloud | Free tier or ~$10/mo |
+| DigitalOcean 4GB | ~$24/mo |
+| Anthropic API | ~$70-112/week (event week, 40 users) |
+| Mem0 | $0 (self-hosted) |
 | Domain (optional) | ~$10/yr |
-| **Total** | **~$15-65/mo** |
 
 ## Troubleshooting
 
 **Container won't start:** Check `docker info` — Docker daemon running?
 **Bot doesn't respond:** Check `TELEGRAM_BOT_TOKEN` is correct. Check logs for errors.
-**Memory not working:** Verify `MEM0_API_KEY` with: `curl -s -X POST "https://api.mem0.ai/v1/memories/search/" -H "Authorization: Token $MEM0_API_KEY" -H "Content-Type: application/json" -d '{"query":"test","user_id":"community:test"}'`
-**High API costs:** Set `CLAUDE_MODEL=claude-haiku-4-5-20251001` in `.env`.
+**Memory not working:** Check OpenMemory: `docker compose -f docker-compose.mem0.yml logs`. Check Qdrant: `curl -s http://localhost:6333/healthz`.
+**High API costs:** Set `GROUP_MODEL=claude-haiku-4-5-20251001` in `.env`.
+**Entry point error:** Use `dist/src/index.js` (not `dist/index.js`). The tsconfig rootDir is `.` so src/ compiles to dist/src/.

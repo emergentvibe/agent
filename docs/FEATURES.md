@@ -136,7 +136,7 @@ Background behaviors that don't require user interaction. Toggled via `features.
 | `first_person_authority` | "I'm vegan" from the person overrides "Sam eats anything" from others. | on |
 | `daily_digest` | Morning summary posted to group at 8am. | off |
 | `crew_digest` | Evening summary DM'd to crew members at 11pm. Includes escalations. | off |
-| `escalation` | Anonymous concern reporting via DM (see below). | off |
+| `escalation` | Anonymous concern reporting via DM. **Deprecated** — removed from templates, disabled by default. | off |
 
 ## Feature Config
 
@@ -151,7 +151,7 @@ Per-group file at `groups/{name}/features.json`. Merges with defaults — you on
   "behaviors": {
     "daily_digest": true,
     "crew_digest": true,
-    "escalation": true
+    "escalation": false
   }
 }
 ```
@@ -202,7 +202,9 @@ Crew members get elevated trust on operational matters and receive the crew dige
 
 Both are registered as scheduled tasks in SQLite by `src/digest.ts`. The task scheduler (`src/task-scheduler.ts`) runs them. Timezone follows `TZ` env var or system default.
 
-## Escalation Pipeline
+## Escalation Pipeline (deprecated)
+
+> Escalation was removed from agent templates in Phase A. The code still exists but is disabled by default. Do not re-enable without discussion.
 
 When `escalation` is enabled:
 
