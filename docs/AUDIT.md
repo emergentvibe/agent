@@ -14,7 +14,7 @@ Yes. The core loop is coherent:
 1. Bot reads all messages, stays silent
 2. Extraction (Haiku, every 5 min) pulls facts/intros/wishes/patterns into Mem0
 3. User asks `@Andy what time is dinner?` → container spawns → agent searches Mem0 → responds
-4. Slash commands (`/today`, `/hello`, `/connect`, `/forget`) give structured access
+4. Slash commands (`/today`, `/hello`, `/connect`) give structured access
 5. Crew gets an evening digest with escalations; group gets an optional morning digest
 
 This is a genuine product for temporary communities. Nothing else does this — shared memory for a group of 40 people who are together for a week. The design principles (silence > noise, privacy > features, honest > helpful) are well-encoded in the agent template and enforced by architecture.
@@ -38,7 +38,7 @@ This is fine for Treeweek — crew can introduce the bot verbally on day 1 and p
 |---------|-----------|-------|
 | Extraction loop | Strong | Novel and well-designed. The sliding window + MIN_CONTEXT_MESSAGES is clever. |
 | `/today`, `/hello`, `/connect` | Strong | Core use cases, well-documented in agent template |
-| `/forget` | Adequate | Intro-only deletion. Enough for v1. |
+| `/forget` | Removed | Self-hosted Mem0 has no per-memory delete. Removed Sep 11. |
 | Escalation pipeline | Strong | Anonymous DM → IPC → file → crew digest. Privacy-first. Sim-tested. |
 | Daily digest | Adequate | Note: this *breaks the silence contract*. The bot speaks unprompted every morning. Be deliberate about enabling it. |
 | Crew digest | Strong | Actionable, includes escalations, DM'd privately |

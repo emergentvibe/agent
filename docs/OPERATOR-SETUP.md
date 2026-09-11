@@ -185,9 +185,9 @@ All admin commands are DM-only, gated by `ADMIN_TELEGRAM_ID` (comma-separated fo
 
 ## User Commands
 
-**Visible in Telegram menu:** `today`, `hello`, `connect`, `forget`, `bar`, `bbq`, `purchase`, `show_total`, `cover`, `shifts`, `myrota`
+**Visible in Telegram menu:** `today`, `hello`, `connect`, `bar`, `bbq`, `purchase`, `show_total`, `cover`, `shifts`, `myrota`
 
-**Hidden (work when typed):** `cancel_purchase`, `chatid`, `ping`, `leaveearly` (admin-only), `openshifts`, `hands` / `h` (crew-only)
+**Hidden (work when typed):** `cancel_purchase`, `chatid`, `ping`, `leaveearly` (admin-only), `openshifts`, `hands` / `h` (crew-only), `subscribe` / `unsubscribe`
 
 ## Kitchen Rota System
 

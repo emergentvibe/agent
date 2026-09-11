@@ -79,7 +79,7 @@ After the bot is running, register the daily pulse via NanoClaw's `schedule_task
 - [ ] Ask "where is the kitchen?" → bot answers from community-knowledge
 - [ ] Wait for daily pulse → brief casual summary appears
 - [ ] Store something in a DM → verify it doesn't leak to group
-- [ ] Ask bot to forget something → verify deletion
+- [ ] ~~Ask bot to forget something~~ → removed (self-hosted Mem0 has no per-memory delete)
 
 ## What's Next
 

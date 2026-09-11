@@ -53,8 +53,8 @@ Commands the agent recognizes. Each can be toggled per group via `features.json`
 | `/today` | Shows today's scheduled events and recent operational changes. | on |
 | `/intro` | User introduces themselves. Stored in Mem0 under `community:{slug}`. | on |
 | `/connect [interest]` | Searches community introductions by interest/skill. | on |
-| `/forget-my-intro` | Deletes the user's own introduction from community memory. | on |
-| `/subscribe [topic]` | Get DM'd when extraction detects something matching that topic. | on |
+| `/subscribe [topic]` | Get DM'd when extraction detects something matching that topic. Handled by host (no container). | on |
+| `/unsubscribe [topic]` | Remove a topic subscription. Handled by host. | on |
 
 ### Purchase Commands (local, zero API cost)
 
@@ -222,12 +222,12 @@ When `escalation` is enabled:
 
 When `subscribe` command is enabled:
 
-1. User messages bot: `/subscribe kitchen` or `/subscribe yoga`
-2. Agent writes subscription to `groups/{name}/subscriptions.json`
+1. User sends `/subscribe kitchen` or `/subscribe yoga` (group or DM)
+2. Host writes subscription to `groups/{name}/subscriptions.json` (no container spawned)
 3. When extraction runs and stores a memory containing "kitchen" or "yoga", `findMatchingSubscriptions()` in `src/subscriptions.ts` matches it
 4. Notification queued via IPC → user gets a DM
 
-Matching is simple keyword inclusion (case-insensitive). Managed by `src/subscriptions.ts`.
+`/unsubscribe [topic]` removes the subscription. Both commands are host-handled in `telegram.ts` — no containers, no API cost. Matching is simple keyword inclusion (case-insensitive). Managed by `src/subscriptions.ts`.
 
 ## DM Registration
 

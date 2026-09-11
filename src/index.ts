@@ -903,10 +903,15 @@ export async function main(): Promise<void> {
           if (adminIds.includes(msg.sender)) {
             const count = deleteAllSessions();
             sessions = {};
-            logger.info({ sender: msg.sender, count }, 'Admin reset all sessions');
+            logger.info(
+              { sender: msg.sender, count },
+              'Admin reset all sessions',
+            );
             channel
               ?.sendMessage(chatJid, `Cleared ${count} sessions (DB + memory).`)
-              .catch((err) => logger.warn({ err }, 'Failed to send session reset response'));
+              .catch((err) =>
+                logger.warn({ err }, 'Failed to send session reset response'),
+              );
           }
           return;
         }
