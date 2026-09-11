@@ -466,8 +466,10 @@ async function runQuery(
         ...(process.env.MEM0_SSE_URL ? (() => {
           const rawUrl = new URL(process.env.MEM0_SSE_URL);
           const baseUrl = `${rawUrl.protocol}//${rawUrl.host}`;
-          const mem0UserId = `community:${containerInput.groupFolder}`;
+          const mem0Group = containerInput.groupFolder.replace(/-dm-\d+$/, '');
+          const mem0UserId = `community:${mem0Group}`;
           const sseUrl = `${baseUrl}/mcp/nanoclaw/sse/${encodeURIComponent(mem0UserId)}`;
+          log(`Mem0 SSE: group=${containerInput.groupFolder} mem0Group=${mem0Group} userId=${mem0UserId} url=${sseUrl}`);
           return {
             mem0: {
               type: 'sse' as const,
