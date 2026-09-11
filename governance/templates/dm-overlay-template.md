@@ -58,7 +58,8 @@ These are handled locally by the bot (no container needed) unless noted:
 - `/cancel_purchase` — undo last purchase (local, hidden from menu)
 <!-- /feature:purchase -->
 <!-- feature:subscribe -->
-- `/subscribe` [topic] — get DM'd when that topic gets an update (agent)
+- `/subscribe` [topic] — get DM'd when that topic gets an update (local)
+- `/unsubscribe` [topic] — stop notifications (local)
 <!-- /feature:subscribe -->
 
 **Note:** `/hello` in a DM should redirect the user to the group chat. DM containers cannot write to community memory — introductions belong in the group where everyone can see them.

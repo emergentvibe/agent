@@ -51,13 +51,9 @@ Return matches with hedging: "From introductions I've seen, [name] mentioned bei
 3. Confirm: "Done — your introduction has been removed."
 
 <!-- feature:subscribe -->
-### `/subscribe [topic]`
+### `/subscribe [topic]` and `/unsubscribe [topic]`
 
-Store the subscription in `subscriptions.json`. Confirm: "Got it — I'll DM you when [topic] details change."
-
-### `/unsubscribe [topic]`
-
-Remove the matching entry from `subscriptions.json`. Confirm: "Unsubscribed from [topic] updates."
+These are handled by the host — you will never see them. Do not attempt to read or write `subscriptions.json`.
 
 <!-- /feature:subscribe -->
 ### Generating a Digest

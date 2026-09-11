@@ -12,6 +12,11 @@ import {
   ROTA_GROUP_JID,
 } from '../config.js';
 import {
+  addSubscription,
+  removeSubscription,
+  getSubscriptions,
+} from '../subscriptions.js';
+import {
   cancelLastPurchase,
   getUserPurchases,
   getUserTotal,
@@ -137,11 +142,13 @@ export class TelegramChannel implements Channel {
       {
         command: 'subscribe',
         description: 'Get notified about a topic',
+        local: true,
         featureGate: 'subscribe',
       },
       {
         command: 'unsubscribe',
         description: 'Stop notifications for a topic',
+        local: true,
         featureGate: 'subscribe',
       },
       {
@@ -397,6 +404,78 @@ export class TelegramChannel implements Channel {
       }
     });
 
+    // --- Subscribe system (local, no containers) ---
+
+    const resolveGroupFolder = (chatJid: string): string | null => {
+      const group = this.opts.registeredGroups()[chatJid];
+      if (!group) return null;
+      return group.folder.replace(/-dm-\d+$/, '');
+    };
+
+    this.bot.command('subscribe', async (ctx) => {
+      if (!isSubscribeEnabled()) {
+        await ctx.reply('Subscriptions are not available.');
+        return;
+      }
+      const chatJid = `tg:${ctx.chat.id}`;
+      const groupFolder = resolveGroupFolder(chatJid);
+      if (!groupFolder) {
+        await ctx.reply('Subscriptions are not available in this chat.');
+        return;
+      }
+      const topic = (ctx.match?.toString() || '').trim();
+      if (!topic) {
+        await ctx.reply('What topic? Usage: /subscribe yoga');
+        return;
+      }
+      if (topic.length < 3) {
+        await ctx.reply('Topic must be at least 3 characters.');
+        return;
+      }
+      const userId = ctx.from?.id?.toString() || '';
+      const userName =
+        ctx.from?.first_name || ctx.from?.username || userId;
+      const dmJid = `tg:${ctx.from?.id}`;
+      addSubscription(groupFolder, userId, userName, topic, dmJid);
+      await ctx.reply(`Subscribed to "${topic}" — I'll DM you when it comes up.`);
+    });
+
+    this.bot.command('unsubscribe', async (ctx) => {
+      if (!isSubscribeEnabled()) {
+        await ctx.reply('Subscriptions are not available.');
+        return;
+      }
+      const chatJid = `tg:${ctx.chat.id}`;
+      const groupFolder = resolveGroupFolder(chatJid);
+      if (!groupFolder) {
+        await ctx.reply('Subscriptions are not available in this chat.');
+        return;
+      }
+      const topic = (ctx.match?.toString() || '').trim();
+      if (!topic) {
+        const subs = getSubscriptions(
+          groupFolder,
+          ctx.from?.id?.toString(),
+        );
+        if (subs.length === 0) {
+          await ctx.reply("You don't have any subscriptions.");
+        } else {
+          const list = subs.map((s) => `• ${s.topic}`).join('\n');
+          await ctx.reply(
+            `Your subscriptions:\n${list}\n\nTo unsubscribe: /unsubscribe [topic]`,
+          );
+        }
+        return;
+      }
+      const userId = ctx.from?.id?.toString() || '';
+      const removed = removeSubscription(groupFolder, userId, topic);
+      if (removed) {
+        await ctx.reply(`Unsubscribed from "${topic}".`);
+      } else {
+        await ctx.reply(`You weren't subscribed to "${topic}".`);
+      }
+    });
+
     // --- Rota commands (local, no containers) ---
     const rotaGroupId = ROTA_GROUP_JID.replace(/^tg:/, '');
     registerRotaCommands(
@@ -553,14 +632,6 @@ export class TelegramChannel implements Channel {
       if (ctx.message.text.startsWith('/')) {
         parsedCmd = ctx.message.text.slice(1).split(/[\s@]/)[0].toLowerCase();
         if (LOCAL_COMMANDS.has(parsedCmd)) return;
-
-        if (
-          (parsedCmd === 'subscribe' || parsedCmd === 'unsubscribe') &&
-          !isSubscribeEnabled()
-        ) {
-          await ctx.reply('Subscriptions are not available.');
-          return;
-        }
       }
 
       const chatJid = `tg:${ctx.chat.id}`;
