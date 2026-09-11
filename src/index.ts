@@ -65,6 +65,7 @@ import {
   initDatabase,
   setRegisteredGroup,
   setRouterState,
+  deleteAllSessions,
   setSession,
   storeChatMetadata,
   storeMessage,
@@ -894,6 +895,22 @@ export async function main(): Promise<void> {
             );
           return;
         }
+        if (trimmed.toLowerCase() === '/admin-reset-sessions') {
+          const adminIds = (ADMIN_TELEGRAM_ID || '')
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean);
+          if (adminIds.includes(msg.sender)) {
+            const count = deleteAllSessions();
+            sessions = {};
+            logger.info({ sender: msg.sender, count }, 'Admin reset all sessions');
+            channel
+              ?.sendMessage(chatJid, `Cleared ${count} sessions (DB + memory).`)
+              .catch((err) => logger.warn({ err }, 'Failed to send session reset response'));
+          }
+          return;
+        }
+
         handleAdminCommand(trimmed, msg.sender, ADMIN_TELEGRAM_ID)
           .then((result) => {
             if (!result.handled) return;
