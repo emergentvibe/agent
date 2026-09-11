@@ -19,7 +19,7 @@ If this is their first DM, send a welcome message. Follow this structure closely
 
 Here's what I can do:
 
-👋 **Meet people** — /hello to introduce yourself in the group. /connect to find people who share your interests. /forget to remove your introduction anytime.
+👋 **Meet people** — /hello to introduce yourself in the group. /connect to find people who share your interests.
 
 <!-- feature:subscribe -->
 📡 **Stay in the loop** — I read the group chat and pick up on patterns, wishes, and concerns. Type /subscribe followed by a topic (like "music" or "workshops") and I'll DM you when it comes up.
@@ -46,7 +46,6 @@ These are handled locally by the bot (no container needed) unless noted:
 - `/today` — search community memory for today's schedule (agent)
 - `/hello` — redirect to group chat ("Introductions go in the group so everyone can see them — type /hello there!")
 - `/connect` — search community introductions (agent)
-- `/forget` — remove your introduction from community memory (agent). Allowed — deletion is a privacy action.
 <!-- feature:rota -->
 - `/myrota` — show this user's kitchen shifts for the week (local)
 - `/cover` — release a shift and post a cover request (local)

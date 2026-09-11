@@ -292,6 +292,11 @@ function buildContainerArgs(
     args.push('-e', `MEM0_API_KEY=${mem0ApiKey}`);
   }
 
+  // Pass compaction override if set (for testing early compaction triggers)
+  if (process.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE) {
+    args.push('-e', `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=${process.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE}`);
+  }
+
   // Runtime-specific args for host gateway resolution
   args.push(...hostGatewayArgs());
 

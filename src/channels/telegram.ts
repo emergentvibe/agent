@@ -136,10 +136,6 @@ export class TelegramChannel implements Channel {
       { command: 'hello', description: 'Introduce yourself to the community' },
       { command: 'connect', description: 'Find people with shared interests' },
       {
-        command: 'forget',
-        description: 'Remove your introduction from memory',
-      },
-      {
         command: 'subscribe',
         description: 'Get notified about a topic',
         local: true,
@@ -433,11 +429,12 @@ export class TelegramChannel implements Channel {
         return;
       }
       const userId = ctx.from?.id?.toString() || '';
-      const userName =
-        ctx.from?.first_name || ctx.from?.username || userId;
+      const userName = ctx.from?.first_name || ctx.from?.username || userId;
       const dmJid = `tg:${ctx.from?.id}`;
       addSubscription(groupFolder, userId, userName, topic, dmJid);
-      await ctx.reply(`Subscribed to "${topic}" — I'll DM you when it comes up.`);
+      await ctx.reply(
+        `Subscribed to "${topic}" — I'll DM you when it comes up.`,
+      );
     });
 
     this.bot.command('unsubscribe', async (ctx) => {
@@ -453,10 +450,7 @@ export class TelegramChannel implements Channel {
       }
       const topic = (ctx.match?.toString() || '').trim();
       if (!topic) {
-        const subs = getSubscriptions(
-          groupFolder,
-          ctx.from?.id?.toString(),
-        );
+        const subs = getSubscriptions(groupFolder, ctx.from?.id?.toString());
         if (subs.length === 0) {
           await ctx.reply("You don't have any subscriptions.");
         } else {
