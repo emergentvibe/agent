@@ -200,14 +200,12 @@ export function rotaCommandEntries(): Array<{
       command: 'openshifts',
       description: 'See open shifts you can claim',
       local: true,
-      visible: false,
       featureGate: 'rota',
     },
     {
       command: 'hands',
       description: 'Kitchen needs help! (crew only)',
       local: true,
-      visible: false,
       featureGate: 'rota',
     },
     {

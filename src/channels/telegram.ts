@@ -175,7 +175,6 @@ export class TelegramChannel implements Channel {
         command: 'cancel_purchase',
         description: 'Undo your last purchase',
         local: true,
-        visible: false,
         featureGate: 'purchase',
       },
       {

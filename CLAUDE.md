@@ -44,7 +44,7 @@ Bar/BBQ tab tracking via inline Telegram keyboards — pure SQLite, no container
 
 ### Command Visibility
 
-Commands are split into visible (appear in Telegram autocomplete) and hidden (work when typed, not in menu). Visible: `today`, `hello`, `connect`, `bar`, `bbq`, `purchase`, `show_total`, `cover`, `shifts`, `myrota`. Hidden: `subscribe`, `unsubscribe`, `cancel_purchase`, `chatid`, `ping`, `leaveearly`, `openshifts`, `hands`, `h`.
+Commands are split into visible (appear in Telegram autocomplete) and hidden (work when typed, not in menu). Visible: `today`, `hello`, `connect`, `bar`, `bbq`, `purchase`, `show_total`, `cancel_purchase`, `cover`, `shifts`, `openshifts`, `myrota`, `hands`, `subscribe`, `unsubscribe`. Hidden: `chatid`, `ping`, `leaveearly`, `h`.
 
 ### DM Registration & NFC Check-in
 
