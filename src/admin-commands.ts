@@ -374,7 +374,9 @@ async function buildStatusReport(): Promise<string> {
   const mem0Url = process.env.MEM0_SSE_URL;
   if (mem0Url) {
     try {
-      const res = await fetch('http://localhost:6333/healthz', { signal: AbortSignal.timeout(3000) });
+      const res = await fetch('http://localhost:6333/healthz', {
+        signal: AbortSignal.timeout(3000),
+      });
       memoryStatus = res.ok ? 'ok' : `unhealthy (${res.status})`;
     } catch {
       memoryStatus = 'unreachable';

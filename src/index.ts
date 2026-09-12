@@ -789,12 +789,20 @@ export async function main(): Promise<void> {
   const mem0Env = readEnvFile(['MEM0_SSE_URL', 'OPENAI_API_KEY']);
   const mem0Url = process.env.MEM0_SSE_URL || mem0Env.MEM0_SSE_URL;
   if (mem0Url && !process.env.OPENAI_API_KEY && !mem0Env.OPENAI_API_KEY) {
-    logger.warn('MEM0_SSE_URL is set but OPENAI_API_KEY is missing — OpenMemory embeddings will fail');
+    logger.warn(
+      'MEM0_SSE_URL is set but OPENAI_API_KEY is missing — OpenMemory embeddings will fail',
+    );
   }
   for (const [, group] of Object.entries(registeredGroups)) {
-    const claudeMdPath = path.join(resolveGroupFolderPath(group.folder), 'CLAUDE.md');
+    const claudeMdPath = path.join(
+      resolveGroupFolderPath(group.folder),
+      'CLAUDE.md',
+    );
     if (!fs.existsSync(claudeMdPath)) {
-      logger.warn({ group: group.name, folder: group.folder }, 'Group has no CLAUDE.md — agent will have no community context');
+      logger.warn(
+        { group: group.name, folder: group.folder },
+        'Group has no CLAUDE.md — agent will have no community context',
+      );
     }
   }
 
@@ -842,7 +850,6 @@ export async function main(): Promise<void> {
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
-
 
   // Channel callbacks (shared by all channels)
   const channelOpts = {
