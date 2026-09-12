@@ -110,7 +110,7 @@ export async function handleAdminCommand(
   }
 
   if (cmd === '/admin-status') {
-    return { handled: true, response: buildStatusReport() };
+    return { handled: true, response: await buildStatusReport() };
   }
 
   if (cmd === '/admin-topics') {
@@ -346,7 +346,7 @@ function buildCheckinsReport(): string {
   return lines.join('\n');
 }
 
-function buildStatusReport(): string {
+async function buildStatusReport(): Promise<string> {
   const uptimeMs = Date.now() - startTime;
   const uptimeHrs = (uptimeMs / 3600000).toFixed(1);
 
@@ -370,6 +370,17 @@ function buildStatusReport(): string {
     // docker not available or no containers
   }
 
+  let memoryStatus = 'not configured';
+  const mem0Url = process.env.MEM0_SSE_URL;
+  if (mem0Url) {
+    try {
+      const res = await fetch('http://localhost:6333/healthz', { signal: AbortSignal.timeout(3000) });
+      memoryStatus = res.ok ? 'ok' : `unhealthy (${res.status})`;
+    } catch {
+      memoryStatus = 'unreachable';
+    }
+  }
+
   const mode = silenced ? 'SILENCED' : degraded ? 'DEGRADED' : 'normal';
 
   const lines = [
@@ -379,6 +390,7 @@ function buildStatusReport(): string {
     `Groups: ${mainGroups.length} main, ${dmGroups.length} DMs`,
     `Active tasks: ${activeTasks.length}`,
     `Running containers: ${containerCount}`,
+    `Memory: ${memoryStatus}`,
   ];
 
   return lines.join('\n');

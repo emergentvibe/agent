@@ -186,6 +186,14 @@ function createPreCompactHook(assistantName?: string): HookCallback {
       const conversationsDir = '/workspace/group/conversations';
       fs.mkdirSync(conversationsDir, { recursive: true });
 
+      const MAX_ARCHIVES = 100;
+      const existing = fs.readdirSync(conversationsDir).filter(f => f.endsWith('.md')).sort();
+      if (existing.length >= MAX_ARCHIVES) {
+        for (const old of existing.slice(0, existing.length - MAX_ARCHIVES + 1)) {
+          try { fs.unlinkSync(path.join(conversationsDir, old)); } catch {}
+        }
+      }
+
       const date = new Date().toISOString().split('T')[0];
       const filename = `${date}-${name}.md`;
       const filePath = path.join(conversationsDir, filename);

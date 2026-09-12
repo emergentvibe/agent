@@ -83,11 +83,7 @@ import { checkRateLimit } from './rate-limit.js';
 import { resolveGroupFolderPath } from './group-folder.js';
 import { startIpcWatcher } from './ipc.js';
 import { findChannel, formatMessages, formatOutbound } from './router.js';
-import {
-  restoreRemoteControl,
-  startRemoteControl,
-  stopRemoteControl,
-} from './remote-control.js';
+import { readEnvFile } from './env.js';
 import {
   isSenderAllowed,
   isTriggerAllowed,
@@ -788,7 +784,19 @@ export async function main(): Promise<void> {
   initDatabase();
   logger.info('Database initialized');
   loadState();
-  restoreRemoteControl();
+
+  // Startup validation: warn about missing config that causes silent failures
+  const mem0Env = readEnvFile(['MEM0_SSE_URL', 'OPENAI_API_KEY']);
+  const mem0Url = process.env.MEM0_SSE_URL || mem0Env.MEM0_SSE_URL;
+  if (mem0Url && !process.env.OPENAI_API_KEY && !mem0Env.OPENAI_API_KEY) {
+    logger.warn('MEM0_SSE_URL is set but OPENAI_API_KEY is missing — OpenMemory embeddings will fail');
+  }
+  for (const [, group] of Object.entries(registeredGroups)) {
+    const claudeMdPath = path.join(resolveGroupFolderPath(group.folder), 'CLAUDE.md');
+    if (!fs.existsSync(claudeMdPath)) {
+      logger.warn({ group: group.name, folder: group.folder }, 'Group has no CLAUDE.md — agent will have no community context');
+    }
+  }
 
   // Sync constitutions at startup (writes CLAUDE.md to group folders)
   try {
@@ -835,47 +843,6 @@ export async function main(): Promise<void> {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
 
-  // Handle /remote-control and /remote-control-end commands
-  async function handleRemoteControl(
-    command: string,
-    chatJid: string,
-    msg: NewMessage,
-  ): Promise<void> {
-    const group = registeredGroups[chatJid];
-    if (!group?.isMain) {
-      logger.warn(
-        { chatJid, sender: msg.sender },
-        'Remote control rejected: not main group',
-      );
-      return;
-    }
-
-    const channel = findChannel(channels, chatJid);
-    if (!channel) return;
-
-    if (command === '/remote-control') {
-      const result = await startRemoteControl(
-        msg.sender,
-        chatJid,
-        process.cwd(),
-      );
-      if (result.ok) {
-        await channel.sendMessage(chatJid, result.url);
-      } else {
-        await channel.sendMessage(
-          chatJid,
-          `Remote Control failed: ${result.error}`,
-        );
-      }
-    } else {
-      const result = stopRemoteControl();
-      if (result.ok) {
-        await channel.sendMessage(chatJid, 'Remote Control session ended.');
-      } else {
-        await channel.sendMessage(chatJid, result.error);
-      }
-    }
-  }
 
   // Channel callbacks (shared by all channels)
   const channelOpts = {
@@ -934,14 +901,6 @@ export async function main(): Promise<void> {
             }
           })
           .catch((err) => logger.warn({ err }, 'Admin command handler error'));
-        return;
-      }
-
-      // Remote control commands — intercept before storage
-      if (trimmed === '/remote-control' || trimmed === '/remote-control-end') {
-        handleRemoteControl(trimmed, chatJid, msg).catch((err) =>
-          logger.error({ err, chatJid }, 'Remote control command error'),
-        );
         return;
       }
 
@@ -1055,18 +1014,7 @@ export async function main(): Promise<void> {
                 trigger: ASSISTANT_NAME,
                 added_at: new Date().toISOString(),
                 requiresTrigger: false,
-                containerConfig: {
-                  additionalMounts: [
-                    {
-                      hostPath: path.join(
-                        resolveGroupFolderPath(community.group.folder),
-                        'community-knowledge',
-                      ),
-                      containerPath: 'community-knowledge',
-                      readonly: true,
-                    },
-                  ],
-                },
+                containerConfig: {},
               });
               writeDmClaudeMd(
                 dmFolder,

@@ -48,7 +48,9 @@ function detectProxyBindHost(): string {
   }
   logger.warn(
     'docker0 interface not found — credential proxy binding to 127.0.0.1. ' +
-      'Containers may not be able to reach the proxy. Set CREDENTIAL_PROXY_HOST explicitly.',
+      'Containers will not be able to reach the proxy. ' +
+      'Fix: set CREDENTIAL_PROXY_HOST to the docker bridge IP (run: ip addr show docker0), ' +
+      'or ensure Docker is installed with default networking.',
   );
   return '127.0.0.1';
 }

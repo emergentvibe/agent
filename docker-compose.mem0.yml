@@ -11,14 +11,15 @@
 services:
   mem0_store:
     image: qdrant/qdrant:latest
-    ports: ["6333:6333"]
+    ports: ["127.0.0.1:6333:6333"]
     volumes: ["qdrant_data:/qdrant/storage"]
     restart: unless-stopped
 
   openmemory:
     image: mem0/openmemory-mcp:latest
-    ports: ["8765:8765"]
-    env_file: .env
+    ports: ["127.0.0.1:8765:8765"]
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     depends_on: [mem0_store]
     # Patch: disable broken categorization (SDK 1.88.0 lacks with_response_format).
     # The SQLAlchemy after_insert listener retries 3x with exponential backoff,

@@ -107,7 +107,8 @@ export function buildClaudeMd(template: string, group: GroupConfig, data: Consti
     .replace(/\{\{polis_url\}\}/g, group.polis_url || `${apiUrl}/c/${data.slug}/polis`)
     .replace(/\{\{opinion_landscape_status\}\}/g, govStatus)
     .replace(/\{\{synthesis_status\}\}/g, govStatus)
-    .replace(/\{\{consent_status\}\}/g, govStatus);
+    .replace(/\{\{consent_status\}\}/g, govStatus)
+    .replace(/\{\{[a-z_]+\}\}/g, '(Not configured)');
 }
 
 export async function syncGroup(group: GroupConfig, apiUrl: string, basePath?: string): Promise<void> {
