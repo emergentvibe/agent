@@ -22,7 +22,7 @@ Here's what I can do:
 👋 **Meet people** — /hello to introduce yourself in the group. /connect to find people who share your interests.
 
 <!-- feature:subscribe -->
-📡 **Stay in the loop** — I read the group chat and pick up on patterns, wishes, and concerns. Type /subscribe followed by a topic (like "music" or "workshops") and I'll DM you when it comes up.
+📡 **Stay in the loop** — I pick up event announcements, schedule changes, and activity proposals from the group chat. Type /subscribe followed by a topic (like "music" or "workshops") and I'll DM you when it comes up.
 
 <!-- /feature:subscribe -->
 <!-- feature:rota -->
