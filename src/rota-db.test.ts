@@ -26,6 +26,7 @@ import {
   rotaBuildStateResponse,
   rotaGetNoShiftReason,
   rotaGetNoShiftByName,
+  setTestImportAllowed,
   type RotaImportPayload,
 } from './rota-db.js';
 
@@ -229,7 +230,7 @@ describe('rotaImport', () => {
 
   it('refuses TEST- prefixed versions', () => {
     expect(() => rotaImport(makePayload({ version: 'TEST-dryrun' }))).toThrow(
-      'TEST-',
+      'Test import rejected',
     );
   });
 
@@ -248,12 +249,27 @@ describe('rotaImport', () => {
   it('refuses is_test=true payloads', () => {
     expect(() =>
       rotaImport(makePayload({ is_test: true, version: 'LIVE-ok' })),
-    ).toThrow('is_test=true');
+    ).toThrow('Test import rejected');
   });
 
   it('allows is_test=false payloads', () => {
     const result = rotaImport(makePayload({ is_test: false }));
     expect(result.inserted).toBe(6);
+  });
+
+  it('allows test imports when test-import flag is on', () => {
+    setTestImportAllowed(true);
+    const result = rotaImport(makePayload({ is_test: true, version: 'TEST-rehearsal' }));
+    expect(result.inserted).toBe(6);
+    setTestImportAllowed(false);
+  });
+
+  it('refuses test imports again after flag is turned off', () => {
+    setTestImportAllowed(true);
+    setTestImportAllowed(false);
+    expect(() =>
+      rotaImport(makePayload({ is_test: true, version: 'LIVE-ok' })),
+    ).toThrow('Test import rejected');
   });
 
   it('refuses reimport when covers exist (freeze guard)', () => {

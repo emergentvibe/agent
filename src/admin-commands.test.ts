@@ -387,9 +387,14 @@ describe('admin-commands', () => {
         ADMIN_ID,
       );
       expect(result.handled).toBe(true);
-      expect(result.file).toBeDefined();
-      expect(result.file!.buffer.slice(0, 5).toString()).toBe('%PDF-');
-      expect(result.file!.filename).toBe('shifts-2026-09-22.pdf');
+      expect(result.files).toBeDefined();
+      expect(result.files!.length).toBeGreaterThanOrEqual(1);
+      const daily = result.files!.find((f) => f.filename.startsWith('shifts-2026'));
+      expect(daily).toBeDefined();
+      expect(daily!.buffer.slice(0, 5).toString()).toBe('%PDF-');
+      const weekly = result.files!.find((f) => f.filename.startsWith('shifts-week'));
+      expect(weekly).toBeDefined();
+      expect(weekly!.buffer.slice(0, 5).toString()).toBe('%PDF-');
     });
 
     it('returns error for date with no shifts', async () => {

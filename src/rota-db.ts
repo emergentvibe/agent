@@ -194,13 +194,13 @@ export function rotaImport(payload: RotaImportPayload): {
 } {
   const db = _getDb();
 
-  if (payload.is_test === true) {
+  const isTest =
+    payload.is_test === true ||
+    (payload.version && payload.version.startsWith('TEST-'));
+  if (isTest && !testImportAllowed()) {
     throw new Error(
-      'Test rota rejected (is_test=true). Wait for the real run.',
+      'Test import rejected. Enable with /admin-test-import on (auto-expires in 1h).',
     );
-  }
-  if (payload.version.startsWith('TEST-')) {
-    throw new Error('TEST- prefixed versions are rejected');
   }
 
   const existing = rotaGetMeta();
@@ -461,6 +461,13 @@ export function rotaGetNoShiftReason(personId: string): string | null {
     .prepare('SELECT reason FROM rota_no_shifts WHERE person_id = ?')
     .get(personId) as { reason: string } | undefined;
   return row?.reason ?? null;
+}
+
+export function rotaGetAllNoShifts(): RotaNoShiftEntry[] {
+  const db = _getDb();
+  return db
+    .prepare('SELECT * FROM rota_no_shifts ORDER BY name')
+    .all() as RotaNoShiftEntry[];
 }
 
 export function rotaGetNoShiftByName(name: string): RotaNoShiftEntry | null {
@@ -877,4 +884,24 @@ export function rotaExportTsv(): string | undefined {
   }
 
   return lines.join('\n');
+}
+
+// --- Test import gate ---
+
+let testImportExpiresAt = 0;
+
+export function testImportAllowed(): boolean {
+  if (Date.now() > testImportExpiresAt) {
+    testImportExpiresAt = 0;
+    return false;
+  }
+  return true;
+}
+
+export function setTestImportAllowed(on: boolean): void {
+  testImportExpiresAt = on ? Date.now() + 60 * 60 * 1000 : 0;
+}
+
+export function getTestImportExpiry(): number {
+  return testImportExpiresAt;
 }

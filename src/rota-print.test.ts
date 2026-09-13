@@ -8,7 +8,11 @@ import {
   rotaClaim,
   type RotaImportPayload,
 } from './rota-db.js';
-import { generateRotaPdf, parsePrintArgs } from './rota-print.js';
+import {
+  generateRotaPdf,
+  generateWeeklyRotaPdf,
+  parsePrintArgs,
+} from './rota-print.js';
 
 const BLOCKS = [
   {
@@ -146,6 +150,28 @@ describe('generateRotaPdf', () => {
     rotaImport(makePayload());
     const result = await generateRotaPdf('2026-09-22');
     expect('buffer' in result).toBe(true);
+  });
+});
+
+describe('generateWeeklyRotaPdf', () => {
+  it('returns error when no rota loaded', async () => {
+    const result = await generateWeeklyRotaPdf();
+    expect('error' in result).toBe(true);
+    if ('error' in result) {
+      expect(result.error).toContain('No rota loaded');
+    }
+  });
+
+  it('generates a valid landscape PDF', async () => {
+    rotaImport(makePayload());
+    const result = await generateWeeklyRotaPdf();
+    expect('buffer' in result).toBe(true);
+    if ('buffer' in result) {
+      expect(result.buffer).toBeInstanceOf(Buffer);
+      expect(result.buffer.length).toBeGreaterThan(100);
+      expect(result.buffer.slice(0, 5).toString()).toBe('%PDF-');
+      expect(result.filename).toContain('shifts-week-');
+    }
   });
 });
 

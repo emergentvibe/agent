@@ -1,7 +1,12 @@
 import PDFDocument from 'pdfkit';
 
 import {
+  attendeeGetAll,
+  type AttendeeRecord,
+} from './attendee-db.js';
+import {
   rotaGetAllAssignments,
+  rotaGetAllNoShifts,
   rotaGetByDate,
   rotaGetMeta,
   type RotaAssignment,
@@ -31,19 +36,56 @@ function groupByBlock(assignments: RotaAssignment[]): BlockGroup[] {
   return Array.from(map.values());
 }
 
-function formatPersonLine(a: RotaAssignment): string {
-  const origLabel =
-    `${a.original_name || '???'} ${a.original_telegram || ''}`.trim();
+function buildAttendeeMap(): Map<string, AttendeeRecord> {
+  const map = new Map<string, AttendeeRecord>();
+  for (const a of attendeeGetAll()) {
+    if (a.name) map.set(a.name.toLowerCase(), a);
+    if (a.telegram_handle) map.set(a.telegram_handle.toLowerCase(), a);
+  }
+  return map;
+}
 
-  if (a.state === 'open') {
-    return `${origLabel} — cover requested`;
+function resolveDisplayIdentity(
+  a: RotaAssignment,
+  attendeeMap: Map<string, AttendeeRecord>,
+): string {
+  const name = a.original_name || '???';
+
+  if (a.state === 'open') return `${name} — COVER NEEDED`;
+
+  // Look up attendee for contact info
+  let attendee: AttendeeRecord | undefined;
+  if (a.original_telegram) {
+    attendee = attendeeMap.get(a.original_telegram.toLowerCase());
   }
+  if (!attendee && a.original_name) {
+    attendee = attendeeMap.get(a.original_name.toLowerCase());
+  }
+
+  // Build identity: name + contact identifier
+  // @handle if available, else (telegram display name) to make it clear who's who
+  let contact = '';
+  if (a.original_telegram && a.original_telegram.startsWith('@')) {
+    contact = a.original_telegram;
+  } else if (attendee?.telegram_display) {
+    contact = `(${attendee.telegram_display})`;
+  }
+
+  let line = contact ? `${name} ${contact}` : name;
+
   if (a.state === 'covered') {
-    const coverer =
-      `${a.current_name || '???'} ${a.current_telegram || ''}`.trim();
-    return `${origLabel} → ${coverer.toUpperCase()} covering`;
+    const covererName = a.current_name || '???';
+    let covererContact = '';
+    if (a.current_telegram && a.current_telegram.startsWith('@')) {
+      covererContact = a.current_telegram;
+    }
+    const coverer = covererContact
+      ? `${covererName} ${covererContact}`
+      : covererName;
+    line = `${line} → ${coverer.toUpperCase()} covering`;
   }
-  return origLabel;
+
+  return line;
 }
 
 function formatDateHeader(date: string, day?: number): string {
@@ -56,6 +98,15 @@ function formatDateHeader(date: string, day?: number): string {
   const dayLabel = day ? `  ·  Day ${day}` : '';
   return `${weekday} ${dateStr}${dayLabel}`;
 }
+
+function formatShortDate(date: string): string {
+  const d = new Date(date + 'T12:00:00');
+  const weekday = d.toLocaleDateString('en-GB', { weekday: 'short' });
+  const dateStr = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  return `${weekday}\n${dateStr}`;
+}
+
+// ─── Daily PDF ──────────────────────────────────────────────
 
 export async function generateRotaPdf(
   date: string,
@@ -70,6 +121,7 @@ export async function generateRotaPdf(
     return { error: `No shifts scheduled for ${date}.` };
   }
 
+  const attendeeMap = buildAttendeeMap();
   const day = assignments[0]?.day;
   const blocks = groupByBlock(assignments);
   const openCount = assignments.filter((a) => a.state === 'open').length;
@@ -118,7 +170,7 @@ export async function generateRotaPdf(
     doc.moveDown(0.2);
 
     for (const a of block.assignments) {
-      const line = formatPersonLine(a);
+      const line = resolveDisplayIdentity(a, attendeeMap);
       doc.fontSize(11).font('Helvetica');
 
       if (a.state === 'open') {
@@ -183,6 +235,16 @@ export async function generateRotaPdf(
   });
 }
 
+// ─── Weekly PDF (landscape grid) ────────────────────────────
+
+const FAIRNESS_LINES = [
+  'Everyone does roughly 1.2 hours a day, adjusted for how many days you are here.',
+  'You never work two shifts in one day, and never the same job more than twice all week.',
+  'Party-night shifts count double, and the morning after counts one and a half.',
+  'Work a party-night dish shift and the next day is yours, guaranteed.',
+  'Arrival day is on crew and volunteers, because most of you are on a train.',
+];
+
 export async function generateWeeklyRotaPdf(): Promise<
   { buffer: Buffer; filename: string } | { error: string }
 > {
@@ -205,11 +267,64 @@ export async function generateWeeklyRotaPdf(): Promise<
     timeZone: meta.timezone || undefined,
   });
 
+  // Collect block labels in order of appearance
+  const blockOrder: string[] = [];
+  const blockTimes = new Map<string, { start: string; end: string }>();
+  for (const a of all) {
+    if (!blockOrder.includes(a.block_label)) {
+      blockOrder.push(a.block_label);
+      blockTimes.set(a.block_label, { start: a.start, end: a.end });
+    }
+  }
+
+  // Build grid data: blockLabel → date → names
+  const grid = new Map<string, Map<string, string[]>>();
+  for (const label of blockOrder) {
+    grid.set(label, new Map());
+  }
+  for (const a of all) {
+    const dateMap = grid.get(a.block_label)!;
+    if (!dateMap.has(a.date)) dateMap.set(a.date, []);
+    const name = a.original_name || '???';
+    if (a.state === 'open') {
+      dateMap.get(a.date)!.push('(open)');
+    } else if (a.state === 'covered') {
+      dateMap.get(a.date)!.push(a.current_name || name);
+    } else {
+      dateMap.get(a.date)!.push(name);
+    }
+  }
+
+  // Hall of Fame: crew with fixed roles
+  const noShifts = rotaGetAllNoShifts();
+  const allAttendees = attendeeGetAll();
+  const crewWithTitles: Array<{ name: string; title: string }> = [];
+
+  // From attendees with role crew/organizer and a title
+  for (const att of allAttendees) {
+    if (
+      (att.role === 'crew' || att.role === 'organizer') &&
+      att.title
+    ) {
+      crewWithTitles.push({ name: att.name, title: att.title });
+    }
+  }
+
+  // From no_shifts table (people with fixed roles who aren't in the rota)
+  for (const ns of noShifts) {
+    if (!crewWithTitles.some((c) => c.name === ns.name) && ns.reason) {
+      crewWithTitles.push({ name: ns.name, title: ns.reason });
+    }
+  }
+
+  // --- Layout ---
+  const MARGIN = 30;
   const doc = new PDFDocument({
     size: 'A4',
-    margin: 40,
+    layout: 'landscape',
+    margin: MARGIN,
     info: {
-      Title: `Kitchen Shifts — Full Week`,
+      Title: 'Kitchen Shifts — Full Week',
       Author: 'Treeweek Rota Bot',
     },
   });
@@ -217,91 +332,169 @@ export async function generateWeeklyRotaPdf(): Promise<
   const chunks: Buffer[] = [];
   doc.on('data', (chunk: Buffer) => chunks.push(chunk));
 
-  const PAGE_WIDTH = doc.page.width - 80;
-  const totalOpen = all.filter((a) => a.state === 'open').length;
+  const PAGE_W = doc.page.width - MARGIN * 2;
+  const PAGE_H = doc.page.height - MARGIN * 2;
 
-  // Title page / header on first page
-  doc.fontSize(20).font('Helvetica-Bold');
-  doc.text('Kitchen Shifts — Full Week', { width: PAGE_WIDTH });
-  doc.fontSize(9).font('Helvetica');
-  doc.text(`as of ${asOf}  ·  ${dates.length} days  ·  ${all.length} slots  ·  ${totalOpen} open`, {
-    width: PAGE_WIDTH,
+  // Title
+  doc.fontSize(16).font('Helvetica-Bold');
+  doc.text('Kitchen Shifts — Full Week', MARGIN, MARGIN, { width: PAGE_W });
+  doc.fontSize(8).font('Helvetica');
+  doc.text(`as of ${asOf}`, MARGIN, MARGIN + 2, {
+    width: PAGE_W,
+    align: 'right',
   });
-  doc.moveDown(0.5);
-  doc.moveTo(40, doc.y).lineTo(40 + PAGE_WIDTH, doc.y).lineWidth(1.5).stroke();
-  doc.moveDown(0.8);
 
-  for (let i = 0; i < dates.length; i++) {
-    const date = dates[i];
-    const dayAssignments = all.filter((a) => a.date === date);
-    const blocks = groupByBlock(dayAssignments);
-    const day = dayAssignments[0]?.day;
-    const openCount = dayAssignments.filter((a) => a.state === 'open').length;
+  const gridTop = MARGIN + 28;
+  doc
+    .moveTo(MARGIN, gridTop)
+    .lineTo(MARGIN + PAGE_W, gridTop)
+    .lineWidth(1.5)
+    .stroke();
 
-    // Check if we need a new page (leave room for at least header + 1 block)
-    if (i > 0 && doc.y > doc.page.height - 200) {
-      doc.addPage();
-    }
+  // Grid dimensions
+  const LABEL_COL_W = 80;
+  const dayCount = dates.length;
+  const DAY_COL_W = (PAGE_W - LABEL_COL_W) / dayCount;
+  const HEADER_H = 28;
+  const blockCount = blockOrder.length;
+  const availableH = PAGE_H - (gridTop - MARGIN) - HEADER_H - 120; // reserve space for HoF + footer
+  const ROW_H = Math.min(availableH / blockCount, 80);
 
-    // Day header
-    doc.fontSize(14).font('Helvetica-Bold');
-    doc.text(formatDateHeader(date, day), { width: PAGE_WIDTH });
-
-    if (openCount > 0) {
-      doc.fontSize(9).font('Helvetica-Bold');
-      doc.text(`${openCount} open slot${openCount > 1 ? 's' : ''}`, {
-        width: PAGE_WIDTH,
-      });
-    }
-
-    doc.moveDown(0.2);
-    doc.moveTo(40, doc.y).lineTo(40 + PAGE_WIDTH, doc.y).lineWidth(0.5).stroke();
-    doc.moveDown(0.3);
-
-    for (const block of blocks) {
-      // Check if block fits on current page
-      const blockHeight = 20 + block.assignments.length * 16;
-      if (doc.y + blockHeight > doc.page.height - 60) {
-        doc.addPage();
-      }
-
-      doc.fontSize(11).font('Helvetica-Bold');
-      doc.text(`${block.start}–${block.end}  ${block.label}`, {
-        width: PAGE_WIDTH,
-      });
-      doc.moveDown(0.1);
-
-      for (const a of block.assignments) {
-        const line = formatPersonLine(a);
-        doc.fontSize(10).font('Helvetica');
-
-        if (a.state === 'open') {
-          doc.font('Helvetica-Bold').text(`    ${line}`, { width: PAGE_WIDTH });
-        } else if (a.state === 'covered') {
-          doc
-            .font('Helvetica-Oblique')
-            .text(`    ${line}`, { width: PAGE_WIDTH });
-        } else {
-          doc.text(`    ${line}`, { width: PAGE_WIDTH });
-        }
-      }
-      doc.moveDown(0.3);
-    }
-
-    doc.moveDown(0.5);
+  // Day headers
+  const headerY = gridTop + 4;
+  doc.fontSize(8).font('Helvetica-Bold');
+  for (let i = 0; i < dayCount; i++) {
+    const x = MARGIN + LABEL_COL_W + i * DAY_COL_W;
+    doc.text(formatShortDate(dates[i]), x + 3, headerY, {
+      width: DAY_COL_W - 6,
+      align: 'center',
+    });
   }
 
-  // Footer
-  doc.moveDown(0.5);
-  doc.moveTo(40, doc.y).lineTo(40 + PAGE_WIDTH, doc.y).lineWidth(0.5).stroke();
-  doc.moveDown(0.5);
+  const tableTop = gridTop + HEADER_H;
+
+  // Header row bottom line
   doc
-    .fontSize(9)
-    .font('Helvetica')
-    .text(
-      "Can't make a shift? DM the bot: /cover — you're still on it until someone claims it.",
-      { width: PAGE_WIDTH },
+    .moveTo(MARGIN, tableTop)
+    .lineTo(MARGIN + PAGE_W, tableTop)
+    .lineWidth(0.75)
+    .stroke();
+
+  // Grid rows
+  for (let r = 0; r < blockCount; r++) {
+    const label = blockOrder[r];
+    const times = blockTimes.get(label)!;
+    const rowY = tableTop + r * ROW_H;
+
+    // Block label cell
+    doc.fontSize(7).font('Helvetica-Bold');
+    doc.text(`${times.start}–${times.end}`, MARGIN + 2, rowY + 3, {
+      width: LABEL_COL_W - 4,
+    });
+    doc.fontSize(8).font('Helvetica-Bold');
+    doc.text(label, MARGIN + 2, rowY + 13, {
+      width: LABEL_COL_W - 4,
+    });
+
+    // Day cells
+    const dateMap = grid.get(label)!;
+    for (let c = 0; c < dayCount; c++) {
+      const x = MARGIN + LABEL_COL_W + c * DAY_COL_W;
+      const names = dateMap.get(dates[c]) || [];
+      doc.fontSize(7).font('Helvetica');
+      const cellText = names.join('\n');
+      doc.text(cellText, x + 3, rowY + 3, {
+        width: DAY_COL_W - 6,
+        height: ROW_H - 6,
+        lineGap: 1,
+      });
+
+      // Vertical column line
+      doc
+        .moveTo(x, tableTop)
+        .lineTo(x, tableTop + blockCount * ROW_H)
+        .lineWidth(0.25)
+        .stroke();
+    }
+
+    // Row bottom line
+    const lineY = rowY + ROW_H;
+    doc
+      .moveTo(MARGIN, lineY)
+      .lineTo(MARGIN + PAGE_W, lineY)
+      .lineWidth(r === blockCount - 1 ? 0.75 : 0.25)
+      .stroke();
+  }
+
+  // Label column left line
+  doc
+    .moveTo(MARGIN + LABEL_COL_W, gridTop)
+    .lineTo(MARGIN + LABEL_COL_W, tableTop + blockCount * ROW_H)
+    .lineWidth(0.5)
+    .stroke();
+
+  // Right edge
+  doc
+    .moveTo(MARGIN + PAGE_W, gridTop)
+    .lineTo(MARGIN + PAGE_W, tableTop + blockCount * ROW_H)
+    .lineWidth(0.5)
+    .stroke();
+
+  // Left edge
+  doc
+    .moveTo(MARGIN, gridTop)
+    .lineTo(MARGIN, tableTop + blockCount * ROW_H)
+    .lineWidth(0.5)
+    .stroke();
+
+  // --- Hall of Fame ---
+  let hofY = tableTop + blockCount * ROW_H + 10;
+
+  if (crewWithTitles.length > 0) {
+    doc.fontSize(9).font('Helvetica-Bold');
+    doc.text('Hall of Fame', MARGIN, hofY, { width: PAGE_W });
+    hofY += 13;
+
+    doc.fontSize(7).font('Helvetica');
+    const hofLines = crewWithTitles.map(
+      (c) => `${c.name} — ${c.title}`,
     );
+    // Lay out in columns (3 across)
+    const COL_COUNT = 3;
+    const COL_W = PAGE_W / COL_COUNT;
+    for (let i = 0; i < hofLines.length; i++) {
+      const col = i % COL_COUNT;
+      const row = Math.floor(i / COL_COUNT);
+      doc.text(hofLines[i], MARGIN + col * COL_W, hofY + row * 10, {
+        width: COL_W - 8,
+      });
+    }
+    const hofRows = Math.ceil(hofLines.length / COL_COUNT);
+    hofY += hofRows * 10 + 6;
+  }
+
+  // --- Fairness explainer ---
+  doc.fontSize(7).font('Helvetica-Oblique');
+  for (const line of FAIRNESS_LINES) {
+    doc.text(line, MARGIN, hofY, { width: PAGE_W });
+    hofY += 9;
+  }
+
+  // --- Footer ---
+  hofY += 4;
+  doc
+    .moveTo(MARGIN, hofY)
+    .lineTo(MARGIN + PAGE_W, hofY)
+    .lineWidth(0.5)
+    .stroke();
+  hofY += 5;
+  doc.fontSize(7).font('Helvetica');
+  doc.text(
+    "Can't make a shift? DM the bot: /cover — you're still on it until someone claims it.",
+    MARGIN,
+    hofY,
+    { width: PAGE_W },
+  );
 
   doc.end();
 

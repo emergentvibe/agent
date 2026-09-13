@@ -29,6 +29,9 @@ import {
   rotaExportBackup,
   rotaExportChangelog,
   rotaExportTsv,
+  testImportAllowed,
+  setTestImportAllowed,
+  getTestImportExpiry,
 } from './rota-db.js';
 import {
   generateRotaPdf,
@@ -196,6 +199,27 @@ export async function handleAdminCommand(
       handled: true,
       file: { buffer, filename: `rota-changelog-${date}.json` },
     };
+  }
+
+  if (
+    cmd === '/admin-test-import' ||
+    cmd === '/admin-test-import on'
+  ) {
+    setTestImportAllowed(true);
+    const mins = Math.round(
+      (getTestImportExpiry() - Date.now()) / 60000,
+    );
+    logger.warn({ sender }, 'Admin enabled test imports (1h window)');
+    return {
+      handled: true,
+      response: `⚠️ Test imports enabled for ${mins} minutes. Auto-expires at ${new Date(getTestImportExpiry()).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}.\nSend /admin-test-import off to disable early.`,
+    };
+  }
+
+  if (cmd === '/admin-test-import off') {
+    setTestImportAllowed(false);
+    logger.info({ sender }, 'Admin disabled test imports');
+    return { handled: true, response: 'Test imports disabled.' };
   }
 
   if (cmd === '/admin-rota-import') {
@@ -405,6 +429,13 @@ async function buildStatusReport(): Promise<string> {
     `Running containers: ${containerCount}`,
     `Memory: ${memoryStatus}`,
   ];
+
+  if (testImportAllowed()) {
+    const mins = Math.round(
+      (getTestImportExpiry() - Date.now()) / 60000,
+    );
+    lines.push(`\n⚠️ TEST IMPORTS ENABLED (${mins}m remaining)`);
+  }
 
   return lines.join('\n');
 }
