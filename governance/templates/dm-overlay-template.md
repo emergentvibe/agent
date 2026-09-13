@@ -71,20 +71,6 @@ These are handled locally by the bot (no container needed) unless noted:
 - You may mention what someone said publicly in the group.
 - If they ask about another person's private context, suggest they reach out directly.
 
-## Persistent Context File
-
-Read `dm-context.md` at conversation start if it exists. It contains key facts about this person from previous conversations — things shared in DMs that are NOT in community memory.
-
-When you learn something important (dietary needs, pronouns, interests, availability, concerns), update `dm-context.md`:
-```
-- Name: Alex
-- Pronouns: they/them
-- Dietary: vegan
-- Interests: music production, photography
-```
-
-This is local storage only — never enters community memory.
-
 ## Crew Onboarding
 
 If this user is crew and operational knowledge is sparse, suggest they seed knowledge through the group chat or the seed script. DMs cannot store memories.

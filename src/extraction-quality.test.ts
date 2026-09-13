@@ -54,7 +54,7 @@ describe.skipIf(!HAS_API_KEY)('extraction quality (real Haiku)', () => {
     }
   }, 30_000);
 
-  it('extracts introductions', async () => {
+  it('does not extract introductions (handled by /hello)', async () => {
     const result = await extractMemories(
       [
         msg(
@@ -71,20 +71,10 @@ describe.skipIf(!HAS_API_KEY)('extraction quality (real Haiku)', () => {
       'Treeweek III',
     );
 
-    expect(result.memories.length).toBeGreaterThanOrEqual(2);
-    const texts = result.memories.map((m) => m.text.toLowerCase()).join(' ');
-    expect(texts).toContain('alex');
-    expect(texts).toContain('sam');
-    expect(texts).toMatch(/ceramics|design/);
-    expect(texts).toMatch(/musician|photographer/);
-
-    const intros = result.memories.filter(
-      (m) => m.metadata?.type === 'introduction',
-    );
-    expect(intros.length).toBeGreaterThanOrEqual(2);
+    expect(result.memories.length).toBe(0);
   }, 30_000);
 
-  it('extracts wishes and concerns', async () => {
+  it('extracts activity proposals and facility concerns', async () => {
     const result = await extractMemories(
       [
         msg('Priya', 'I really wish we could do morning swimming in the lake.'),
@@ -98,16 +88,10 @@ describe.skipIf(!HAS_API_KEY)('extraction quality (real Haiku)', () => {
       'Treeweek III',
     );
 
-    expect(result.memories.length).toBeGreaterThanOrEqual(2);
-    const types = result.memories.map((m) => m.metadata?.type);
-    expect(types).toContain('wish');
-    expect(types).toContain('concern');
+    expect(result.memories.length).toBeGreaterThanOrEqual(1);
 
     const texts = result.memories.map((m) => m.text.toLowerCase()).join(' ');
-    expect(texts).toContain('priya');
-    expect(texts).toContain('river');
-    expect(texts).toMatch(/swim/);
-    expect(texts).toMatch(/noise/);
+    expect(texts).toMatch(/swim|noise/);
   }, 30_000);
 
   it('rejects banter and noise', async () => {

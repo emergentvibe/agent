@@ -27,7 +27,10 @@ import { logger } from './logger.js';
 import { loadFeatureConfig } from './feature-config.js';
 import { resolveGroupIpcPath } from './group-folder.js';
 import { storeMemory } from './mem0-client.js';
-import { findMatchingSubscriptions } from './subscriptions.js';
+import {
+  findMatchingSubscriptions,
+  getSubscriptions,
+} from './subscriptions.js';
 import type { NewMessage, RegisteredGroup } from './types.js';
 
 export interface ExtractionMemory {
@@ -73,42 +76,59 @@ function buildExtractionPrompt(
   communitySlug: string,
   contextMessages: NewMessage[],
   newMessages: NewMessage[],
+  subscriptionTopics: string[] = [],
 ): string {
   const contextBlock =
     contextMessages.length > 0
       ? `## CONTEXT (recent messages for reference — do NOT extract from these)\n${formatMessagesForExtraction(contextMessages)}\n\n`
       : '';
 
-  return `You extract community knowledge from group chat messages for "${groupName}".
+  const subscriptionBlock =
+    subscriptionTopics.length > 0
+      ? `\n## Active subscriptions
+People have subscribed to notifications about: ${subscriptionTopics.join(', ')}
+If a message contains a substantive mention of any of these topics — an event, announcement, proposal, or update about it — extract it even if it doesn't fit the categories above. Do NOT extract personal information even if it matches a subscription keyword.\n`
+      : '';
+
+  return `You extract event and activity information from group chat messages for "${groupName}".
 Your output will be stored in a semantic search database for future retrieval.
 
-${contextBlock}## NEW MESSAGES (extract knowledge from these only)
+${contextBlock}## NEW MESSAGES (extract from these only)
 ${formatMessagesForExtraction(newMessages)}
 
 ## What to extract
 
-OPERATIONAL FACTS — schedules, locations, logistics, facility status:
-- Write complete, search-friendly sentences: "The sauna is heated daily from 4pm to 10pm"
-- When a fact CHANGES, include what changed: "Dinner moved from 7pm to 6:30pm (updated by Alex)"
-- Include WHO said it: "Alex mentioned the printer is on the second floor"
+EVENT/ACTIVITY ANNOUNCEMENTS — workshops, gatherings, scheduled activities:
+- "Workshop at 3pm in the garden today (announced by Alex)"
+- Write complete, search-friendly sentences
 
-PERSONAL DECLARATIONS shared in group — diet, pronouns, skills, interests:
-- "Sam introduced themselves as a photographer from Berlin interested in street photography"
+SCHEDULE CHANGES — times, venues, cancellations:
+- When something CHANGES, include what changed: "Dinner moved from 7pm to 6:30pm (updated by Alex)"
 
-WISHES and CONCERNS — things people want or worry about:
-- "River expressed concern about noise levels after 10pm in the garden"
-- If 2+ people express similar things, note the pattern: "Multiple people (Alex, Priya) mentioned wanting morning swimming"
+FACILITY STATUS — infrastructure that affects everyone:
+- "Hot water is out in building B (reported by River)"
+- "Wifi password changed to oak2026 (announced by Jordan)"
+
+ACTIVITY PROPOSALS — things people want to organize:
+- "Alex proposed a music jam tonight in the barn"
+
+PATTERNS — when 2+ people propose the same activity:
+- "Multiple people (Alex, Priya, River) expressed interest in morning lake swimming"
 
 ## What NOT to extract
-- Greetings, banter, jokes, emoji reactions
-- Questions without answers (queries are not knowledge)
-- Social coordination between specific people
-- Arguments or opinions (unless they contain a factual update)
+- Introductions, skills, interests, personal identity (handled by /hello)
+- Diet, pronouns, health, emotional state, relationships
+- Rota/shift assignments, cover swaps (managed by separate system)
+- Purchase/tab activity
+- Greetings, banter, jokes, thanks, emoji reactions
+- Questions without answers
+- Social coordination between individuals
+- Opinions, arguments, complaints about people
+- Third-party claims about anyone
 - Anything from the CONTEXT section (already processed)
-- Third-party claims about someone's private life (health, emotional state, relationships). First-person self-declarations are OK (dietary preferences, pronouns, etc).
-
+${subscriptionBlock}
 ## Output format
-JSON array: [{"text": "...", "user_id": "community:${communitySlug}", "metadata": {"type": "fact|introduction|wish|concern|pattern", "topic": "...", "tier": "operational|social", "source": "[name]", "source_context": "group"}}]
+JSON array: [{"text": "...", "user_id": "community:${communitySlug}", "metadata": {"type": "fact|proposal|pattern", "topic": "...", "tier": "operational", "source": "[name]", "source_context": "group"}}]
 Return [] if nothing worth extracting.`;
 }
 
@@ -117,6 +137,7 @@ export async function extractMemories(
   contextMessages: NewMessage[],
   communitySlug: string,
   groupName: string,
+  subscriptionTopics: string[] = [],
 ): Promise<ExtractionResult> {
   if (newMessages.length === 0) return { memories: [] };
 
@@ -134,6 +155,7 @@ export async function extractMemories(
             communitySlug,
             contextMessages,
             newMessages,
+            subscriptionTopics,
           ),
         },
       ],
@@ -261,11 +283,15 @@ async function runExtractionCycle(deps: ExtractionLoopDeps): Promise<void> {
       );
     }
 
+    const subs = getSubscriptions(group.folder);
+    const topics = [...new Set(subs.map((s) => s.topic))];
+
     logger.info(
       {
         group: group.name,
         newCount: newMessages.length,
         contextCount: contextMessages.length,
+        subscriptionTopics: topics.length,
       },
       'Running memory extraction',
     );
@@ -275,6 +301,7 @@ async function runExtractionCycle(deps: ExtractionLoopDeps): Promise<void> {
       contextMessages,
       communitySlug,
       group.name,
+      topics,
     );
 
     const storeResults = await Promise.allSettled(
