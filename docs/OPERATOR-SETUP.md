@@ -263,12 +263,6 @@ NFC deep links: `t.me/BOT?start=bar`, `t.me/BOT?start=bbq`, `t.me/BOT?start=tab`
 - Crew digest requires `crew.json` in the group folder with crew member IDs
 - Check `TZ` env var if times seem wrong (defaults to system timezone)
 
-**Escalations not working:**
-- Check `escalation` is enabled in `features.json`
-- Escalation only works from DM containers, not group chat
-- Check `data/escalations/{group}/` for stored files
-- DM folder must follow naming convention `{mainGroupFolder}-dm-{senderId}`
-
 **Subscriptions not notifying:**
 - Check `subscribe` command is enabled in `features.json`
 - Subscription matching is simple keyword inclusion — "kitchen" matches "kitchen hours changed"

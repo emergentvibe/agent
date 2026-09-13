@@ -51,7 +51,7 @@ Commands the agent recognizes. Each can be toggled per group via `features.json`
 | Command | What it does | Default |
 |---------|-------------|---------|
 | `/today` | Shows today's scheduled events and recent operational changes. | on |
-| `/intro` | User introduces themselves. Stored in Mem0 under `community:{slug}`. | on |
+| `/hello` | User introduces themselves. Stored in Mem0 under `community:{slug}`. | on |
 | `/connect [interest]` | Searches community introductions by interest/skill. | on |
 | `/subscribe [topic]` | Get DM'd when extraction detects something matching that topic. Handled by host (no container). | on |
 | `/unsubscribe [topic]` | Remove a topic subscription. Handled by host. | on |
@@ -94,7 +94,7 @@ These map to NFC sticker URLs for physical placement at venues.
 
 ## Admin Commands
 
-Telegram commands, gated by `ADMIN_TELEGRAM_ID`. Work in both DMs and group chat (avoid running in group — they leak status info).
+Telegram commands, gated by `ADMIN_TELEGRAM_ID`. DM-gated — if sent in a group, the bot replies "Use this in a DM with me" and does not process the command.
 
 | Command | What it does |
 |---------|-------------|
@@ -130,13 +130,10 @@ Background behaviors that don't require user interaction. Toggled via `features.
 |----------|-------------|---------|
 | `memory_extraction` | Background loop extracts facts from group chat to Mem0 (see below). | on |
 | `welcome_dm` | Auto-registers DM when a group member first messages the bot privately. | on |
-| `pattern_sensing` | Agent notices emerging patterns ("several people have mentioned wanting..."). | on |
-| `epistemic_markers` | Agent qualifies statements with source attribution ("Alex mentioned..."). | on |
-| `operational_history` | Agent references how things have changed ("dinner was at 7, now 6:30"). | on |
-| `first_person_authority` | "I'm vegan" from the person overrides "Sam eats anything" from others. | on |
 | `daily_digest` | Morning summary posted to group at 8am. | off |
-| `crew_digest` | Evening summary DM'd to crew members at 11pm. Includes escalations. | off |
-| `escalation` | Anonymous concern reporting via DM. **Deprecated** — removed from templates, disabled by default. | off |
+| `crew_digest` | Evening summary DM'd to crew members at 11pm. | off |
+
+The following behaviors are baked into the agent templates and always active (not feature-flagged): pattern sensing, epistemic markers (source attribution), operational history tracking, and first-person authority.
 
 ## Feature Config
 
@@ -150,8 +147,7 @@ Per-group file at `groups/{name}/features.json`. Merges with defaults — you on
   },
   "behaviors": {
     "daily_digest": true,
-    "crew_digest": true,
-    "escalation": false
+    "crew_digest": true
   }
 }
 ```
@@ -166,18 +162,18 @@ If the file doesn't exist, all defaults apply. Loaded from `src/feature-config.t
 1. For each main group (never DMs), fetch messages since last extraction
 2. Filter out messages from topics with extraction disabled
 3. Include a context window of already-extracted messages so cross-batch conversations aren't lost (`MIN_CONTEXT_MESSAGES=20`, `EXTRACTION_WINDOW=60min`)
-4. Haiku classifies each message and extracts: operational facts, introductions, wishes, concerns, patterns
-5. Stores results in Mem0 under `community:{slug}` with metadata (type, topic, tier, source)
-6. Checks extracted memories against subscriptions and queues DM notifications for matches
+4. Inject active subscription topics so extraction catches content people subscribed to
+5. Haiku extracts events, schedules, facility status, activity proposals, and patterns
+6. Stores results in Mem0 under `community:{slug}` with metadata (type, topic, tier, source)
+7. Checks extracted memories against subscriptions and queues DM notifications for matches
 
 **What it extracts:**
-- `fact` — "The sauna is heated daily from 4pm to 10pm"
-- `introduction` — "Sam introduced themselves as a photographer from Berlin"
-- `wish` — "River expressed interest in morning swimming sessions"
-- `concern` — "Multiple people mentioned noise levels after 10pm"
-- `pattern` — "Several people (Alex, Priya, Sam) have asked about yoga"
+- `fact` — "Workshop at 3pm in the garden today (announced by Alex)"
+- `fact` — "Hot water is out in building B (reported by River)"
+- `proposal` — "Alex proposed a music jam tonight in the barn"
+- `pattern` — "Multiple people (Alex, Priya, River) expressed interest in morning lake swimming"
 
-**What it ignores:** Greetings, banter, jokes, questions without answers, social coordination.
+**What it ignores:** Introductions (handled by `/hello`), diet, pronouns, health, rota assignments, purchases, greetings, banter, jokes, questions without answers, opinions, social coordination.
 
 **Per-topic control:** Topics default to extraction OFF. General (thread_id null or 1) is always on. Use `/admin-extract-on [topic]` to enable extraction for specific topics. Topic registry in SQLite (`topics` table).
 
@@ -198,27 +194,13 @@ Crew members get elevated trust on operational matters and receive the crew dige
 
 **Daily digest** (`daily_digest` behavior): Cron task at 8am. Posts to the group chat. Searches Mem0 for the last 24 hours of community activity — events, changes, patterns. Template at `governance/templates/digest-prompt.md`.
 
-**Crew digest** (`crew_digest` behavior): Cron task at 11pm. DM'd to each crew member. Includes Mem0 activity plus reads `data/escalations/{group}/` for anonymous reports. Template at `governance/templates/crew-digest-prompt.md`.
+**Crew digest** (`crew_digest` behavior): Cron task at 11pm. DM'd to each crew member. Includes Mem0 activity — operational changes, emerging patterns, activity proposals. Template at `governance/templates/crew-digest-prompt.md`.
 
 Both are registered as scheduled tasks in SQLite by `src/digest.ts`. The task scheduler (`src/task-scheduler.ts`) runs them. Timezone follows `TZ` env var or system default.
 
-## Escalation Pipeline (deprecated)
+## Escalation Pipeline (removed)
 
-> Escalation was removed from agent templates in Phase A. The code still exists but is disabled by default. Do not re-enable without discussion.
-
-When `escalation` is enabled:
-
-1. User DMs the bot with a concern
-2. Agent offers anonymous escalation
-3. User confirms
-4. Agent writes IPC file: `{type: "escalation", text: "...", severity: "..."}`
-5. Host IPC watcher (`src/ipc.ts`) reads it
-6. `storeEscalation()` finds the parent group via DM folder prefix matching
-7. Writes anonymized JSON to `data/escalations/{group}/{timestamp}.json`
-8. Admin gets a DM notification immediately (`src/admin-notify.ts`)
-9. Crew digest picks it up at 11pm
-
-**Privacy:** The escalation text must not contain the person's name, message quotes, or identifying information. Enforced by the DM agent template (`governance/templates/dm-overlay-template.md`).
+> Escalation was removed from agent templates and feature flags in Phase A. The code path still exists in `src/ipc.ts` and `src/admin-notify.ts` but is unreachable — no template instructs the agent to create escalations. Do not re-enable without discussion.
 
 ## Subscriptions
 

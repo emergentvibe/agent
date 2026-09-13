@@ -77,6 +77,7 @@ Fill in (see `.env.example` for all options):
 # Required
 ANTHROPIC_API_KEY=sk-ant-...
 TELEGRAM_BOT_TOKEN=...          # from @BotFather
+OPENAI_API_KEY=sk-...           # required for OpenMemory embeddings
 
 # Self-hosted Mem0 (OpenMemory)
 MEM0_SSE_URL=http://localhost:8765/sse

@@ -86,7 +86,10 @@ Two sim systems: 28 behavioral scenarios at `../sim/scenarios/` (in-memory Mem0 
 | `groups/{name}/prices.json` | Purchase items and prices per category |
 | `groups/{name}/crew.json` | Crew member list ({id, name} pairs) |
 | `governance/templates/base-template.md` | Base agent personality and behavior |
+| `governance/templates/group-template.md` | Group-specific tools, Mem0 protocol, formatting |
 | `governance/templates/dm-overlay-template.md` | DM-specific behavior, welcome message, privacy rules |
+| `governance/sync/constitution-sync.ts` | API-based CLAUDE.md generation (requires GROUPS_CONFIG) |
+| `scripts/generate-claude-md.ts` | Local CLAUDE.md generation from templates (no API dependency) |
 | `tests/integration/sim-runner.ts` | 27-scenario integration sim runner |
 | `container/agent-runner/src/index.ts` | Agent runner inside Docker (tool filtering, IPC) |
 

@@ -7,9 +7,9 @@ You are compiling an evening crew digest for {{community_name}}.
    search_memories(query="events schedule changed moved updated today", user_id="community:{{slug}}")
    ```
 
-2. Search for community patterns and concerns:
+2. Search for community patterns and activity proposals:
    ```
-   search_memories(query="pattern concern wish multiple people", user_id="community:{{slug}}")
+   search_memories(query="pattern activity proposal multiple people", user_id="community:{{slug}}")
    ```
 
 ## Format
