@@ -10,8 +10,6 @@ export interface GroupConfig {
   /** Bot name used for @mentions. Falls back to ASSISTANT_NAME env var. */
   assistant_name?: string;
   community_start_date?: string;
-  /** Controls which building blocks are active. Defaults to 'memory-only'. */
-  governance_mode?: 'memory-only' | 'full';
 }
 
 export interface SyncConfig {

@@ -806,15 +806,18 @@ export async function main(): Promise<void> {
     }
   }
 
-  // Sync constitutions at startup (writes CLAUDE.md to group folders)
-  try {
-    await syncAll();
-    logger.info('Constitution sync complete');
-  } catch (err) {
-    logger.warn(
-      { err },
-      'Constitution sync failed, using cached CLAUDE.md files',
-    );
+  // Sync constitutions from emergentvibe.com API (only when GROUPS_CONFIG is set)
+  const groupsConfig = process.env.GROUPS_CONFIG;
+  if (groupsConfig && groupsConfig !== '[]') {
+    try {
+      await syncAll();
+      logger.info('Constitution sync complete');
+    } catch (err) {
+      logger.warn(
+        { err },
+        'Constitution sync failed, using cached CLAUDE.md files',
+      );
+    }
   }
 
   // Ensure scheduled tasks for existing groups (e.g. digest after feature flag change)
