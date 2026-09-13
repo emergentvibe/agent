@@ -26,7 +26,7 @@ Single Node.js process with skill-based channel system. Channels (Telegram curre
 
 Telegram Forum mode is supported: `thread_id` flows through the entire message pipeline so the bot replies in the correct topic. Per-topic extraction control lets admins enable/disable memory extraction for individual topics (`/admin-topics`, `/admin-extract-on`, `/admin-extract-off`). New topics default to extraction OFF; General is always ON.
 
-A background extraction loop (`src/extraction.ts`) runs every 5 minutes, using Haiku to process group messages and store facts, introductions, wishes, patterns, and concerns to Mem0. `MIN_CONTEXT_MESSAGES=20` ensures cross-batch context even when messages are spaced far apart. Only topics with extraction enabled are processed.
+A background extraction loop (`src/extraction.ts`) runs every 5 minutes, using Haiku to extract events, schedule changes, facility status, activity proposals, and patterns from group messages into Mem0. Introductions, diet, pronouns, health, rota assignments, and purchases are excluded. Active subscription topics are injected into the prompt so extraction catches content people subscribed to. `MIN_CONTEXT_MESSAGES=20` ensures cross-batch context. Only topics with extraction enabled are processed.
 
 Per-group feature flags (`src/feature-config.ts`) control which commands and behaviors are active. Subscribe, daily digest, and crew digest default to on; escalation has been removed. Flags are set per group via `groups/{name}/features.json`.
 

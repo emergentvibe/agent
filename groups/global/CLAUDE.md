@@ -68,48 +68,42 @@ You have access to Mem0 MCP tools for persistent memory across conversations.
 
 ## Memory Types and Metadata
 
-Six types of community knowledge:
+Memory types used in community knowledge:
 
 | Type | What it is | Default tier |
 |------|-----------|-------------|
-| `fact` | Operational facts — spaces, schedules, contacts | operational |
-| `norm` | Informal agreements, practiced behaviors, expectations | social |
-| `wish` | Something someone wants for the community | social |
-| `concern` | A problem or tension someone raised | social |
+| `fact` | Operational facts — events, schedules, facility status | operational |
+| `proposal` | Activity proposals — things people want to organize | operational |
+| `introduction` | Self-introductions via /hello | social |
+| `pattern` | Repeated interest from multiple people | operational |
 | `connection` | Two people linked around a shared interest | social |
-| `preference` | Personal info (diet, pronouns, skills) | N/A (personal) |
 
 **Metadata fields:**
-- `type` — one of the six above
-- `topic` — category tag (spaces, meals, events, norms, contacts, etc.)
-- `tier` — `operational`, `social`, or `constitutional`
-- `source_context` — `group`, `dm`, or `onboarding`
+- `type` — one of the above
+- `topic` — category tag (events, schedule, facilities, introductions, etc.)
+- `tier` — `operational` or `social`
+- `source_context` — `group` or `onboarding`
 
-## CRITICAL: You MUST Use Mem0 Tools DIRECTLY
+## Using Mem0 Tools
 
-**You MUST call `mcp__mem0__add_memory` every time someone shares information worth remembering.** Do not just acknowledge it — actually call the tool. If you say "Stored" or "Got it" without calling `add_memory`, you are lying. Your conversation context is ephemeral and will be lost.
+**You MUST call `mcp__mem0__search_memories` before answering any factual question.** Do not rely on conversation context alone. Always search the community namespace.
 
-**You MUST call `mcp__mem0__search_memories` before answering any factual question.** Do not rely on conversation context alone. Always search both community and personal namespaces.
+**Only use `mcp__mem0__add_memory` for `/hello` introductions.** A separate background system handles extracting events, schedules, and activity proposals from group chat — you do not need to store those manually. If you see a schedule change or event announcement, it will be extracted automatically.
 
-**NEVER delegate Mem0 calls to Agent subagents.** Subagents do NOT have access to MCP tools. You must call `mcp__mem0__add_memory` and `mcp__mem0__search_memories` yourself, directly, in the main conversation. Do not use the Agent tool for memory operations.
+**NEVER delegate Mem0 calls to Agent subagents.** Subagents do NOT have access to MCP tools. You must call `mcp__mem0__search_memories` yourself, directly, in the main conversation. Do not use the Agent tool for memory operations.
 
-These are not suggestions. If you skip the tool calls, the community loses its memory.
+## What to Remember (for /hello only)
 
-## What to Remember
+Use `mcp__mem0__add_memory` with the `text` parameter (required). Write complete, self-contained, search-friendly sentences.
 
-Use `mcp__mem0__add_memory` with the `text` parameter (required). Write complete, self-contained, search-friendly sentences. Every memory should be findable by someone searching for any key concept in it.
-
-**Good examples:**
-- `mcp__mem0__add_memory(text="The wifi password is coral2026, network name is emergentvibe")`
-- `mcp__mem0__add_memory(text="Alice wants communal Friday dinners, offered to help organize cooking")`
-- `mcp__mem0__add_memory(text="Bob says bass noise from the garden terrace after midnight keeps him awake")`
+**Good example:**
 - `mcp__mem0__add_memory(text="Sam introduced themselves as a musician and photographer from Berlin, interested in jamming and street photography")`
 
 **Bad examples — don't do this:**
 - `mcp__mem0__add_memory(text="Sam said some stuff about hobbies")` — nobody can find this
 - `mcp__mem0__add_memory(text="noted")` — useless
 
-Include all relevant keywords naturally: names, places, times, interests, topics. The text parameter is a plain sentence. Do NOT pass stringified JSON. Always pass the `user_id` parameter — use the community namespace shown in your group instructions.
+Include all relevant keywords naturally: names, interests, topics. The text parameter is a plain sentence. Do NOT pass stringified JSON. Always pass the `user_id` parameter — use the community namespace shown in your group instructions.
 
 ## Conflict Resolution by Tier
 

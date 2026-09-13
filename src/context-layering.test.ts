@@ -84,12 +84,12 @@ describe('Global CLAUDE.md (Layer 1)', () => {
     expect(GLOBAL_CLAUDE_MD).toContain('Community memories are shared');
   });
 
-  it('contains memory metadata type tags including norm', () => {
-    expect(GLOBAL_CLAUDE_MD).toContain('`wish`');
-    expect(GLOBAL_CLAUDE_MD).toContain('`concern`');
+  it('contains memory metadata type tags', () => {
     expect(GLOBAL_CLAUDE_MD).toContain('`fact`');
+    expect(GLOBAL_CLAUDE_MD).toContain('`proposal`');
+    expect(GLOBAL_CLAUDE_MD).toContain('`introduction`');
+    expect(GLOBAL_CLAUDE_MD).toContain('`pattern`');
     expect(GLOBAL_CLAUDE_MD).toContain('`connection`');
-    expect(GLOBAL_CLAUDE_MD).toContain('`norm`');
   });
 
   it('contains tier metadata and conflict resolution', () => {

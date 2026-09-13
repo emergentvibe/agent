@@ -53,7 +53,7 @@ const MEM0_TOOLS: Anthropic.Tool[] = [
           type: 'object',
           description: 'Metadata tags',
           properties: {
-            type: { type: 'string', enum: ['wish', 'concern', 'fact', 'norm', 'connection', 'preference', 'introduction'] },
+            type: { type: 'string', enum: ['fact', 'proposal', 'introduction', 'pattern', 'connection'] },
             topic: { type: 'string' },
             tier: { type: 'string', enum: ['operational', 'social', 'constitutional'] },
             source_context: { type: 'string', enum: ['group', 'dm', 'onboarding'] },
@@ -421,47 +421,41 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
   // ── Group Chat: Memory ───────────────────────────────────
 
   describe('Group chat: memory storage', () => {
-    it('stores a wish in community memory', async () => {
+    it('does not store wishes via add_memory (background extraction handles this)', async () => {
       const messages = formatGroupMessages([
         { sender: 'Priya', senderId: 'tg:103', content: 'I really wish we had a book club here. Anyone else into reading?' },
       ]);
 
-      const { toolCalls } = await chat(systemPrompt, messages);
+      const { text, toolCalls } = await chat(systemPrompt, messages);
 
       const addMemoryCalls = toolCalls.filter(t => t.name === 'add_memory');
-      expect(addMemoryCalls.length).toBeGreaterThanOrEqual(1);
+      expect(addMemoryCalls).toHaveLength(0);
 
-      const memoryCall = addMemoryCalls[0];
-      expect(memoryCall.input.user_id).toContain('community:');
-      const metadata = memoryCall.input.metadata as Record<string, string> | undefined;
-      if (metadata) {
-        expect(metadata.type).toBe('wish');
-      }
+      const visible = text.replace(/<internal>[\s\S]*?<\/internal>/g, '').trim();
+      expect(visible).toBe('');
+      expect(toolCalls.filter(t => t.name === 'send_message')).toHaveLength(0);
     }, 30000);
 
-    it('stores a concern in community memory', async () => {
+    it('does not store concerns via add_memory (background extraction handles this)', async () => {
       const messages = formatGroupMessages([
         { sender: 'Tom', senderId: 'tg:104', content: 'the noise from the garden terrace after 10pm is really keeping me up. can we do something about this?' },
       ]);
 
-      const { toolCalls } = await chat(systemPrompt, messages);
+      const { text, toolCalls } = await chat(systemPrompt, messages);
 
       const addMemoryCalls = toolCalls.filter(t => t.name === 'add_memory');
-      expect(addMemoryCalls.length).toBeGreaterThanOrEqual(1);
+      expect(addMemoryCalls).toHaveLength(0);
 
-      const memoryCall = addMemoryCalls[0];
-      expect(memoryCall.input.user_id).toContain('community:');
-      const metadata = memoryCall.input.metadata as Record<string, string> | undefined;
-      if (metadata) {
-        expect(metadata.type).toBe('concern');
-      }
+      const visible = text.replace(/<internal>[\s\S]*?<\/internal>/g, '').trim();
+      expect(visible).toBe('');
+      expect(toolCalls.filter(t => t.name === 'send_message')).toHaveLength(0);
     }, 30000);
   });
 
   // ── Group Chat: Pattern Sensing ──────────────────────────
 
   describe('Group chat: pattern sensing', () => {
-    it('surfaces a pattern when 3+ people express similar wishes', async () => {
+    it('stays silent during pattern emergence (patterns appear in digests only)', async () => {
       const messages = formatGroupMessages([
         { sender: 'Maria', senderId: 'tg:101', content: 'would love it if we could do communal cooking nights', time: '10:00 AM' },
         { sender: 'Alex', senderId: 'tg:102', content: 'yeah same, I miss cooking with people', time: '10:05 AM' },
@@ -471,20 +465,10 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
 
       const { text, toolCalls } = await chat(systemPrompt, messages);
 
-      const allText = [
-        text,
-        ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
-      ].join(' ');
-
-      const visible = allText.replace(/<internal>[\s\S]*?<\/internal>/g, '').trim();
-      expect(visible.length).toBeGreaterThan(0);
-
-      const lower = visible.toLowerCase();
-      await expectJudge(client, 'uses tentative or observational language about a pattern (not authoritative declarations)', visible);
-
-      expect(lower).not.toContain('the community wants');
-      expect(lower).not.toContain('the community believes');
-      expect(lower).not.toContain('you should');
+      const visible = text.replace(/<internal>[\s\S]*?<\/internal>/g, '').trim();
+      expect(visible).toBe('');
+      expect(toolCalls.filter(t => t.name === 'send_message')).toHaveLength(0);
+      expect(toolCalls.filter(t => t.name === 'add_memory')).toHaveLength(0);
     }, 30000);
   });
 
@@ -518,18 +502,17 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
   // ── DM: Personal Memory ─────────────────────────────────
 
   describe('DM: personal memory', () => {
-    it('stores personal preference in personal namespace', async () => {
-      const { toolCalls } = await chat(
+    it('does not call add_memory in DMs (privacy rule)', async () => {
+      const { text, toolCalls } = await chat(
         dmSystemPrompt,
         'hey, please remember this about me — I\'m vegetarian and allergic to nuts. it\'s important for meals.',
       );
 
       const addMemoryCalls = toolCalls.filter(t => t.name === 'add_memory');
-      expect(addMemoryCalls.length).toBeGreaterThanOrEqual(1);
+      expect(addMemoryCalls).toHaveLength(0);
 
-      const memoryCall = addMemoryCalls[0];
-      expect(memoryCall.input.user_id).toContain('tg:');
-      expect(memoryCall.input.user_id).not.toContain('community:');
+      const visible = text.replace(/<internal>[\s\S]*?<\/internal>/g, '').trim();
+      expect(visible.length).toBeGreaterThan(0);
     }, 30000);
   });
 
@@ -609,28 +592,21 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
       await expectJudge(client, 'asks about or acknowledges community knowledge areas that need to be filled (spaces, meals, schedule, norms, etc.)', visible);
     }, 60000);
 
-    it('stores admin-provided facts as community knowledge', async () => {
-      // Admin provides info about spaces
-      const { toolCalls } = await chatEmpty(
+    it('does not store admin facts via DM (suggests group chat or seed script)', async () => {
+      const { text, toolCalls } = await chatEmpty(
         adminDmSystemPrompt,
         'The kitchen is in Building A, ground floor. Open 6am to 11pm. Co-working is in Building B, second floor.',
       );
 
       const addMemoryCalls = toolCalls.filter(t => t.name === 'add_memory');
-      expect(addMemoryCalls.length).toBeGreaterThanOrEqual(1);
+      expect(addMemoryCalls).toHaveLength(0);
 
-      // Should store in community namespace
-      const communityMemories = addMemoryCalls.filter(
-        t => (t.input.user_id as string).startsWith('community:'),
-      );
-      expect(communityMemories.length).toBeGreaterThanOrEqual(1);
-
-      // Should tag as fact with spaces topic
-      const spaceFacts = communityMemories.filter(t => {
-        const meta = t.input.metadata as Record<string, string> | undefined;
-        return meta && meta.type === 'fact';
-      });
-      expect(spaceFacts.length).toBeGreaterThanOrEqual(1);
+      const allText = [
+        text,
+        ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
+      ].join(' ');
+      const visible = allText.replace(/<internal>[\s\S]*?<\/internal>/g, '').trim();
+      expect(visible.length).toBeGreaterThan(0);
     }, 60000);
   });
 
@@ -656,36 +632,39 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
 
   // ── Tier-Based Authority ─────────────────────────────────
 
-  describe('Tier-based authority: operational knowledge updates', () => {
-    it('bootstrapper correction is stored directly in bootstrap phase', async () => {
-      const { toolCalls } = await chat(
+  describe('Tier-based authority: DMs cannot store community knowledge', () => {
+    it('admin correction acknowledged but not stored via DM', async () => {
+      const { text, toolCalls } = await chat(
         adminDmSystemPrompt,
         'hey, kitchen hours changed — it now closes at 10pm instead of 11pm. please update.',
       );
 
       const addMemoryCalls = toolCalls.filter(t => t.name === 'add_memory');
-      expect(addMemoryCalls.length).toBeGreaterThanOrEqual(1);
+      expect(addMemoryCalls).toHaveLength(0);
 
-      // Should store in community namespace
-      const communityUpdates = addMemoryCalls.filter(
-        t => (t.input.user_id as string).startsWith('community:'),
-      );
-      expect(communityUpdates.length).toBeGreaterThanOrEqual(1);
+      const allText = [
+        text,
+        ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
+      ].join(' ');
+      const visible = allText.replace(/<internal>[\s\S]*?<\/internal>/g, '').trim();
+      expect(visible.length).toBeGreaterThan(0);
     }, 30000);
 
-    it('member operational correction is accepted (anyone can contribute)', async () => {
-      // In the new tier-based system, operational facts are last-writer-wins
-      // Any member can update operational knowledge
-      const { toolCalls } = await chat(
+    it('member correction acknowledged but not stored via DM', async () => {
+      const { text, toolCalls } = await chat(
         dmSystemPrompt,
         'hey, the kitchen actually closes at 10pm now, not 11pm. the schedule changed yesterday.',
       );
 
-      // Operational tier = last-writer-wins. Member corrections should be stored.
-      const communityAdds = toolCalls
-        .filter(t => t.name === 'add_memory')
-        .filter(t => (t.input.user_id as string).startsWith('community:'));
-      expect(communityAdds.length).toBeGreaterThanOrEqual(1);
+      const addMemoryCalls = toolCalls.filter(t => t.name === 'add_memory');
+      expect(addMemoryCalls).toHaveLength(0);
+
+      const allText = [
+        text,
+        ...toolCalls.filter(t => t.name === 'send_message').map(t => t.input.text as string),
+      ].join(' ');
+      const visible = allText.replace(/<internal>[\s\S]*?<\/internal>/g, '').trim();
+      expect(visible.length).toBeGreaterThan(0);
     }, 30000);
   });
 
@@ -714,12 +693,6 @@ describeAI('AI Behavioral Tests — Community Intelligence', () => {
         return meta && meta.type === 'introduction';
       });
       expect(introStore).toBeDefined();
-
-      // Should also store interests in personal namespace
-      const personalStores = addMemoryCalls.filter(
-        t => (t.input.user_id as string).startsWith('tg:'),
-      );
-      expect(personalStores.length).toBeGreaterThanOrEqual(1);
 
       // Should respond warmly
       const allText = [

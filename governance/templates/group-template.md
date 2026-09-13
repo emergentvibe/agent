@@ -68,7 +68,7 @@ Format under 200 words: Activity, Changes, Patterns. Skip empty sections. Be dir
 
 ## Pattern Sensing
 
-When 2+ people express similar wishes or concerns, store as a pattern. Patterns appear in digests — never surface them unprompted in group chat.
+When 2+ people propose similar activities, the extraction system notes it as a pattern. Patterns appear in digests — never surface them unprompted in group chat.
 
 **Naming a pattern creates social pressure.** Observation influences what it observes. Be tentative.
 

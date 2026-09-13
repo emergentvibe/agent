@@ -12,7 +12,7 @@ You are generating the morning digest for {{community_name}}. Search community m
    search_memories(query="moved changed updated", user_id="community:{{slug}}")
    ```
 
-3. Search for emerging patterns (wishes, concerns from multiple people):
+3. Search for emerging patterns (similar activity proposals from multiple people):
    ```
    search_memories(query="pattern multiple people", user_id="community:{{slug}}")
    ```

@@ -1,6 +1,6 @@
 /**
- * Background memory extraction — runs on interval, scans group chat messages,
- * extracts community knowledge into Mem0 without spawning containers.
+ * Background extraction — runs on interval, scans group chat messages,
+ * extracts events, schedules, and activity proposals into Mem0.
  * Uses a 60-min sliding window for context so cross-batch Q&A pairs aren't lost.
  */
 import fs from 'fs';
