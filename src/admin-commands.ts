@@ -30,7 +30,11 @@ import {
   rotaExportChangelog,
   rotaExportTsv,
 } from './rota-db.js';
-import { generateRotaPdf, parsePrintArgs } from './rota-print.js';
+import {
+  generateRotaPdf,
+  generateWeeklyRotaPdf,
+  parsePrintArgs,
+} from './rota-print.js';
 
 let silenced = false;
 let degraded = false;
@@ -57,6 +61,7 @@ export interface AdminCommandResult {
   handled: boolean;
   response?: string;
   file?: { buffer: Buffer; filename: string };
+  files?: Array<{ buffer: Buffer; filename: string }>;
 }
 
 export async function handleAdminCommand(
@@ -139,11 +144,17 @@ export async function handleAdminCommand(
 
   if (cmd.startsWith('/admin-rota-print')) {
     const date = parsePrintArgs(text.trim());
-    const result = await generateRotaPdf(date);
-    if ('error' in result) {
-      return { handled: true, response: result.error };
+    const [daily, weekly] = await Promise.all([
+      generateRotaPdf(date),
+      generateWeeklyRotaPdf(),
+    ]);
+    if ('error' in daily && 'error' in weekly) {
+      return { handled: true, response: daily.error };
     }
-    return { handled: true, file: result };
+    const files: Array<{ buffer: Buffer; filename: string }> = [];
+    if (!('error' in daily)) files.push(daily);
+    if (!('error' in weekly)) files.push(weekly);
+    return { handled: true, files };
   }
 
   if (cmd === '/admin-rota-backup') {

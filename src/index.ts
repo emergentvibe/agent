@@ -896,7 +896,15 @@ export async function main(): Promise<void> {
         handleAdminCommand(trimmed, msg.sender, ADMIN_TELEGRAM_ID)
           .then((result) => {
             if (!result.handled) return;
-            if (result.file && channel?.sendFile) {
+            if (result.files && channel?.sendFile) {
+              for (const f of result.files) {
+                channel
+                  .sendFile(chatJid, f.buffer, f.filename)
+                  .catch((err) =>
+                    logger.warn({ err }, 'Failed to send admin file'),
+                  );
+              }
+            } else if (result.file && channel?.sendFile) {
               channel
                 .sendFile(chatJid, result.file.buffer, result.file.filename)
                 .catch((err) =>

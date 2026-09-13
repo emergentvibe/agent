@@ -1,6 +1,11 @@
 import PDFDocument from 'pdfkit';
 
-import { rotaGetByDate, rotaGetMeta, type RotaAssignment } from './rota-db.js';
+import {
+  rotaGetAllAssignments,
+  rotaGetByDate,
+  rotaGetMeta,
+  type RotaAssignment,
+} from './rota-db.js';
 
 interface BlockGroup {
   label: string;
@@ -173,6 +178,137 @@ export async function generateRotaPdf(
     doc.on('end', () => {
       const buffer = Buffer.concat(chunks);
       const filename = `shifts-${date}.pdf`;
+      resolve({ buffer, filename });
+    });
+  });
+}
+
+export async function generateWeeklyRotaPdf(): Promise<
+  { buffer: Buffer; filename: string } | { error: string }
+> {
+  const meta = rotaGetMeta();
+  if (!meta) {
+    return { error: 'No rota loaded yet.' };
+  }
+
+  const all = rotaGetAllAssignments();
+  if (all.length === 0) {
+    return { error: 'No shifts in rota.' };
+  }
+
+  const dates = [...new Set(all.map((a) => a.date))].sort();
+  const asOf = new Date().toLocaleString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    day: 'numeric',
+    month: 'short',
+    timeZone: meta.timezone || undefined,
+  });
+
+  const doc = new PDFDocument({
+    size: 'A4',
+    margin: 40,
+    info: {
+      Title: `Kitchen Shifts — Full Week`,
+      Author: 'Treeweek Rota Bot',
+    },
+  });
+
+  const chunks: Buffer[] = [];
+  doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+
+  const PAGE_WIDTH = doc.page.width - 80;
+  const totalOpen = all.filter((a) => a.state === 'open').length;
+
+  // Title page / header on first page
+  doc.fontSize(20).font('Helvetica-Bold');
+  doc.text('Kitchen Shifts — Full Week', { width: PAGE_WIDTH });
+  doc.fontSize(9).font('Helvetica');
+  doc.text(`as of ${asOf}  ·  ${dates.length} days  ·  ${all.length} slots  ·  ${totalOpen} open`, {
+    width: PAGE_WIDTH,
+  });
+  doc.moveDown(0.5);
+  doc.moveTo(40, doc.y).lineTo(40 + PAGE_WIDTH, doc.y).lineWidth(1.5).stroke();
+  doc.moveDown(0.8);
+
+  for (let i = 0; i < dates.length; i++) {
+    const date = dates[i];
+    const dayAssignments = all.filter((a) => a.date === date);
+    const blocks = groupByBlock(dayAssignments);
+    const day = dayAssignments[0]?.day;
+    const openCount = dayAssignments.filter((a) => a.state === 'open').length;
+
+    // Check if we need a new page (leave room for at least header + 1 block)
+    if (i > 0 && doc.y > doc.page.height - 200) {
+      doc.addPage();
+    }
+
+    // Day header
+    doc.fontSize(14).font('Helvetica-Bold');
+    doc.text(formatDateHeader(date, day), { width: PAGE_WIDTH });
+
+    if (openCount > 0) {
+      doc.fontSize(9).font('Helvetica-Bold');
+      doc.text(`${openCount} open slot${openCount > 1 ? 's' : ''}`, {
+        width: PAGE_WIDTH,
+      });
+    }
+
+    doc.moveDown(0.2);
+    doc.moveTo(40, doc.y).lineTo(40 + PAGE_WIDTH, doc.y).lineWidth(0.5).stroke();
+    doc.moveDown(0.3);
+
+    for (const block of blocks) {
+      // Check if block fits on current page
+      const blockHeight = 20 + block.assignments.length * 16;
+      if (doc.y + blockHeight > doc.page.height - 60) {
+        doc.addPage();
+      }
+
+      doc.fontSize(11).font('Helvetica-Bold');
+      doc.text(`${block.start}–${block.end}  ${block.label}`, {
+        width: PAGE_WIDTH,
+      });
+      doc.moveDown(0.1);
+
+      for (const a of block.assignments) {
+        const line = formatPersonLine(a);
+        doc.fontSize(10).font('Helvetica');
+
+        if (a.state === 'open') {
+          doc.font('Helvetica-Bold').text(`    ${line}`, { width: PAGE_WIDTH });
+        } else if (a.state === 'covered') {
+          doc
+            .font('Helvetica-Oblique')
+            .text(`    ${line}`, { width: PAGE_WIDTH });
+        } else {
+          doc.text(`    ${line}`, { width: PAGE_WIDTH });
+        }
+      }
+      doc.moveDown(0.3);
+    }
+
+    doc.moveDown(0.5);
+  }
+
+  // Footer
+  doc.moveDown(0.5);
+  doc.moveTo(40, doc.y).lineTo(40 + PAGE_WIDTH, doc.y).lineWidth(0.5).stroke();
+  doc.moveDown(0.5);
+  doc
+    .fontSize(9)
+    .font('Helvetica')
+    .text(
+      "Can't make a shift? DM the bot: /cover — you're still on it until someone claims it.",
+      { width: PAGE_WIDTH },
+    );
+
+  doc.end();
+
+  return new Promise((resolve) => {
+    doc.on('end', () => {
+      const buffer = Buffer.concat(chunks);
+      const filename = `shifts-week-${dates[0]}-to-${dates[dates.length - 1]}.pdf`;
       resolve({ buffer, filename });
     });
   });
