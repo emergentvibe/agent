@@ -9,6 +9,8 @@ import { CSS } from './styles.js';
 import {
   getTodaySchedule,
   getFullWeekSchedule,
+  getCachedSchedule,
+  getCacheAge,
   formatDate,
   type DaySchedule,
   type ScheduleEvent,
@@ -22,7 +24,12 @@ function esc(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
-function shell(title: string, body: string, activeTab: string, openCount: number): string {
+function shell(
+  title: string,
+  body: string,
+  activeTab: string,
+  openCount: number,
+): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -114,11 +121,16 @@ function heroCard(telegramId: string | null): string {
     }
   }
 
-  const dateDisplay = isToday ? '' : `<div class="shift-date">${esc(formatDate(next.date))}</div>`;
-  const countdownHtml = countdown ? `<div class="countdown">${esc(countdown)}</div>` : '';
-  const coworkerHtml = coworkers.length > 0
-    ? `<div class="coworkers">with: ${esc(coworkers.join(', '))}</div>`
+  const dateDisplay = isToday
+    ? ''
+    : `<div class="shift-date">${esc(formatDate(next.date))}</div>`;
+  const countdownHtml = countdown
+    ? `<div class="countdown">${esc(countdown)}</div>`
     : '';
+  const coworkerHtml =
+    coworkers.length > 0
+      ? `<div class="coworkers">with: ${esc(coworkers.join(', '))}</div>`
+      : '';
 
   return `<div class="hero-card">
     <div class="label">Your next shift</div>
@@ -156,10 +168,7 @@ function getCoworkers(shift: RotaAssignment): string[] {
   const all = rotaGetByDate(shift.date);
   return all
     .filter(
-      (a) =>
-        a.block === shift.block &&
-        a.id !== shift.id &&
-        a.state !== 'open',
+      (a) => a.block === shift.block && a.id !== shift.id && a.state !== 'open',
     )
     .map((a) => {
       if (a.state === 'covered' && a.current_name) return a.current_name;
@@ -168,7 +177,28 @@ function getCoworkers(shift: RotaAssignment): string[] {
     .filter(Boolean);
 }
 
+function formatCachedSchedule(text: string): string {
+  const lines = text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const items = lines
+    .map((line) => `<li class="schedule-item"><span class="event">${esc(line)}</span></li>`)
+    .join('');
+  const ageMs = getCacheAge();
+  const ageMins = Math.floor(ageMs / 60000);
+  const ageLabel = ageMins < 1 ? 'just now' : `${ageMins}m ago`;
+  return `<ul class="schedule-list">${items}</ul>
+  <div class="cache-age">Updated ${esc(ageLabel)}</div>`;
+}
+
 function scheduleSection(today: string): string {
+  const cached = getCachedSchedule();
+  if (cached) {
+    return `<div class="section-divider"><span>Today</span></div>
+    ${formatCachedSchedule(cached)}`;
+  }
+
   const schedule = getTodaySchedule(today);
   if (!schedule) {
     return `<div class="section-divider"><span>Today</span></div>
@@ -277,7 +307,8 @@ export function renderHelp(): string {
 
   let html = '';
   if (openSlots.length === 0) {
-    html = '<div class="schedule-empty">All shifts are covered right now.</div>';
+    html =
+      '<div class="schedule-empty">All shifts are covered right now.</div>';
   } else {
     html = openSlots
       .map((s) => {
@@ -316,10 +347,14 @@ export function renderWeek(): string {
   const html = week
     .map((day) => {
       const isToday = day.date === today;
-      const marker = isToday ? ' <span class="today-marker">← today</span>' : '';
+      const marker = isToday
+        ? ' <span class="today-marker">← today</span>'
+        : '';
       const items = day.events
         .map((e) => {
-          const note = e.note ? ` <span class="note">(${esc(e.note)})</span>` : '';
+          const note = e.note
+            ? ` <span class="note">(${esc(e.note)})</span>`
+            : '';
           return `<li class="schedule-item">
             <span class="time">${esc(e.time)}</span>
             <span class="event">${esc(e.name)}${note}</span>
@@ -397,8 +432,12 @@ export function renderKitchen(): string {
     .join('');
 
   const summaryParts: string[] = [];
-  if (openCount > 0) summaryParts.push(`${openCount} shift${openCount === 1 ? '' : 's'} need${openCount === 1 ? 's' : ''} help`);
-  if (shifts.length - openCount > 0) summaryParts.push(`${shifts.length - openCount} covered`);
+  if (openCount > 0)
+    summaryParts.push(
+      `${openCount} shift${openCount === 1 ? '' : 's'} need${openCount === 1 ? 's' : ''} help`,
+    );
+  if (shifts.length - openCount > 0)
+    summaryParts.push(`${shifts.length - openCount} covered`);
   const summary = summaryParts.join(' · ') || 'No shifts today';
 
   return `<!DOCTYPE html>

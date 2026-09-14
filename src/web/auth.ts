@@ -58,7 +58,9 @@ export function getDevTelegramId(): string {
   return process.env.DEV_TELEGRAM_ID || '12345678';
 }
 
-export function parseCookieToken(cookieHeader: string | undefined): string | undefined {
+export function parseCookieToken(
+  cookieHeader: string | undefined,
+): string | undefined {
   if (!cookieHeader) return undefined;
   const match = cookieHeader.match(/(?:^|;\s*)tw_token=([a-f0-9]+)/);
   return match?.[1];

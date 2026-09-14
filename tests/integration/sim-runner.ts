@@ -26,6 +26,7 @@ process.env.POLL_INTERVAL = '1000';
 process.env.EXTRACTION_INTERVAL = '5000';
 process.env.EXTRACTION_WINDOW = '60000';
 process.env.MIN_CONTEXT_MESSAGES = '20';
+process.env.SCHEDULE_CACHE_INTERVAL = '60000';
 process.chdir(AGENT_ROOT);
 
 // --- Types ---

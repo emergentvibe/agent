@@ -601,7 +601,9 @@ export class TelegramChannel implements Channel {
             const name =
               [ctx.from?.first_name, ctx.from?.last_name]
                 .filter(Boolean)
-                .join(' ') || ctx.from?.username || 'Unknown';
+                .join(' ') ||
+              ctx.from?.username ||
+              'Unknown';
             const linked = linkWebToken(token, telegramId, name);
             if (linked) {
               await ctx.reply(

@@ -331,6 +331,12 @@ body {
   color: var(--ink-muted);
   margin-top: 20px;
 }
+.cache-age {
+  font-size: 11px;
+  color: var(--ink-muted);
+  margin-top: 8px;
+  padding-left: 4px;
+}
 
 /* ── Bottom nav ── */
 

@@ -95,9 +95,7 @@ const DAY_OVERRIDES: DayOverride[] = [
   },
   {
     dayNumber: 7,
-    extra: [
-      { time: '14:00', name: 'WHIZBANG', note: 'full house clean' },
-    ],
+    extra: [{ time: '14:00', name: 'WHIZBANG', note: 'full house clean' }],
     highlights: ['WHIZBANG', "Simon's birthday"],
   },
   {
@@ -127,9 +125,7 @@ function getEventStartDate(): Date {
     if (dateMatch) {
       const day = parseInt(dateMatch[1], 10);
       const year =
-        new Date().getFullYear() >= 2026
-          ? new Date().getFullYear()
-          : 2025;
+        new Date().getFullYear() >= 2026 ? new Date().getFullYear() : 2025;
       return new Date(year, 8, day);
     }
   }
