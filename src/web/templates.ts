@@ -182,7 +182,9 @@ function updatesSection(): string {
 
   const items = updates
     .map((u) => {
-      const source = u.source ? ` <span class="update-source">${esc(u.source)}</span>` : '';
+      const source = u.source
+        ? ` <span class="update-source">${esc(u.source)}</span>`
+        : '';
       return `<li class="update-item">${esc(u.memory)}${source}</li>`;
     })
     .join('');
@@ -369,6 +371,7 @@ export function renderWeek(): string {
 
   const body = `
     ${header(today)}
+    ${updatesSection()}
     <div class="section-divider"><span>The Week</span></div>
     ${html}
   `;
