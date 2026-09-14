@@ -43,6 +43,9 @@ supplies.
 ## What to bring
 Campers bring their own tent and camping gear. Everyone else: bedding and towels are provided.
 
+## Wifi
+The wifi password is **touchgrass**.
+
 ## Who to ask
 Questions before or during: **TREEWEEK@nowmedia.org**, or Simon and Emergent directly.
 
