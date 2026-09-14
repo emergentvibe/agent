@@ -1,9 +1,6 @@
 import PDFDocument from 'pdfkit';
 
-import {
-  attendeeGetAll,
-  type AttendeeRecord,
-} from './attendee-db.js';
+import { attendeeGetAll, type AttendeeRecord } from './attendee-db.js';
 import {
   rotaGetAllAssignments,
   rotaGetAllNoShifts,
@@ -102,7 +99,10 @@ function formatDateHeader(date: string, day?: number): string {
 function formatShortDate(date: string): string {
   const d = new Date(date + 'T12:00:00');
   const weekday = d.toLocaleDateString('en-GB', { weekday: 'short' });
-  const dateStr = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const dateStr = d.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+  });
   return `${weekday}\n${dateStr}`;
 }
 
@@ -302,10 +302,7 @@ export async function generateWeeklyRotaPdf(): Promise<
 
   // From attendees with role crew/organizer and a title
   for (const att of allAttendees) {
-    if (
-      (att.role === 'crew' || att.role === 'organizer') &&
-      att.title
-    ) {
+    if ((att.role === 'crew' || att.role === 'organizer') && att.title) {
       crewWithTitles.push({ name: att.name, title: att.title });
     }
   }
@@ -456,9 +453,7 @@ export async function generateWeeklyRotaPdf(): Promise<
     hofY += 13;
 
     doc.fontSize(7).font('Helvetica');
-    const hofLines = crewWithTitles.map(
-      (c) => `${c.name} — ${c.title}`,
-    );
+    const hofLines = crewWithTitles.map((c) => `${c.name} — ${c.title}`);
     // Lay out in columns (3 across)
     const COL_COUNT = 3;
     const COL_W = PAGE_W / COL_COUNT;

@@ -259,7 +259,9 @@ describe('rotaImport', () => {
 
   it('allows test imports when test-import flag is on', () => {
     setTestImportAllowed(true);
-    const result = rotaImport(makePayload({ is_test: true, version: 'TEST-rehearsal' }));
+    const result = rotaImport(
+      makePayload({ is_test: true, version: 'TEST-rehearsal' }),
+    );
     expect(result.inserted).toBe(6);
     setTestImportAllowed(false);
   });

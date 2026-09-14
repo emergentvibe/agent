@@ -389,10 +389,14 @@ describe('admin-commands', () => {
       expect(result.handled).toBe(true);
       expect(result.files).toBeDefined();
       expect(result.files!.length).toBeGreaterThanOrEqual(1);
-      const daily = result.files!.find((f) => f.filename.startsWith('shifts-2026'));
+      const daily = result.files!.find((f) =>
+        f.filename.startsWith('shifts-2026'),
+      );
       expect(daily).toBeDefined();
       expect(daily!.buffer.slice(0, 5).toString()).toBe('%PDF-');
-      const weekly = result.files!.find((f) => f.filename.startsWith('shifts-week'));
+      const weekly = result.files!.find((f) =>
+        f.filename.startsWith('shifts-week'),
+      );
       expect(weekly).toBeDefined();
       expect(weekly!.buffer.slice(0, 5).toString()).toBe('%PDF-');
     });

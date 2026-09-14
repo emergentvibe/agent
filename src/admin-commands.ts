@@ -201,14 +201,9 @@ export async function handleAdminCommand(
     };
   }
 
-  if (
-    cmd === '/admin-test-import' ||
-    cmd === '/admin-test-import on'
-  ) {
+  if (cmd === '/admin-test-import' || cmd === '/admin-test-import on') {
     setTestImportAllowed(true);
-    const mins = Math.round(
-      (getTestImportExpiry() - Date.now()) / 60000,
-    );
+    const mins = Math.round((getTestImportExpiry() - Date.now()) / 60000);
     logger.warn({ sender }, 'Admin enabled test imports (1h window)');
     return {
       handled: true,
@@ -431,9 +426,7 @@ async function buildStatusReport(): Promise<string> {
   ];
 
   if (testImportAllowed()) {
-    const mins = Math.round(
-      (getTestImportExpiry() - Date.now()) / 60000,
-    );
+    const mins = Math.round((getTestImportExpiry() - Date.now()) / 60000);
     lines.push(`\n⚠️ TEST IMPORTS ENABLED (${mins}m remaining)`);
   }
 
