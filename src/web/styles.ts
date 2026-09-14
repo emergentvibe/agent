@@ -227,6 +227,27 @@ body {
   padding: 8px 0;
 }
 
+/* ── Updates from chat ── */
+
+.update-list {
+  list-style: none;
+}
+
+.update-item {
+  font-size: 14px;
+  color: var(--ink);
+  padding: 6px 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--fire);
+  margin-bottom: 4px;
+  line-height: 1.45;
+}
+
+.update-source {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
 /* ── Shift cards (My Shifts, Help Needed) ── */
 
 .day-group {

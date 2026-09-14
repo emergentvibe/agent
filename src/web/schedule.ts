@@ -171,21 +171,6 @@ export function getTodaySchedule(today: string): DaySchedule | undefined {
   return week.find((d) => d.date === today);
 }
 
-let cachedScheduleText: string | null = null;
-let cacheTime = 0;
-
-export function getCachedSchedule(): string | null {
-  return cachedScheduleText;
-}
-
-export function setCachedSchedule(text: string): void {
-  cachedScheduleText = text;
-  cacheTime = Date.now();
-}
-
-export function getCacheAge(): number {
-  return cacheTime ? Date.now() - cacheTime : Infinity;
-}
 
 export function formatDate(dateStr: string): string {
   const d = new Date(dateStr + 'T12:00:00');

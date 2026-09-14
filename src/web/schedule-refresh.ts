@@ -1,22 +1,57 @@
-import { ChildProcess } from 'child_process';
-
-import { ASSISTANT_NAME } from '../config.js';
-import { runContainerAgent, ContainerOutput } from '../container-runner.js';
-import { GroupQueue } from '../group-queue.js';
 import { logger } from '../logger.js';
-import { RegisteredGroup } from '../types.js';
-import { setCachedSchedule } from './schedule.js';
+import { searchMemories, type Mem0Memory } from '../mem0-client.js';
+import type { RegisteredGroup } from '../types.js';
 
 const SCHEDULE_CACHE_INTERVAL = parseInt(
-  process.env.SCHEDULE_CACHE_INTERVAL || '3600000',
+  process.env.SCHEDULE_CACHE_INTERVAL || '300000',
   10,
 );
 
-const SCHEDULE_PROMPT = `List today's complete schedule with times. Include any changes from the original plan that you find in memory — time changes, cancellations, new events. Note who announced changes. Keep it concise: one line per event, time first.`;
+const SCHEDULE_QUERIES = [
+  'schedule changes today events times',
+  'cancelled events activities',
+  'new events announcements workshops',
+];
+
+export interface ScheduleUpdate {
+  memory: string;
+  source?: string;
+  created_at?: string;
+}
+
+let cachedUpdates: ScheduleUpdate[] = [];
+let cacheTime = 0;
+
+export function getCachedUpdates(): ScheduleUpdate[] {
+  return cachedUpdates;
+}
+
+export function getCacheAge(): number {
+  return cacheTime ? Date.now() - cacheTime : Infinity;
+}
+
+export function setCachedUpdates(updates: ScheduleUpdate[]): void {
+  cachedUpdates = updates;
+  cacheTime = Date.now();
+}
+
+function extractSource(metadata?: Record<string, unknown>): string | undefined {
+  if (!metadata) return undefined;
+  const source = metadata.source;
+  return typeof source === 'string' ? source : undefined;
+}
+
+function deduplicateMemories(memories: Mem0Memory[]): Mem0Memory[] {
+  const seen = new Set<string>();
+  return memories.filter((m) => {
+    if (seen.has(m.id)) return false;
+    seen.add(m.id);
+    return true;
+  });
+}
 
 export interface ScheduleCacheDeps {
   registeredGroups: () => Record<string, RegisteredGroup>;
-  queue: GroupQueue;
 }
 
 async function refreshScheduleCache(deps: ScheduleCacheDeps): Promise<void> {
@@ -27,44 +62,30 @@ async function refreshScheduleCache(deps: ScheduleCacheDeps): Promise<void> {
     return;
   }
 
-  const [chatJid, group] = mainEntry;
-  logger.info('Refreshing schedule cache via container agent');
-
-  let result: string | null = null;
+  const [, group] = mainEntry;
+  const communitySlug = group.folder;
+  const userId = `community:${communitySlug}`;
 
   try {
-    const output = await runContainerAgent(
-      group,
-      {
-        prompt: SCHEDULE_PROMPT,
-        groupFolder: group.folder,
-        chatJid: `schedule-cache:${chatJid}`,
-        isMain: true,
-        isScheduledTask: true,
-        assistantName: ASSISTANT_NAME,
-        maxTurns: 3,
-      },
-      (_proc: ChildProcess, _containerName: string) => {},
-      async (streamed: ContainerOutput) => {
-        if (streamed.result) {
-          result = streamed.result;
-        }
-      },
+    const allResults: Mem0Memory[] = [];
+    for (const query of SCHEDULE_QUERIES) {
+      const results = await searchMemories(query, userId);
+      allResults.push(...results);
+    }
+
+    const unique = deduplicateMemories(allResults);
+
+    const updates: ScheduleUpdate[] = unique.map((m) => ({
+      memory: m.memory,
+      source: extractSource(m.metadata),
+      created_at: m.created_at,
+    }));
+
+    setCachedUpdates(updates);
+    logger.info(
+      { count: updates.length },
+      'Schedule cache updated from Mem0',
     );
-
-    if (!result && output.result) {
-      result = output.result;
-    }
-
-    if (result) {
-      setCachedSchedule(result);
-      logger.info(
-        { length: result.length },
-        'Schedule cache updated from agent',
-      );
-    } else {
-      logger.warn('Schedule cache refresh returned no result');
-    }
   } catch (err) {
     logger.error({ err }, 'Schedule cache refresh failed');
   }
@@ -87,8 +108,7 @@ export function startScheduleCacheLoop(deps: ScheduleCacheDeps): void {
     );
   };
 
-  // First refresh after a short delay (let extraction run first)
-  const initialDelay = Math.min(30_000, SCHEDULE_CACHE_INTERVAL);
+  const initialDelay = Math.min(15_000, SCHEDULE_CACHE_INTERVAL);
   setTimeout(() => {
     tick();
     setInterval(tick, SCHEDULE_CACHE_INTERVAL);

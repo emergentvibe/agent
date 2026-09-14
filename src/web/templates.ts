@@ -9,12 +9,11 @@ import { CSS } from './styles.js';
 import {
   getTodaySchedule,
   getFullWeekSchedule,
-  getCachedSchedule,
-  getCacheAge,
   formatDate,
   type DaySchedule,
   type ScheduleEvent,
 } from './schedule.js';
+import { getCachedUpdates, getCacheAge } from './schedule-refresh.js';
 
 function esc(s: string): string {
   return s
@@ -177,28 +176,27 @@ function getCoworkers(shift: RotaAssignment): string[] {
     .filter(Boolean);
 }
 
-function formatCachedSchedule(text: string): string {
-  const lines = text
-    .split('\n')
-    .map((l) => l.trim())
-    .filter(Boolean);
-  const items = lines
-    .map((line) => `<li class="schedule-item"><span class="event">${esc(line)}</span></li>`)
+function updatesSection(): string {
+  const updates = getCachedUpdates();
+  if (updates.length === 0) return '';
+
+  const items = updates
+    .map((u) => {
+      const source = u.source ? ` <span class="update-source">${esc(u.source)}</span>` : '';
+      return `<li class="update-item">${esc(u.memory)}${source}</li>`;
+    })
     .join('');
+
   const ageMs = getCacheAge();
   const ageMins = Math.floor(ageMs / 60000);
   const ageLabel = ageMins < 1 ? 'just now' : `${ageMins}m ago`;
-  return `<ul class="schedule-list">${items}</ul>
+
+  return `<div class="section-divider"><span>Updates from chat</span></div>
+  <ul class="update-list">${items}</ul>
   <div class="cache-age">Updated ${esc(ageLabel)}</div>`;
 }
 
 function scheduleSection(today: string): string {
-  const cached = getCachedSchedule();
-  if (cached) {
-    return `<div class="section-divider"><span>Today</span></div>
-    ${formatCachedSchedule(cached)}`;
-  }
-
   const schedule = getTodaySchedule(today);
   if (!schedule) {
     return `<div class="section-divider"><span>Today</span></div>
@@ -216,7 +214,8 @@ function scheduleSection(today: string): string {
     .join('');
 
   return `<div class="section-divider"><span>Today</span></div>
-  <ul class="schedule-list">${items}</ul>`;
+  <ul class="schedule-list">${items}</ul>
+  ${updatesSection()}`;
 }
 
 // ── Page renderers ──

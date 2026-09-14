@@ -1197,7 +1197,6 @@ export async function main(): Promise<void> {
   // Schedule cache: periodic agent query for live schedule updates
   startScheduleCacheLoop({
     registeredGroups: () => registeredGroups,
-    queue,
   });
 
   // Rota shift reminders (morning announcement + DM pings before shifts)
