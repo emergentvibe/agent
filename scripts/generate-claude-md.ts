@@ -42,6 +42,7 @@ interface GroupConfig {
   assistant_name?: string;
   admin_name?: string;
   community_start_date?: string;
+  voice?: string;
 }
 
 const config: GroupConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
@@ -88,6 +89,7 @@ const output = template
   )
   .replace(/\{\{crew_list\}\}/g, readCrewList())
   .replace(/\{\{admin_name\}\}/g, config.admin_name || 'the admin')
+  .replace(/\{\{voice\}\}/g, config.voice || '')
   .replace(
     /\{\{community_start_date\}\}/g,
     config.community_start_date || new Date().toISOString().split('T')[0],
