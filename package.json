@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/src/index.js",
     "dev": "tsx src/index.ts",
+    "dev:web": "DATE_OVERRIDE=2026-09-24 tsx src/web/standalone.ts",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.ts\"",
     "format:fix": "prettier --write \"src/**/*.ts\"",

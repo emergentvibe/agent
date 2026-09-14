@@ -60,7 +60,7 @@ describe('loadFeatureConfig', () => {
 describe('stripDisabledFeatures', () => {
   const allEnabled: typeof DEFAULT_FEATURES = {
     commands: { purchase: true, subscribe: true, rota: true },
-    behaviors: { daily_digest: true, crew_digest: true },
+    behaviors: { daily_digest: true, crew_digest: true, web: true },
   };
 
   const template = [
@@ -99,7 +99,7 @@ describe('stripDisabledFeatures', () => {
   it('strips multiple sections when multiple features disabled', () => {
     const features = {
       commands: { purchase: false, subscribe: false, rota: true },
-      behaviors: { daily_digest: true, crew_digest: true },
+      behaviors: { daily_digest: true, crew_digest: true, web: false },
     };
     const result = stripDisabledFeatures(template, features);
     expect(result).not.toContain('Buy stuff here');

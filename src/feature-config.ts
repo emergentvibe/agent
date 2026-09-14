@@ -12,6 +12,7 @@ export interface FeatureConfig {
   behaviors: {
     daily_digest: boolean;
     crew_digest: boolean;
+    web: boolean;
   };
 }
 
@@ -24,6 +25,7 @@ export const DEFAULT_FEATURES: FeatureConfig = {
   behaviors: {
     daily_digest: false,
     crew_digest: false,
+    web: false,
   },
 };
 

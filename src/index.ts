@@ -33,6 +33,7 @@ import {
   ROTA_SHIFTS_TOPIC_ID,
   TIMEZONE,
   TRIGGER_PATTERN,
+  WEB_PORT,
 } from './config.js';
 import { startCredentialProxy } from './credential-proxy.js';
 import './channels/index.js';
@@ -105,6 +106,7 @@ import {
   rotaGetNoShiftReason,
 } from './rota-db.js';
 import { startRotaReminders, stopRotaReminders } from './rota-reminders.js';
+import { startWebServer } from './web/server.js';
 
 let lastTimestamp = '';
 let sessions: Record<string, string> = {};
@@ -841,12 +843,21 @@ export async function main(): Promise<void> {
     logger.warn('ADMIN_HTTP_TOKEN not set — admin HTTP endpoint disabled');
   }
 
+  // Start companion website
+  let webServer: import('http').Server | undefined;
+  try {
+    webServer = await startWebServer(WEB_PORT);
+  } catch (err) {
+    logger.warn({ err, port: WEB_PORT }, 'Web server failed to start');
+  }
+
   // Graceful shutdown handlers
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'Shutdown signal received');
     stopRotaReminders();
     proxyServer.close();
     adminServer?.close();
+    webServer?.close();
     await queue.shutdown(10000);
     for (const ch of channels) await ch.disconnect();
     process.exit(0);

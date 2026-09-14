@@ -68,6 +68,9 @@ export const ADMIN_HTTP_PORT = parseInt(
   10,
 );
 export const ADMIN_HTTP_TOKEN = process.env.ADMIN_HTTP_TOKEN || '';
+export const WEB_PORT = parseInt(process.env.WEB_PORT || '8080', 10);
+export const TELEGRAM_BOT_USERNAME =
+  process.env.TELEGRAM_BOT_USERNAME || 'treeweek_bot';
 export const IPC_POLL_INTERVAL = 1000;
 export const IDLE_TIMEOUT = parseInt(process.env.IDLE_TIMEOUT || '7200000', 10); // 2hr default — how long to keep container alive after last result
 export const MAX_CONCURRENT_CONTAINERS = Math.max(

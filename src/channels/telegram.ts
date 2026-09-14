@@ -576,7 +576,44 @@ export class TelegramChannel implements Channel {
           }
           break;
         }
+        case 'cover':
+          // Deep link from website "Can't make it" button → trigger /cover DM flow
+          this.opts.onMessage(`tg:${ctx.chat.id}`, {
+            id: ctx.message!.message_id.toString(),
+            chat_jid: `tg:${ctx.chat.id}`,
+            sender: ctx.from?.id?.toString() || '',
+            sender_name:
+              ctx.from?.first_name || ctx.from?.username || 'Unknown',
+            sender_handle: ctx.from?.username
+              ? `@${ctx.from.username}`
+              : undefined,
+            content: `@${ASSISTANT_NAME} /cover`,
+            timestamp: new Date(ctx.message!.date * 1000).toISOString(),
+            is_from_me: false,
+          });
+          break;
         default:
+          // Handle web auth link tokens
+          if (payload.startsWith('link_')) {
+            const { linkWebToken } = await import('../web/auth.js');
+            const token = payload.slice(5);
+            const telegramId = ctx.from?.id?.toString() || '';
+            const name =
+              [ctx.from?.first_name, ctx.from?.last_name]
+                .filter(Boolean)
+                .join(' ') || ctx.from?.username || 'Unknown';
+            const linked = linkWebToken(token, telegramId, name);
+            if (linked) {
+              await ctx.reply(
+                'Connected! Head back to the website to see your shifts.',
+              );
+            } else {
+              await ctx.reply(
+                'Link expired or already used. Visit the website to get a new one.',
+              );
+            }
+            break;
+          }
           // Other payloads (wifi, today, info, connect) → rewrite as agent command
           this.opts.onMessage(`tg:${ctx.chat.id}`, {
             id: ctx.message!.message_id.toString(),

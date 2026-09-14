@@ -174,6 +174,17 @@ function createSchema(database: Database.Database): void {
     /* columns already exist */
   }
 
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS web_tokens (
+      token TEXT PRIMARY KEY,
+      telegram_id TEXT,
+      telegram_name TEXT,
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_web_tokens_telegram ON web_tokens(telegram_id);
+  `);
+
   createRotaSchema(database);
   createAttendeeSchema(database);
 }
