@@ -12,10 +12,7 @@ import { resolveGroupFolderPath } from './group-folder.js';
 import { logger } from './logger.js';
 import { RegisteredGroup } from './types.js';
 
-const TEMPLATE_DIR = path.resolve(
-  import.meta.dirname ?? '.',
-  '../governance/templates',
-);
+const TEMPLATE_DIR = path.join(process.cwd(), 'governance/templates');
 
 /**
  * Sanitize a sender identifier into a valid folder name segment.
