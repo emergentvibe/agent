@@ -216,13 +216,25 @@ function buildPersonalContext(
   const parts: string[] = [];
 
   if (attendee) {
-    parts.push(`This is ${attendee.name}.`);
+    const identifiers: string[] = [];
+    if (attendee.telegram_handle) {
+      const handle = attendee.telegram_handle.startsWith('@')
+        ? attendee.telegram_handle
+        : '@' + attendee.telegram_handle;
+      identifiers.push(`Telegram: ${handle}`);
+    }
+    if (attendee.telegram_display) {
+      identifiers.push(`display name: "${attendee.telegram_display}"`);
+    }
+    const idSuffix = identifiers.length > 0 ? ` (${identifiers.join(', ')})` : '';
+    parts.push(`This is ${attendee.name}${idSuffix}.`);
     if (attendee.role === 'crew') {
       const titleSuffix = attendee.title ? ` (${attendee.title})` : '';
       parts.push(`They are a crew member${titleSuffix}.`);
     } else if (attendee.role === 'organizer') {
+      const titleSuffix = attendee.title ? ` (${attendee.title})` : '';
       parts.push(
-        'They are an organizer. Treat them as crew with admin-level trust.',
+        `They are an organizer${titleSuffix}. Treat them as crew with admin-level trust.`,
       );
     }
     if (attendee.arrival || attendee.departure) {
