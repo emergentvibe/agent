@@ -8,12 +8,13 @@ import { logger } from './logger.js';
 import { readEnvFile } from './env.js';
 import {
   initLocalMem0,
-  localStoreMemory,
+  ensureLocalConnection,
   localSearchMemories,
   localDeleteMemoriesByUser,
   closeLocalMem0,
   type LocalMem0Memory,
 } from './mem0-local.js';
+import { initMem0Rest, restStoreMemory } from './mem0-rest.js';
 
 const MEM0_CLOUD_URL = 'https://api.mem0.ai/v1/memories/';
 
@@ -29,6 +30,8 @@ function detectBackend(): void {
 
   if (sseUrl) {
     initLocalMem0(sseUrl);
+    const parsed = new URL(sseUrl);
+    initMem0Rest(`${parsed.protocol}//${parsed.host}`);
     backend = 'local';
     logger.info('Mem0 backend: self-hosted (OpenMemory)');
   } else if (apiKey) {
@@ -64,7 +67,8 @@ export async function storeMemory(
   }
 
   if (backend === 'local') {
-    await localStoreMemory(text, userId, metadata);
+    await ensureLocalConnection(userId);
+    await restStoreMemory(text, userId, metadata);
     return;
   }
 

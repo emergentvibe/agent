@@ -47,6 +47,10 @@ async function getConnection(userId: string): Promise<McpConnection> {
   return conn;
 }
 
+export async function ensureLocalConnection(userId: string): Promise<void> {
+  await getConnection(userId);
+}
+
 export async function localStoreMemory(
   text: string,
   userId: string,
