@@ -8,8 +8,9 @@ const SCHEDULE_CACHE_INTERVAL = parseInt(
   10,
 );
 
-const SCHEDULE_MIN_SCORE = parseFloat(
-  process.env.SCHEDULE_MIN_SCORE || '0.5',
+const SCHEDULE_TOP_N = parseInt(process.env.SCHEDULE_TOP_N || '3', 10);
+const SCHEDULE_FLOOR_SCORE = parseFloat(
+  process.env.SCHEDULE_FLOOR_SCORE || '0.15',
 );
 
 function formatTodayForQuery(): string {
@@ -25,9 +26,9 @@ function formatTodayForQuery(): string {
 export function buildScheduleQueries(): string[] {
   const label = formatTodayForQuery();
   return [
-    `schedule changes ${label} events times`,
-    `cancelled events ${label} activities`,
-    `new events ${label} announcements workshops`,
+    `meal times schedule changes ${label}`,
+    `events cancelled or moved ${label}`,
+    `what is happening ${label} activities events`,
   ];
 }
 
@@ -59,20 +60,13 @@ function extractSource(metadata?: Record<string, unknown>): string | undefined {
   return typeof source === 'string' ? source : undefined;
 }
 
-function deduplicateMemories(memories: Mem0Memory[]): Mem0Memory[] {
-  const seen = new Set<string>();
-  return memories.filter((m) => {
-    if (seen.has(m.id)) return false;
-    seen.add(m.id);
-    return true;
-  });
-}
-
 export interface ScheduleCacheDeps {
   registeredGroups: () => Record<string, RegisteredGroup>;
 }
 
-export async function refreshScheduleCache(deps: ScheduleCacheDeps): Promise<void> {
+export async function refreshScheduleCache(
+  deps: ScheduleCacheDeps,
+): Promise<void> {
   const groups = deps.registeredGroups();
   const mainEntry = Object.entries(groups).find(([, g]) => g.isMain);
   if (!mainEntry) {
@@ -85,19 +79,24 @@ export async function refreshScheduleCache(deps: ScheduleCacheDeps): Promise<voi
   const userId = `community:${communitySlug}`;
 
   try {
-    const allResults: Mem0Memory[] = [];
     const queries = buildScheduleQueries();
+    const seen = new Set<string>();
+    const selected: Mem0Memory[] = [];
+
     for (const query of queries) {
       const results = await searchMemories(query, userId);
-      allResults.push(...results);
+      let taken = 0;
+      for (const m of results) {
+        if (taken >= SCHEDULE_TOP_N) break;
+        if (seen.has(m.id)) continue;
+        if (m.score !== undefined && m.score < SCHEDULE_FLOOR_SCORE) continue;
+        seen.add(m.id);
+        selected.push(m);
+        taken++;
+      }
     }
 
-    const unique = deduplicateMemories(allResults);
-    const aboveThreshold = unique.filter(
-      (m) => m.score === undefined || m.score >= SCHEDULE_MIN_SCORE,
-    );
-
-    const updates: ScheduleUpdate[] = aboveThreshold.map((m) => ({
+    const updates: ScheduleUpdate[] = selected.map((m) => ({
       memory: m.memory,
       source: extractSource(m.metadata),
       created_at: m.created_at,
@@ -105,7 +104,11 @@ export async function refreshScheduleCache(deps: ScheduleCacheDeps): Promise<voi
 
     setCachedUpdates(updates);
     logger.info(
-      { count: updates.length, filtered: unique.length - aboveThreshold.length, threshold: SCHEDULE_MIN_SCORE },
+      {
+        count: updates.length,
+        topN: SCHEDULE_TOP_N,
+        queries: queries.length,
+      },
       'Schedule cache updated from Mem0',
     );
   } catch (err) {
