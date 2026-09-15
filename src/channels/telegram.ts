@@ -37,7 +37,11 @@ import type { RotaImportPayload } from '../rota-db.js';
 import { adaptRotaExport, type SheetRotaExport } from '../sheet-adapter.js';
 import { isCrewMember } from '../crew.js';
 import { loadFeatureConfig } from '../feature-config.js';
-import { rotaCommandEntries, registerRotaCommands, postShiftsBoard } from '../rota-commands.js';
+import {
+  rotaCommandEntries,
+  registerRotaCommands,
+  postShiftsBoard,
+} from '../rota-commands.js';
 import type { RotaCommandOpts } from '../rota-commands.js';
 import { registerChannel, ChannelOpts } from './registry.js';
 import {
@@ -487,11 +491,7 @@ export class TelegramChannel implements Channel {
           parse_mode: 'Markdown',
         };
         if (keyboard) msgOpts.reply_markup = keyboard;
-        const msg = await this.bot!.api.sendMessage(
-          rotaGroupId,
-          text,
-          msgOpts,
-        );
+        const msg = await this.bot!.api.sendMessage(rotaGroupId, text, msgOpts);
         return msg.message_id;
       },
       editShiftsTopicMessage: async (messageId, text, keyboard) => {

@@ -343,10 +343,16 @@ export function registerRotaCommands(
 
     const telegramId = ctx.from?.id?.toString() || '';
     const username = ctx.from?.username;
-    const myShifts = resolveIdentity(telegramId, username);
+    const ownShifts = resolveIdentity(telegramId, username);
+    const claimedShifts = rotaGetCoveredByPerson(telegramId);
 
-    if (myShifts.length === 0) {
-      // Check if they're in the no_shifts list (e.g. Chef, Head of Buffet)
+    const seenIds = new Set(ownShifts.map((a) => a.id));
+    const claimedOnly = claimedShifts.filter((a) => !seenIds.has(a.id));
+    const allShifts = [...ownShifts, ...claimedOnly].sort((a, b) =>
+      a.day !== b.day ? a.day - b.day : a.start.localeCompare(b.start),
+    );
+
+    if (allShifts.length === 0) {
       const attendee = attendeeLookupByTelegramId(telegramId);
       const noShiftReason = attendee?.person_id
         ? rotaGetNoShiftReason(attendee.person_id)
@@ -363,15 +369,20 @@ export function registerRotaCommands(
       return;
     }
 
+    const claimedIds = new Set(claimedOnly.map((a) => a.id));
     const lines: string[] = ['*Your shifts*\n'];
     let totalHours = 0;
     let totalLoad = 0;
 
-    for (const a of myShifts) {
+    for (const a of allShifts) {
       let status = '';
-      if (a.state === 'open') status = ' — cover requested';
-      else if (a.state === 'covered')
+      if (claimedIds.has(a.id)) {
+        status = ` — covering for ${a.original_name || '???'}`;
+      } else if (a.state === 'open') {
+        status = ' — cover requested';
+      } else if (a.state === 'covered') {
         status = ` — covered by ${a.current_name || '???'}`;
+      }
       lines.push(`${formatDate(a.date)}: ${formatAssignment(a)}${status}`);
       totalHours += a.hours;
       totalLoad += a.weight;

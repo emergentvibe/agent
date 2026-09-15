@@ -6,12 +6,18 @@ import {
   rotaBindTelegramId,
   rotaRelease,
   rotaClaim,
+  rotaGetById,
   type RotaImportPayload,
 } from './rota-db.js';
+import { attendeeImport } from './attendee-db.js';
 import {
   generateRotaPdf,
   generateWeeklyRotaPdf,
   parsePrintArgs,
+  resolveDisplayIdentity,
+  resolveShortIdentifier,
+  resolveCovererIdentifier,
+  buildAttendeeMap,
 } from './rota-print.js';
 
 const BLOCKS = [
@@ -171,6 +177,108 @@ describe('generateWeeklyRotaPdf', () => {
       expect(result.buffer.length).toBeGreaterThan(100);
       expect(result.buffer.slice(0, 5).toString()).toBe('%PDF-');
       expect(result.filename).toContain('shifts-week-');
+    }
+  });
+});
+
+describe('covered shift identity resolution', () => {
+  function importWithAttendees() {
+    rotaImport(makePayload());
+    attendeeImport({
+      version: 'test',
+      event: 'test',
+      attendees: [
+        { name: 'Alice', telegram_handle: '@alice', person_id: 'p-alice' },
+        { name: 'Carol', telegram_handle: '@carol', person_id: 'p-carol' },
+      ],
+    });
+  }
+
+  function coveredAssignment() {
+    importWithAttendees();
+    rotaBindTelegramId('@alice', '99001');
+    rotaBindTelegramId('@carol', '99003');
+    rotaRelease('d1-lunch-1', '99001');
+    rotaClaim('d1-lunch-1', '99003', 'Carol', '@carol');
+  }
+
+  it('resolveShortIdentifier returns original handle, not coverer', () => {
+    coveredAssignment();
+    const a = rotaGetById('d1-lunch-1')!;
+    const map = buildAttendeeMap();
+    const result = resolveShortIdentifier(a, map);
+    expect(result).toBe('@alice');
+  });
+
+  it('resolveCovererIdentifier returns coverer handle', () => {
+    coveredAssignment();
+    const a = rotaGetById('d1-lunch-1')!;
+    const map = buildAttendeeMap();
+    const result = resolveCovererIdentifier(a, map);
+    expect(result).toBe('@carol');
+  });
+
+  it('resolveCovererIdentifier falls back to attendee map when handle missing', () => {
+    rotaImport(makePayload());
+    attendeeImport({
+      version: 'test',
+      event: 'test',
+      attendees: [
+        { name: 'Alice', telegram_handle: '@alice', person_id: 'p-alice' },
+        { name: 'Carol', telegram_handle: '@carol', person_id: 'p-carol' },
+      ],
+    });
+    rotaBindTelegramId('@alice', '99001');
+    rotaRelease('d1-lunch-1', '99001');
+    // Claim with telegram ID but no @handle
+    rotaClaim('d1-lunch-1', '99003', 'Carol', null);
+
+    const a = rotaGetById('d1-lunch-1')!;
+    const map = buildAttendeeMap();
+    const result = resolveCovererIdentifier(a, map);
+    expect(result).toBe('@carol');
+  });
+
+  it('resolveDisplayIdentity shows original → coverer for covered shifts', () => {
+    coveredAssignment();
+    const a = rotaGetById('d1-lunch-1')!;
+    const map = buildAttendeeMap();
+    const result = resolveDisplayIdentity(a, map);
+    expect(result).toContain('Alice');
+    expect(result).toContain('@alice');
+    expect(result).toContain('CAROL');
+    expect(result.toUpperCase()).toContain('@CAROL');
+    expect(result).toContain('→');
+    expect(result).toContain('covering');
+  });
+
+  it('resolveDisplayIdentity coverer contact uses attendee fallback', () => {
+    rotaImport(makePayload());
+    attendeeImport({
+      version: 'test',
+      event: 'test',
+      attendees: [
+        { name: 'Alice', telegram_handle: '@alice', person_id: 'p-alice' },
+        { name: 'Carol', telegram_handle: '@carol', person_id: 'p-carol' },
+      ],
+    });
+    rotaBindTelegramId('@alice', '99001');
+    rotaRelease('d1-lunch-1', '99001');
+    rotaClaim('d1-lunch-1', '99003', 'Carol', null);
+
+    const a = rotaGetById('d1-lunch-1')!;
+    const map = buildAttendeeMap();
+    const result = resolveDisplayIdentity(a, map);
+    expect(result.toUpperCase()).toContain('@CAROL');
+    expect(result).toContain('covering');
+  });
+
+  it('weekly PDF generates without error when shifts are covered', async () => {
+    coveredAssignment();
+    const result = await generateWeeklyRotaPdf();
+    expect('buffer' in result).toBe(true);
+    if ('buffer' in result) {
+      expect(result.buffer.slice(0, 5).toString()).toBe('%PDF-');
     }
   });
 });

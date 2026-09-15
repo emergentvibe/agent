@@ -33,7 +33,7 @@ function groupByBlock(assignments: RotaAssignment[]): BlockGroup[] {
   return Array.from(map.values());
 }
 
-function buildAttendeeMap(): Map<string, AttendeeRecord> {
+export function buildAttendeeMap(): Map<string, AttendeeRecord> {
   const map = new Map<string, AttendeeRecord>();
   for (const a of attendeeGetAll()) {
     if (a.name) map.set(a.name.toLowerCase(), a);
@@ -42,7 +42,7 @@ function buildAttendeeMap(): Map<string, AttendeeRecord> {
   return map;
 }
 
-function resolveDisplayIdentity(
+export function resolveDisplayIdentity(
   a: RotaAssignment,
   attendeeMap: Map<string, AttendeeRecord>,
 ): string {
@@ -75,6 +75,20 @@ function resolveDisplayIdentity(
     let covererContact = '';
     if (a.current_telegram && a.current_telegram.startsWith('@')) {
       covererContact = a.current_telegram;
+    } else {
+      let covAtt: AttendeeRecord | undefined;
+      if (a.current_telegram) {
+        covAtt = attendeeMap.get(a.current_telegram.toLowerCase());
+      }
+      if (!covAtt && a.current_name) {
+        covAtt = attendeeMap.get(a.current_name.toLowerCase());
+      }
+      if (covAtt?.telegram_handle) {
+        const h = covAtt.telegram_handle;
+        covererContact = h.startsWith('@') ? h : `@${h}`;
+      } else if (covAtt?.telegram_display) {
+        covererContact = `(${covAtt.telegram_display})`;
+      }
     }
     const coverer = covererContact
       ? `${covererName} ${covererContact}`
@@ -85,7 +99,7 @@ function resolveDisplayIdentity(
   return line;
 }
 
-function resolveShortIdentifier(
+export function resolveShortIdentifier(
   a: RotaAssignment,
   attendeeMap: Map<string, AttendeeRecord>,
 ): string {
@@ -98,6 +112,30 @@ function resolveShortIdentifier(
   }
   if (!attendee && a.original_name) {
     attendee = attendeeMap.get(a.original_name.toLowerCase());
+  }
+  if (attendee?.telegram_handle) {
+    const h = attendee.telegram_handle;
+    return h.startsWith('@') ? h : `@${h}`;
+  }
+  if (attendee?.telegram_display) {
+    return `(${attendee.telegram_display})`;
+  }
+  return '';
+}
+
+export function resolveCovererIdentifier(
+  a: RotaAssignment,
+  attendeeMap: Map<string, AttendeeRecord>,
+): string {
+  if (a.current_telegram && a.current_telegram.startsWith('@')) {
+    return a.current_telegram;
+  }
+  let attendee: AttendeeRecord | undefined;
+  if (a.current_telegram) {
+    attendee = attendeeMap.get(a.current_telegram.toLowerCase());
+  }
+  if (!attendee && a.current_name) {
+    attendee = attendeeMap.get(a.current_name.toLowerCase());
   }
   if (attendee?.telegram_handle) {
     const h = attendee.telegram_handle;
@@ -313,12 +351,18 @@ export async function generateWeeklyRotaPdf(): Promise<
     const name = a.original_name || '???';
     if (a.state === 'open') {
       dateMap.get(a.date)!.push('(open)');
+    } else if (a.state === 'covered') {
+      const covererName = a.current_name || '???';
+      const covererIdentifier = resolveCovererIdentifier(a, attendeeMap);
+      const covererLabel = covererIdentifier
+        ? `${covererName} ${covererIdentifier}`
+        : covererName;
+      dateMap.get(a.date)!.push(`${name} → ${covererLabel}`);
     } else {
-      const displayName = a.state === 'covered' ? a.current_name || name : name;
       const identifier = resolveShortIdentifier(a, attendeeMap);
       dateMap
         .get(a.date)!
-        .push(identifier ? `${displayName} ${identifier}` : displayName);
+        .push(identifier ? `${name} ${identifier}` : name);
     }
   }
 

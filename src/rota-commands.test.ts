@@ -12,6 +12,7 @@ import {
   rotaClaim,
   rotaGetByTelegramId,
   rotaGetByHandle,
+  rotaGetCoveredByPerson,
   rotaGetOpenSlots,
   type RotaImportPayload,
 } from './rota-db.js';
@@ -276,6 +277,59 @@ describe('one-open limit', () => {
     const r2 = rotaRelease('d2-lunch-1', '99001');
     expect(r2.ok).toBe(false);
     if (!r2.ok) expect(r2.reason).toBe('one_open');
+  });
+});
+
+describe('myrota: claimed shifts via rotaGetCoveredByPerson', () => {
+  beforeEach(() => {
+    rotaImport(makePayload());
+    rotaBindTelegramId('@alice', '99001');
+    rotaBindTelegramId('@carol', '99003');
+    rotaBindTelegramId('@dave', '99004');
+  });
+
+  it('rotaGetCoveredByPerson returns shifts claimed by a person', () => {
+    rotaRelease('d1-lunch-1', '99001');
+    rotaClaim('d1-lunch-1', '99003', 'Carol', '@carol');
+
+    const claimed = rotaGetCoveredByPerson('99003');
+    expect(claimed.length).toBe(1);
+    expect(claimed[0].id).toBe('d1-lunch-1');
+    expect(claimed[0].original_name).toBe('Alice');
+    expect(claimed[0].current_name).toBe('Carol');
+  });
+
+  it('rotaGetCoveredByPerson returns empty when person has claimed nothing', () => {
+    const claimed = rotaGetCoveredByPerson('99004');
+    expect(claimed.length).toBe(0);
+  });
+
+  it('original shifts and claimed shifts are distinct sets', () => {
+    rotaRelease('d1-lunch-1', '99001');
+    rotaClaim('d1-lunch-1', '99004', 'Dave', '@dave');
+
+    const daveOriginal = rotaGetByTelegramId('99004');
+    const daveClaimed = rotaGetCoveredByPerson('99004');
+
+    expect(daveOriginal.some((a) => a.id === 'd1-dish3-1')).toBe(true);
+    expect(daveOriginal.some((a) => a.id === 'd1-lunch-1')).toBe(false);
+    expect(daveClaimed.some((a) => a.id === 'd1-lunch-1')).toBe(true);
+    expect(daveClaimed.some((a) => a.id === 'd1-dish3-1')).toBe(false);
+  });
+
+  it('merged set contains both original and claimed shifts', () => {
+    rotaRelease('d1-lunch-1', '99001');
+    rotaClaim('d1-lunch-1', '99004', 'Dave', '@dave');
+
+    const own = rotaGetByTelegramId('99004');
+    const claimed = rotaGetCoveredByPerson('99004');
+    const seenIds = new Set(own.map((a) => a.id));
+    const claimedOnly = claimed.filter((a) => !seenIds.has(a.id));
+    const all = [...own, ...claimedOnly];
+
+    expect(all.length).toBe(2);
+    const ids = all.map((a) => a.id).sort();
+    expect(ids).toEqual(['d1-dish3-1', 'd1-lunch-1']);
   });
 });
 

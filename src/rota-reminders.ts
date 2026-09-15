@@ -140,7 +140,11 @@ async function tick(callbacks: ReminderCallbacks): Promise<void> {
 
   if (assignments.length === 0) return;
 
-  if (!rotaHasPinged(MORNING_ANNOUNCEMENT_ID, today) && now >= '08:00' && ROTA_SHIFTS_TOPIC_ID) {
+  if (
+    !rotaHasPinged(MORNING_ANNOUNCEMENT_ID, today) &&
+    now >= '08:00' &&
+    ROTA_SHIFTS_TOPIC_ID
+  ) {
     const announcement = buildMorningAnnouncement(today, assignments);
     if (announcement) {
       try {
