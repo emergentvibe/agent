@@ -161,9 +161,7 @@ export function startScheduleCacheLoop(
   const tick = () => {
     refreshScheduleCache(deps)
       .then(() => onRefreshed?.())
-      .catch((err) =>
-        logger.error({ err }, 'Schedule cache tick error'),
-      );
+      .catch((err) => logger.error({ err }, 'Schedule cache tick error'));
   };
 
   const initialDelay = Math.min(15_000, SCHEDULE_CACHE_INTERVAL);

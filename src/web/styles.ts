@@ -62,72 +62,70 @@ body {
 .hero-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 20px;
-  margin: 12px 0 24px;
+  border-left: 3px solid var(--fire);
+  border-radius: 0 6px 6px 0;
+  padding: 10px 12px;
+  margin: 8px 0 16px;
 }
 
 .hero-card .label {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--ink-muted);
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
-.hero-card .shift-name {
-  font-size: 20px;
-  font-weight: 700;
+.hero-card .hero-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.hero-card .name {
+  font-size: 15px;
+  font-weight: 600;
   color: var(--ink);
 }
 
-.hero-card .shift-time {
+.hero-card .time {
   font-family: var(--font-mono);
-  font-size: 15px;
+  font-size: 13px;
   color: var(--fire-glow);
-  margin-top: 4px;
 }
 
-.hero-card .shift-date {
-  font-size: 14px;
+.hero-card .hero-detail {
+  font-size: 12px;
   color: var(--ink-muted);
-  margin-top: 2px;
+  margin-top: 3px;
 }
 
-.hero-card .countdown {
-  font-family: var(--font-mono);
-  font-size: 13px;
+.hero-card .hero-detail .countdown {
   color: var(--fire);
-  margin-top: 6px;
-}
-
-.hero-card .coworkers {
-  font-size: 13px;
-  color: var(--ink-muted);
-  margin-top: 8px;
+  font-family: var(--font-mono);
 }
 
 .hero-card .done-message {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--covered-green);
 }
 
 .hero-card .done-sub {
-  font-size: 14px;
+  font-size: 12px;
   color: var(--ink-muted);
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .btn {
   display: inline-block;
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 14px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
   font-weight: 600;
   text-decoration: none;
-  margin-top: 12px;
+  margin-top: 6px;
   transition: opacity 0.15s;
 }
 
@@ -354,113 +352,34 @@ body {
   box-shadow: 0 0 6px var(--fire);
 }
 
-/* ── Shift cards (My Shifts, Help Needed) ── */
+/* ── Shift lists (My Shifts, Help Needed) ── */
 
 .day-group {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .day-group .day-header {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ink-muted);
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 12px;
-}
-
-.shift-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 14px 16px;
-  margin-bottom: 8px;
-}
-
-.shift-card .shift-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.shift-card .shift-name {
-  font-weight: 600;
-  font-size: 15px;
-}
-
-.shift-card .shift-time {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  color: var(--fire-glow);
-}
-
-.shift-card .shift-meta {
-  font-size: 13px;
-  color: var(--ink-muted);
-  margin-top: 4px;
-}
-
-.status-badge {
   font-size: 12px;
   font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 10px;
-  letter-spacing: 0.03em;
-}
-
-.status-done {
-  background: rgba(74, 154, 90, 0.2);
-  color: var(--covered-green);
-}
-
-.status-upcoming {
-  background: rgba(232, 118, 58, 0.15);
-  color: var(--fire);
-}
-
-.status-open {
-  background: rgba(232, 80, 80, 0.2);
-  color: var(--open-red);
-}
-
-.status-covered {
-  background: rgba(74, 154, 90, 0.2);
-  color: var(--covered-green);
-}
-
-.shift-card.muted {
-  opacity: 0.5;
+  color: var(--ink-muted);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 6px;
 }
 
 .shift-total {
-  font-size: 14px;
+  font-size: 12px;
   color: var(--ink-muted);
-  margin-top: 16px;
-  padding-top: 12px;
+  margin-top: 12px;
+  padding-top: 8px;
   border-top: 1px solid var(--border);
-}
-
-/* ── Help Needed specifics ── */
-
-.open-shift-card {
-  background: var(--surface);
-  border: 1px solid var(--open-red);
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 12px;
-}
-
-.open-shift-card .was-label {
-  font-size: 13px;
-  color: var(--ink-muted);
-  margin-top: 4px;
 }
 
 .refresh-note {
   text-align: center;
   font-size: 12px;
   color: var(--ink-muted);
-  margin-top: 20px;
+  margin-top: 16px;
 }
 .cache-age {
   font-size: 11px;
@@ -635,95 +554,43 @@ body {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-}
-
-.synth-item {
-  display: flex;
-  gap: 12px;
-  padding: 6px 0;
-  position: relative;
-}
-
-.synth-item .time {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  color: var(--fire-glow);
-  min-width: 50px;
-  flex-shrink: 0;
-}
-
-.synth-item .name {
-  font-size: 15px;
-  color: var(--ink);
-}
-
-.synth-item .note {
-  font-size: 13px;
-  color: var(--ink-muted);
-  font-style: italic;
-}
-
-.synth-item.past .time,
-.synth-item.past .name {
-  opacity: 0.4;
-}
-
-.synth-item.now {
-  background: rgba(232, 118, 58, 0.06);
-  margin: 0 -8px;
-  padding: 6px 8px;
-  border-radius: 6px;
-}
-
-.synth-item.now .time {
-  color: var(--fire);
-  font-weight: 700;
-}
-
-.synth-item.now .name {
-  font-weight: 600;
+  gap: 3px;
 }
 
 .synth-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 0 8px 8px 0;
-  padding: 12px 14px;
-  margin: 4px 0;
+  border-left: 3px solid var(--border);
+  border-radius: 0 6px 6px 0;
+  padding: 7px 10px;
   list-style: none;
 }
 
-.synth-card.card-changed {
-  border-left: 3px solid var(--fire);
-}
+.synth-card.card-changed { border-left-color: var(--fire); }
+.synth-card.card-new { border-left-color: var(--event-new); }
+.synth-card.card-cancelled { border-left-color: var(--ink-muted); opacity: 0.55; }
+.synth-card.card-open { border-left-color: var(--open-red); }
+.synth-card.past { opacity: 0.5; }
 
-.synth-card.card-new {
-  border-left: 3px solid var(--event-new);
-}
-
-.synth-card.card-cancelled {
-  border-left: 3px solid var(--ink-muted);
-  opacity: 0.55;
-}
-
-.synth-card .card-top {
+.synth-card .card-row {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 4px;
+  align-items: baseline;
+  gap: 8px;
 }
 
 .synth-card .time {
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: 13px;
   color: var(--fire-glow);
+  flex-shrink: 0;
+  min-width: 42px;
 }
 
 .synth-card .name {
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 14px;
   color: var(--ink);
+  flex: 1;
+  min-width: 0;
 }
 
 .synth-card.card-cancelled .name {
@@ -732,12 +599,13 @@ body {
 }
 
 .synth-badge {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  padding: 1px 6px;
+  padding: 1px 5px;
   border-radius: 3px;
+  flex-shrink: 0;
 }
 
 .synth-badge.badge-changed {
@@ -755,49 +623,62 @@ body {
   background: rgba(232, 80, 80, 0.1);
 }
 
-.synth-card .change-detail {
-  font-size: 13px;
-  color: var(--fire-glow);
-  margin-top: 2px;
+.synth-badge.badge-done {
+  color: var(--covered-green);
+  background: rgba(74, 154, 90, 0.15);
 }
 
-.synth-card .note-text {
-  font-size: 13px;
-  color: var(--ink-muted);
-  font-style: italic;
-  margin-top: 2px;
+.synth-badge.badge-upcoming {
+  color: var(--fire);
+  background: rgba(232, 118, 58, 0.12);
 }
 
-.synth-card .card-meta {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-top: 6px;
+.synth-badge.badge-open {
+  color: var(--open-red);
+  background: rgba(232, 80, 80, 0.15);
 }
 
-.synth-card .location-label {
+.synth-badge.badge-covered {
+  color: var(--covered-green);
+  background: rgba(74, 154, 90, 0.15);
+}
+
+.synth-card .card-detail {
   font-size: 12px;
   color: var(--ink-muted);
-  font-family: var(--font-mono);
+  margin-top: 2px;
+  line-height: 1.4;
 }
 
-.synth-card .source-tag {
-  font-size: 11px;
+.synth-card .card-detail .change-text {
+  color: var(--fire-glow);
+}
+
+.synth-card .card-detail .source-tag {
   font-weight: 600;
   color: var(--fire-glow);
   background: rgba(232, 118, 58, 0.12);
-  padding: 1px 6px;
-  border-radius: 3px;
+  padding: 0 4px;
+  border-radius: 2px;
 }
 
-.synth-card.past {
-  opacity: 0.4;
+.synth-card .btn {
+  font-size: 12px;
+  padding: 4px 10px;
+  margin-top: 4px;
+  display: inline-block;
 }
+
+.synth-card.past { opacity: 0.4; }
 
 .synth-card.now {
   border-color: var(--fire);
+  border-left-color: var(--fire);
   box-shadow: 0 0 8px rgba(232, 118, 58, 0.15);
 }
+
+.synth-card.now .time { color: var(--fire); font-weight: 700; }
+.synth-card.now .name { font-weight: 600; }
 
 /* ── Responsive ── */
 

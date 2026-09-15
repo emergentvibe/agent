@@ -135,24 +135,25 @@ function heroCard(telegramId: string | null): string {
   const label = isCovering
     ? `Covering for ${esc(next.original_name || '?')}`
     : 'Your next shift';
-  const dateDisplay = isToday
-    ? ''
-    : `<div class="shift-date">${esc(formatDate(next.date))}</div>`;
-  const countdownHtml = countdown
-    ? `<div class="countdown">${esc(countdown)}</div>`
-    : '';
-  const coworkerHtml =
-    coworkers.length > 0
-      ? `<div class="coworkers">with: ${esc(coworkers.join(', '))}</div>`
+
+  const detailParts: string[] = [];
+  if (!isToday) detailParts.push(formatDate(next.date));
+  if (countdown)
+    detailParts.push(`<span class="countdown">${esc(countdown)}</span>`);
+  if (coworkers.length > 0)
+    detailParts.push(`with: ${esc(coworkers.join(', '))}`);
+  const detailHtml =
+    detailParts.length > 0
+      ? `<div class="hero-detail">${detailParts.join(' · ')}</div>`
       : '';
 
   return `<div class="hero-card">
     <div class="label">${label}</div>
-    <div class="shift-name">${esc(next.block_label)}</div>
-    <div class="shift-time">${esc(next.start)}–${esc(next.end)}</div>
-    ${dateDisplay}
-    ${countdownHtml}
-    ${coworkerHtml}
+    <div class="hero-row">
+      <span class="name">${esc(next.block_label)}</span>
+      <span class="time">${esc(next.start)}–${esc(next.end)}</span>
+    </div>
+    ${detailHtml}
     ${!isCovering ? `<a href="https://t.me/${esc(TELEGRAM_BOT_USERNAME)}?start=cover" class="btn btn-fire">Can't make it</a>` : ''}
   </div>`;
 }
@@ -254,6 +255,24 @@ function scheduleSection(today: string): string {
   return renderStaticSchedule(today);
 }
 
+function buildDetailLine(e: {
+  status: string;
+  change?: string;
+  note?: string;
+  location?: string;
+  source?: string;
+}): string {
+  const parts: string[] = [];
+  if (e.change)
+    parts.push(`<span class="change-text">${esc(e.change)}</span>`);
+  if (e.note && e.status !== 'on') parts.push(esc(e.note));
+  if (e.location) parts.push(esc(e.location));
+  if (e.source)
+    parts.push(`<span class="source-tag">${esc(e.source)}</span>`);
+  if (parts.length === 0) return '';
+  return `<div class="card-detail">${parts.join(' · ')}</div>`;
+}
+
 function renderSynthesizedTimeline(synthesis: SynthesizedSchedule): string {
   const now = new Date();
   const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -265,6 +284,12 @@ function renderSynthesizedTimeline(synthesis: SynthesizedSchedule): string {
 
   const hasChanges = synthesis.events.some((e) => e.status !== 'on');
 
+  const badgeMap: Record<string, [string, string]> = {
+    changed: ['badge-changed', 'changed'],
+    new: ['badge-new', 'new'],
+    cancelled: ['badge-cancelled', 'cancelled'],
+  };
+
   const items = synthesis.events
     .map((e, i) => {
       const nextTime =
@@ -273,63 +298,31 @@ function renderSynthesizedTimeline(synthesis: SynthesizedSchedule): string {
           : '23:59';
       const isPast = e.time < currentTime && nextTime <= currentTime;
       const isNow = e.time <= currentTime && nextTime > currentTime;
-
-      if (e.status === 'on') {
-        const cls = isPast ? ' past' : isNow ? ' now' : '';
-        const nowDot = isNow ? '<span class="now-dot"></span>' : '';
-        const note = e.note
-          ? ` <span class="note">(${esc(e.note)})</span>`
-          : '';
-        return `<li class="synth-item${cls}">
-          ${nowDot}
-          <span class="time">${esc(e.time)}</span>
-          <span class="name">${esc(e.name)}${note}</span>
-        </li>`;
-      }
-
-      const cardCls = `card-${e.status}`;
       const timeCls = isPast ? ' past' : isNow ? ' now' : '';
-
-      const badgeMap: Record<string, [string, string]> = {
-        changed: ['badge-changed', 'changed'],
-        new: ['badge-new', 'new'],
-        cancelled: ['badge-cancelled', 'cancelled'],
-      };
-      const [badgeCls, badgeText] = badgeMap[e.status] || ['', ''];
+      const statusCls = e.status === 'on' ? ' card-on' : ` card-${e.status}`;
 
       const nameTag =
         e.status === 'cancelled'
-          ? `<del class="name">${esc(e.name)}</del>`
-          : `<div class="name">${esc(e.name)}</div>`;
+          ? `<span class="name"><del>${esc(e.name)}</del></span>`
+          : `<span class="name">${esc(e.name)}</span>`;
 
-      const changeHtml = e.change
-        ? `<div class="change-detail">${esc(e.change)}</div>`
-        : '';
-      const noteHtml = e.note
-        ? `<div class="note-text">${esc(e.note)}</div>`
+      const badge = badgeMap[e.status];
+      const badgeHtml = badge
+        ? `<span class="synth-badge ${badge[0]}">${badge[1]}</span>`
         : '';
 
-      const metaParts: string[] = [];
-      if (e.location)
-        metaParts.push(
-          `<span class="location-label">${esc(e.location)}</span>`,
-        );
-      if (e.source)
-        metaParts.push(`<span class="source-tag">${esc(e.source)}</span>`);
-      const metaHtml =
-        metaParts.length > 0
-          ? `<div class="card-meta">${metaParts.join('')}</div>`
+      const noteInline =
+        e.note && e.status === 'on'
+          ? ` <span style="font-size:12px;color:var(--ink-muted);font-style:italic">(${esc(e.note)})</span>`
           : '';
 
-      return `<li class="synth-card ${cardCls}${timeCls}">
-        <div class="card-top">
+      return `<li class="synth-card${statusCls}${timeCls}">
+        <div class="card-row">
           <span class="time">${esc(e.time)}</span>
-          <span class="synth-badge ${badgeCls}">${badgeText}</span>
+          ${nameTag}${noteInline}
+          ${badgeHtml}
         </div>
-        ${nameTag}
-        ${changeHtml}
-        ${noteHtml}
-        ${metaHtml}
+        ${buildDetailLine(e)}
       </li>`;
     })
     .join('');
@@ -445,33 +438,41 @@ export function renderMyShifts(telegramId: string | null): string {
         totalHours += s.hours;
         const isPast = date < today;
 
-        let statusClass: string;
-        let statusText: string;
+        let badgeCls: string;
+        let badgeText: string;
+        let borderCls: string;
         if (s.state === 'open') {
-          statusClass = 'status-open';
-          statusText = 'released';
+          badgeCls = 'badge-open';
+          badgeText = 'released';
+          borderCls = ' card-open';
         } else if (s.state === 'covered') {
-          statusClass = 'status-covered';
-          statusText = 'covered';
+          badgeCls = 'badge-covered';
+          badgeText = 'covered';
+          borderCls = '';
         } else {
-          statusClass = isPast ? 'status-done' : 'status-upcoming';
-          statusText = isPast ? 'done' : 'upcoming';
+          badgeCls = isPast ? 'badge-done' : 'badge-upcoming';
+          badgeText = isPast ? 'done' : 'upcoming';
+          borderCls = '';
         }
 
-        const coverInfo =
-          s.state === 'covered' && s.current_name
-            ? `<div class="shift-meta">now: ${esc(s.current_name)}</div>`
-            : '';
+        const detailParts: string[] = [];
+        if (s.state === 'covered' && s.current_name)
+          detailParts.push(`now: ${esc(s.current_name)}`);
         const showCover = s.state === 'assigned' && !isPast;
+        const detailHtml =
+          detailParts.length > 0
+            ? `<div class="card-detail">${detailParts.join(' · ')}</div>`
+            : '';
+        const pastCls = isPast ? ' past' : '';
 
-        return `<div class="shift-card${s.state === 'open' ? ' muted' : ''}">
-          <div class="shift-header">
-            <span class="shift-name">${esc(s.block_label)}</span>
-            <span class="status-badge ${statusClass}">${statusText}</span>
+        return `<div class="synth-card${borderCls}${pastCls}">
+          <div class="card-row">
+            <span class="time">${esc(s.start)}–${esc(s.end)}</span>
+            <span class="name">${esc(s.block_label)}</span>
+            <span class="synth-badge ${badgeCls}">${badgeText}</span>
           </div>
-          <div class="shift-time">${esc(s.start)}–${esc(s.end)}</div>
-          ${coverInfo}
-          ${showCover ? `<a href="https://t.me/${esc(TELEGRAM_BOT_USERNAME)}?start=cover" class="btn btn-outline" style="font-size:12px;padding:4px 10px;margin-top:8px">Can't make it</a>` : ''}
+          ${detailHtml}
+          ${showCover ? `<a href="https://t.me/${esc(TELEGRAM_BOT_USERNAME)}?start=cover" class="btn btn-outline">Can't make it</a>` : ''}
         </div>`;
       })
       .join('');
@@ -487,14 +488,13 @@ export function renderMyShifts(telegramId: string | null): string {
   if (pickedUp.length > 0) {
     const pickedUpCards = pickedUp
       .map(
-        (s) => `<div class="shift-card">
-          <div class="shift-header">
-            <span class="shift-name">${esc(s.block_label)}</span>
-            <span class="status-badge status-covered">covering</span>
+        (s) => `<div class="synth-card">
+          <div class="card-row">
+            <span class="time">${esc(s.start)}–${esc(s.end)}</span>
+            <span class="name">${esc(s.block_label)}</span>
+            <span class="synth-badge badge-covered">covering</span>
           </div>
-          <div class="shift-time">${esc(s.start)}–${esc(s.end)}</div>
-          <div class="shift-date">${esc(formatDate(s.date))}</div>
-          <div class="shift-meta">for: ${esc(s.original_name || '?')}</div>
+          <div class="card-detail">${esc(formatDate(s.date))} · for: ${esc(s.original_name || '?')}</div>
         </div>`,
       )
       .join('');
@@ -521,18 +521,16 @@ export function renderHelp(): string {
   } else {
     html = openSlots
       .map((s) => {
-        const wasLabel = s.original_name
-          ? `<div class="was-label">was: ${esc(s.original_name)}</div>`
-          : '';
-        return `<div class="open-shift-card">
-          <div class="shift-header">
-            <span class="shift-name">${esc(s.block_label)}</span>
-            <span class="status-badge status-open">open</span>
+        const detailParts: string[] = [esc(formatDate(s.date))];
+        if (s.original_name) detailParts.push(`was: ${esc(s.original_name)}`);
+        return `<div class="synth-card card-open">
+          <div class="card-row">
+            <span class="time">${esc(s.start)}–${esc(s.end)}</span>
+            <span class="name">${esc(s.block_label)}</span>
+            <span class="synth-badge badge-open">open</span>
           </div>
-          <div class="shift-time">${esc(s.start)}–${esc(s.end)}</div>
-          <div class="shift-date">${esc(formatDate(s.date))}</div>
-          ${wasLabel}
-          <a href="${esc(getShiftsTopicLink() || `https://t.me/${TELEGRAM_BOT_USERNAME}`)}" class="btn btn-fire" style="font-size:13px">I'll do it →</a>
+          <div class="card-detail">${detailParts.join(' · ')}</div>
+          <a href="${esc(getShiftsTopicLink() || `https://t.me/${TELEGRAM_BOT_USERNAME}`)}" class="btn btn-fire">I'll do it →</a>
         </div>`;
       })
       .join('');
