@@ -185,9 +185,9 @@ All admin commands are DM-only, gated by `ADMIN_TELEGRAM_ID` (comma-separated fo
 
 ## User Commands
 
-**Visible in Telegram menu:** `today`, `hello`, `connect`, `bar`, `bbq`, `purchase`, `show_total`, `cover`, `shiftstoday`, `myrota`
+**Visible in Telegram menu:** `today`, `hello`, `connect`, `bar`, `bbq`, `purchase`, `show_total`, `cover`, `shiftstoday`, `shiftsopen`, `myrota`, `hands`, `subscribe`, `unsubscribe`, `subscriptions`
 
-**Hidden (work when typed):** `cancel_purchase`, `chatid`, `ping`, `leaveearly` (admin-only), `shiftsopen`, `hands` / `h` (crew-only), `subscribe` / `unsubscribe`
+**Hidden (work when typed):** `cancel_purchase`, `chatid`, `ping`, `leaveearly` (admin-only), `h` (alias for hands)
 
 ## Kitchen Rota System
 
@@ -228,6 +228,63 @@ NFC deep links: `t.me/BOT?start=bar`, `t.me/BOT?start=bbq`, `t.me/BOT?start=tab`
 | Bootstrap | 1-3 | Seeds operational knowledge directly |
 | Distribute | 4-14 | Operational updates only; social knowledge = peer |
 | Release | 15+ | No special authority (system-enforced) |
+
+## Testing & Verification
+
+Quick reference for testing the bot's features during setup or live operation.
+
+### Extraction
+
+Memory extraction runs every 5 minutes on messages from enabled topics.
+
+1. **Check which topics have extraction on/off:**
+   DM the bot: `/admin-topics`
+   Shows all discovered Forum topics with `✅ ON` or `❌ OFF`.
+
+2. **Enable extraction for a topic:**
+   `/admin-extract-on Kitchen Chat` (by topic name, case-insensitive)
+   `/admin-extract-on 42` (by thread ID)
+
+3. **Disable extraction for a topic:**
+   `/admin-extract-off Kitchen Chat`
+
+4. **Verify extraction is working:**
+   Post a test event in an extraction-enabled topic: "Yoga at 3pm in the garden today"
+   Wait 5 minutes, then ask the bot `/today` — it should mention yoga.
+   Check logs for `Running memory extraction` and `Extraction complete`.
+
+General topic (no thread) always has extraction ON. New topics default to OFF.
+
+### Subscriptions
+
+1. `/subscribe yoga` — subscribe to a topic
+2. `/subscriptions` — check your active subscriptions
+3. Post a message mentioning yoga in an extraction-enabled topic
+4. Wait for extraction cycle (5 min) — you should get a DM notification
+5. `/unsubscribe yoga` — remove the subscription
+
+### Purchases
+
+1. `/bar` or `/bbq` — tap a button to purchase
+2. "Anything else?" loop shows the same category again after each purchase
+3. `/show_total` — check your tab
+4. `/cancel_purchase` — undo last purchase
+5. NFC deep links: `t.me/BOT?start=bar`, `t.me/BOT?start=bbq`
+
+### Rota
+
+1. `/myrota` — shows your shifts (including any you've claimed from others)
+2. `/cover` — release a shift, posts cover request in Shifts topic
+3. `/shiftstoday` — today's schedule
+4. `/shiftsopen` — Shifts Board with all open slots and [Claim] buttons
+5. `/hands` — crew emergency call
+
+### Bot Modes
+
+1. `/admin-status` — current mode, uptime, groups
+2. `/admin-silence` — full stop (no responses, no extraction)
+3. `/admin-degrade` — "taking a break" replies, extraction continues
+4. `/admin-silence off` or `/admin-degrade off` — resume normal mode
 
 ## Troubleshooting
 

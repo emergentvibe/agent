@@ -55,6 +55,7 @@ Commands the agent recognizes. Each can be toggled per group via `features.json`
 | `/connect [interest]` | Searches community introductions by interest/skill. | on |
 | `/subscribe [topic]` | Get DM'd when extraction detects something matching that topic. Handled by host (no container). | on |
 | `/unsubscribe [topic]` | Remove a topic subscription. Handled by host. | on |
+| `/subscriptions` | List your active subscriptions. Handled by host. | on |
 
 ### Purchase Commands (local, zero API cost)
 
@@ -211,7 +212,7 @@ When `subscribe` command is enabled:
 3. When extraction runs and stores a memory containing "kitchen" or "yoga", `findMatchingSubscriptions()` in `src/subscriptions.ts` matches it
 4. Notification queued via IPC → user gets a DM
 
-`/unsubscribe [topic]` removes the subscription. Both commands are host-handled in `telegram.ts` — no containers, no API cost. Matching is simple keyword inclusion (case-insensitive). Managed by `src/subscriptions.ts`.
+`/unsubscribe [topic]` removes the subscription. `/subscriptions` lists the user's active subscriptions. All three commands are host-handled in `telegram.ts` — no containers, no API cost. Matching is simple keyword inclusion (case-insensitive). Managed by `src/subscriptions.ts`.
 
 ## DM Registration
 
