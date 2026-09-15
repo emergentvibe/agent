@@ -44,6 +44,7 @@ export interface RotaCommandOpts {
     keyboard?: IKType,
   ) => Promise<void>;
   sendDm: (userId: string, text: string) => Promise<void>;
+  pinShiftsTopicMessage?: (messageId: number) => Promise<void>;
 }
 
 function resolveIdentity(
@@ -158,6 +159,11 @@ export async function postShiftsBoard(
   const msgId = await opts.sendToShiftsTopic(text, keyboard);
   if (msgId) {
     rotaSetBoardMessageId(msgId);
+    try {
+      await opts.pinShiftsTopicMessage?.(msgId);
+    } catch {
+      // Bot may lack pin permissions
+    }
   }
 }
 

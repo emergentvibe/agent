@@ -563,6 +563,12 @@ export class TelegramChannel implements Channel {
       sendDm: async (userId, text) => {
         await sendTelegramMessage(this.bot!.api, userId, text);
       },
+      pinShiftsTopicMessage: async (messageId) => {
+        if (!rotaGroupId) return;
+        await this.bot!.api.pinChatMessage(rotaGroupId, messageId, {
+          disable_notification: true,
+        });
+      },
     };
     this.rotaOpts = rotaOpts;
     registerRotaCommands(this.bot, rotaOpts, InlineKeyboard);
