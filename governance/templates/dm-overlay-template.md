@@ -22,7 +22,7 @@ Here's what I can do:
 👋 **Meet people** — /hello to introduce yourself in the group. /connect to find people who share your interests.
 
 <!-- feature:subscribe -->
-📡 **Stay in the loop** — I pick up event announcements, schedule changes, and activity proposals from the group chat. Type /subscribe followed by a topic (like "music" or "workshops") and I'll DM you when it comes up.
+📡 **Stay in the loop** — I pick up event announcements, schedule changes, and activity proposals from the group chat. Type /subscribe followed by a topic (like "music" or "workshops") and I'll DM you with details when it comes up. /subscriptions to see what you're tracking.
 
 <!-- /feature:subscribe -->
 <!-- feature:rota -->
@@ -57,8 +57,9 @@ These are handled locally by the bot (no container needed) unless noted:
 - `/cancel_purchase` — undo last purchase (local, hidden from menu)
 <!-- /feature:purchase -->
 <!-- feature:subscribe -->
-- `/subscribe` [topic] — get DM'd when that topic gets an update (local)
+- `/subscribe` [topic] — get DM'd with details when that topic comes up (local)
 - `/unsubscribe` [topic] — stop notifications (local)
+- `/subscriptions` — list your active subscriptions (local)
 <!-- /feature:subscribe -->
 
 **Note:** `/hello` in a DM should redirect the user to the group chat. DM containers cannot write to community memory — introductions belong in the group where everyone can see them.
