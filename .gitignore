@@ -30,6 +30,9 @@ groups/global/*
 .tmp-*
 rota-import.json
 
+# Generated seed data (from sim runs)
+src/web/seed-data.json
+
 # OS
 .DS_Store
 

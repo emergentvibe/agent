@@ -589,6 +589,38 @@ async function runScenario(scenarioName: string): Promise<AssertionResult[]> {
     results.push(result);
   }
 
+  // Dump schedule seed data if requested (before cleanup)
+  if (process.env.DUMP_SEED === '1') {
+    try {
+      const { buildScheduleQueries } = await import('../../src/web/schedule-refresh.js');
+      const queries = buildScheduleQueries();
+      const allResults: Array<{ id: string; memory: string; metadata?: Record<string, unknown>; created_at?: string }> = [];
+      const seenIds = new Set<string>();
+
+      for (const query of queries) {
+        const results = await searchMemories(query, `community:${slug}`);
+        for (const m of results) {
+          if (!seenIds.has(m.id)) {
+            seenIds.add(m.id);
+            allResults.push(m);
+          }
+        }
+      }
+
+      const seedData = allResults.map((m) => ({
+        memory: m.memory,
+        source: typeof m.metadata?.source === 'string' ? m.metadata.source : undefined,
+        created_at: m.created_at,
+      }));
+
+      const seedPath = path.join(AGENT_ROOT, 'src/web/seed-data.json');
+      fs.writeFileSync(seedPath, JSON.stringify(seedData, null, 2));
+      console.log(`\n  Dumped ${seedData.length} schedule memories to ${seedPath}`);
+    } catch (err) {
+      console.log(`  Warning: seed dump failed: ${err}`);
+    }
+  }
+
   // Cleanup sim group folder
   const groupDir = path.join(AGENT_ROOT, 'groups', groupFolder);
   if (fs.existsSync(groupDir)) {
