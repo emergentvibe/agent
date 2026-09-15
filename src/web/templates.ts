@@ -79,9 +79,12 @@ function header(today: string): string {
   </div>`;
 }
 
-function heroCard(telegramId: string | null): string {
+function heroCard(
+  telegramId: string | null,
+  webToken?: string | null,
+): string {
   if (!telegramId) {
-    return connectCard();
+    return connectCard(webToken);
   }
 
   const today = getToday();
@@ -158,24 +161,25 @@ function heroCard(telegramId: string | null): string {
   </div>`;
 }
 
-function connectCard(): string {
+function connectCard(webToken?: string | null): string {
+  const linkHref = webToken
+    ? `https://t.me/${esc(TELEGRAM_BOT_USERNAME)}?start=link_${esc(webToken)}`
+    : `https://t.me/${esc(TELEGRAM_BOT_USERNAME)}`;
+  const pollScript = webToken
+    ? `<script>
+      (function() {
+        var poll = setInterval(function() {
+          fetch('/api/me').then(function(r) { return r.json(); }).then(function(d) {
+            if (d.authenticated) { clearInterval(poll); location.reload(); }
+          }).catch(function() {});
+        }, 2000);
+      })();
+    </script>`
+    : '';
   return `<div class="connect-card">
     <p>Connect with Telegram to see your shifts</p>
-    <a href="https://t.me/${esc(TELEGRAM_BOT_USERNAME)}?start=link" class="btn btn-telegram" id="connect-btn">Connect with Telegram</a>
-    <script>
-      (function() {
-        var token = document.cookie.match(/tw_token=([a-f0-9]+)/);
-        if (token) {
-          var btn = document.getElementById('connect-btn');
-          btn.href = 'https://t.me/${esc(TELEGRAM_BOT_USERNAME)}?start=link_' + token[1];
-          var poll = setInterval(function() {
-            fetch('/api/me').then(function(r) { return r.json(); }).then(function(d) {
-              if (d.authenticated) { clearInterval(poll); location.reload(); }
-            }).catch(function() {});
-          }, 2000);
-        }
-      })();
-    </script>
+    <a href="${linkHref}" class="btn btn-telegram">Connect with Telegram</a>
+    ${pollScript}
   </div>`;
 }
 
@@ -263,12 +267,10 @@ function buildDetailLine(e: {
   source?: string;
 }): string {
   const parts: string[] = [];
-  if (e.change)
-    parts.push(`<span class="change-text">${esc(e.change)}</span>`);
+  if (e.change) parts.push(`<span class="change-text">${esc(e.change)}</span>`);
   if (e.note && e.status !== 'on') parts.push(esc(e.note));
   if (e.location) parts.push(esc(e.location));
-  if (e.source)
-    parts.push(`<span class="source-tag">${esc(e.source)}</span>`);
+  if (e.source) parts.push(`<span class="source-tag">${esc(e.source)}</span>`);
   if (parts.length === 0) return '';
   return `<div class="card-detail">${parts.join(' · ')}</div>`;
 }
@@ -385,25 +387,31 @@ function renderStaticSchedule(today: string): string {
 
 // ── Page renderers ──
 
-export function renderToday(telegramId: string | null): string {
+export function renderToday(
+  telegramId: string | null,
+  webToken?: string | null,
+): string {
   const today = getToday();
   const openCount = rotaGetOpenSlots().length;
   const body = `
     ${header(today)}
-    ${heroCard(telegramId)}
+    ${heroCard(telegramId, webToken)}
     ${scheduleSection(today)}
   `;
   return shell('Today', body, 'today', openCount);
 }
 
-export function renderMyShifts(telegramId: string | null): string {
+export function renderMyShifts(
+  telegramId: string | null,
+  webToken?: string | null,
+): string {
   const openCount = rotaGetOpenSlots().length;
   const today = getToday();
 
   if (!telegramId) {
     const body = `
       ${header(today)}
-      ${connectCard()}
+      ${connectCard(webToken)}
     `;
     return shell('My Shifts', body, 'my-shifts', openCount);
   }

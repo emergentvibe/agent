@@ -64,15 +64,15 @@ export function startWebServer(port: number): Promise<Server> {
 
         if (await handleApi(req, res, pathname)) return;
 
-        ensureCookie(req, res);
+        const webToken = ensureCookie(req, res);
         const telegramId = getTelegramId(req);
 
         switch (pathname) {
           case '/':
-            html(res, 200, renderToday(telegramId));
+            html(res, 200, renderToday(telegramId, webToken));
             break;
           case '/my-shifts':
-            html(res, 200, renderMyShifts(telegramId));
+            html(res, 200, renderMyShifts(telegramId, webToken));
             break;
           case '/help':
             html(res, 200, renderHelp());
