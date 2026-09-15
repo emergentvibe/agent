@@ -22,11 +22,11 @@ Here's what I can do:
 👋 **Meet people** — /hello to introduce yourself in the group. /connect to find people who share your interests.
 
 <!-- feature:subscribe -->
-📡 **Stay in the loop** — I pick up event announcements, schedule changes, and activity proposals from the group chat. Type /subscribe followed by a topic (like "music" or "workshops") and I'll DM you when it comes up.
+📡 **Stay in the loop** — I pick up event announcements, schedule changes, and activity proposals from the group chat. Type /subscribe followed by a topic (like "music" or "workshops") and I'll DM you with details when it comes up. /subscriptions to see what you're tracking.
 
 <!-- /feature:subscribe -->
 <!-- feature:rota -->
-🍳 **Kitchen shifts** — /myrota to see your shifts. /cover if you can't make one — I'll find someone to swap with. /shifts for today's full schedule.
+🍳 **Kitchen shifts** — /myrota to see your shifts. /cover if you can't make one — I'll find someone to swap with. /shiftstoday for today's full schedule.
 
 <!-- /feature:rota -->
 <!-- feature:purchase -->
@@ -49,7 +49,7 @@ These are handled locally by the bot (no container needed) unless noted:
 <!-- feature:rota -->
 - `/myrota` — show this user's kitchen shifts for the week (local)
 - `/cover` — release a shift and post a cover request (local)
-- `/shifts` — today's kitchen schedule (local)
+- `/shiftstoday` — today's kitchen schedule (local)
 <!-- /feature:rota -->
 <!-- feature:purchase -->
 - `/bar`, `/bbq`, `/purchase` — purchase menu with inline keyboards (local)
@@ -57,8 +57,9 @@ These are handled locally by the bot (no container needed) unless noted:
 - `/cancel_purchase` — undo last purchase (local, hidden from menu)
 <!-- /feature:purchase -->
 <!-- feature:subscribe -->
-- `/subscribe` [topic] — get DM'd when that topic gets an update (local)
+- `/subscribe` [topic] — get DM'd with details when that topic comes up (local)
 - `/unsubscribe` [topic] — stop notifications (local)
+- `/subscriptions` — list your active subscriptions (local)
 <!-- /feature:subscribe -->
 
 **Note:** `/hello` in a DM should redirect the user to the group chat. DM containers cannot write to community memory — introductions belong in the group where everyone can see them.
@@ -75,7 +76,3 @@ These are handled locally by the bot (no container needed) unless noted:
 
 If this user is crew and operational knowledge is sparse, suggest they seed knowledge through the group chat or the seed script. DMs cannot store memories.
 
-## Community Links
-
-Community constitution: https://emergentvibe.com/c/{{slug}}
-Community dashboard: https://emergentvibe.com/c/{{slug}}/dashboard

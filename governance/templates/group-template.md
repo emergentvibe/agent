@@ -45,9 +45,9 @@ search_memories(query="[interest]", user_id="community:{{slug}}")
 Return matches with hedging: "From introductions I've seen, [name] mentioned being into [interest]." Never proactively DM people to introduce them. If no matches, say so.
 
 <!-- feature:subscribe -->
-### `/subscribe [topic]` and `/unsubscribe [topic]`
+### `/subscribe [topic]`, `/unsubscribe [topic]`, `/subscriptions`
 
-These are handled by the host — you will never see them. Do not attempt to read or write `subscriptions.json`.
+These are handled by the host — you will never see them. Do not attempt to read or write `subscriptions.json`. `/subscriptions` lists the user's active subscriptions.
 
 <!-- /feature:subscribe -->
 ### Generating a Digest

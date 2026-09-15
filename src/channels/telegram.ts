@@ -37,7 +37,12 @@ import type { RotaImportPayload } from '../rota-db.js';
 import { adaptRotaExport, type SheetRotaExport } from '../sheet-adapter.js';
 import { isCrewMember } from '../crew.js';
 import { loadFeatureConfig } from '../feature-config.js';
-import { rotaCommandEntries, registerRotaCommands } from '../rota-commands.js';
+import {
+  rotaCommandEntries,
+  registerRotaCommands,
+  postShiftsBoard,
+} from '../rota-commands.js';
+import type { RotaCommandOpts } from '../rota-commands.js';
 import { registerChannel, ChannelOpts } from './registry.js';
 import {
   Channel,
@@ -85,6 +90,7 @@ export class TelegramChannel implements Channel {
   // Telegram's typing state only lasts ~5s; refresh just under that.
   private typingIntervals = new Map<string, ReturnType<typeof setInterval>>();
   private readonly TYPING_REFRESH_MS = 4000;
+  private rotaOpts: RotaCommandOpts | null = null;
 
   constructor(botToken: string, opts: TelegramChannelOpts) {
     this.botToken = botToken;
@@ -144,6 +150,12 @@ export class TelegramChannel implements Channel {
       {
         command: 'unsubscribe',
         description: 'Stop notifications for a topic',
+        local: true,
+        featureGate: 'subscribe',
+      },
+      {
+        command: 'subscriptions',
+        description: 'List your subscriptions',
         local: true,
         featureGate: 'subscribe',
       },
@@ -390,10 +402,34 @@ export class TelegramChannel implements Channel {
         text: `Added ${item} (€${price.toFixed(2)})`,
       });
       try {
-        await ctx.editMessageText(
-          `${userName} bought *${item}* (€${price.toFixed(2)})\nRunning total: *€${total.toFixed(2)}*`,
-          { parse_mode: 'Markdown' },
-        );
+        const prices2 = loadPrices();
+        const categoryItems = prices2?.[category];
+        if (categoryItems) {
+          const kb = buildCategoryKeyboard(category, categoryItems);
+          kb.row().text('No, thanks', `buy_done:${userId}`);
+          await ctx.editMessageText(
+            `Added *${item}* (€${price.toFixed(2)})\nRunning total: *€${total.toFixed(2)}*\n\nAnything else?`,
+            { reply_markup: kb, parse_mode: 'Markdown' },
+          );
+        } else {
+          await ctx.editMessageText(
+            `${userName} bought *${item}* (€${price.toFixed(2)})\nRunning total: *€${total.toFixed(2)}*`,
+            { parse_mode: 'Markdown' },
+          );
+        }
+      } catch {
+        // Message may be too old to edit
+      }
+    });
+
+    this.bot.callbackQuery(/^buy_done:(.+)$/, async (ctx) => {
+      const userId = ctx.from.id.toString();
+      const total = getUserTotal(userId);
+      await ctx.answerCallbackQuery();
+      try {
+        await ctx.editMessageText(`Done! Your tab: *€${total.toFixed(2)}*`, {
+          parse_mode: 'Markdown',
+        });
       } catch {
         // Message may be too old to edit
       }
@@ -469,48 +505,67 @@ export class TelegramChannel implements Channel {
       }
     });
 
+    this.bot.command('subscriptions', async (ctx) => {
+      if (!isSubscribeEnabled()) {
+        await ctx.reply('Subscriptions are not available.');
+        return;
+      }
+      const chatJid = `tg:${ctx.chat.id}`;
+      const groupFolder = resolveGroupFolder(chatJid);
+      if (!groupFolder) {
+        await ctx.reply('Subscriptions are not available in this chat.');
+        return;
+      }
+      const userId = ctx.from?.id?.toString() || '';
+      const subs = getSubscriptions(groupFolder, userId);
+      if (subs.length === 0) {
+        await ctx.reply(
+          "You don't have any subscriptions yet. Use /subscribe [topic] to get started.",
+        );
+        return;
+      }
+      const lines = subs.map((s) => `• ${s.topic}`);
+      await ctx.reply(
+        `Your subscriptions:\n${lines.join('\n')}\n\nI'll DM you when any of these come up in the group. Use /unsubscribe [topic] to remove one.`,
+      );
+    });
+
     // --- Rota commands (local, no containers) ---
     const rotaGroupId = ROTA_GROUP_JID.replace(/^tg:/, '');
-    registerRotaCommands(
-      this.bot,
-      {
-        registeredGroups: this.opts.registeredGroups,
-        sendToShiftsTopic: async (text, keyboard) => {
-          if (!rotaGroupId || !ROTA_SHIFTS_TOPIC_ID) {
-            logger.warn(
-              'Rota: ROTA_GROUP_JID or ROTA_SHIFTS_TOPIC_ID not configured',
-            );
-            return undefined;
-          }
-          const msgOpts: Record<string, unknown> = {
-            message_thread_id: ROTA_SHIFTS_TOPIC_ID,
-            parse_mode: 'Markdown',
-          };
-          if (keyboard) msgOpts.reply_markup = keyboard;
-          const msg = await this.bot!.api.sendMessage(
-            rotaGroupId,
-            text,
-            msgOpts,
+    const rotaOpts: RotaCommandOpts = {
+      registeredGroups: this.opts.registeredGroups,
+      sendToShiftsTopic: async (text, keyboard) => {
+        if (!rotaGroupId || !ROTA_SHIFTS_TOPIC_ID) {
+          logger.warn(
+            'Rota: ROTA_GROUP_JID or ROTA_SHIFTS_TOPIC_ID not configured',
           );
-          return msg.message_id;
-        },
-        editShiftsTopicMessage: async (messageId, text, keyboard) => {
-          if (!rotaGroupId) return;
-          const editOpts: Record<string, unknown> = {};
-          if (keyboard) editOpts.reply_markup = keyboard;
-          await this.bot!.api.editMessageText(
-            rotaGroupId,
-            messageId,
-            text,
-            editOpts,
-          );
-        },
-        sendDm: async (userId, text) => {
-          await sendTelegramMessage(this.bot!.api, userId, text);
-        },
+          return undefined;
+        }
+        const msgOpts: Record<string, unknown> = {
+          message_thread_id: ROTA_SHIFTS_TOPIC_ID,
+          parse_mode: 'Markdown',
+        };
+        if (keyboard) msgOpts.reply_markup = keyboard;
+        const msg = await this.bot!.api.sendMessage(rotaGroupId, text, msgOpts);
+        return msg.message_id;
       },
-      InlineKeyboard,
-    );
+      editShiftsTopicMessage: async (messageId, text, keyboard) => {
+        if (!rotaGroupId) return;
+        const editOpts: Record<string, unknown> = {};
+        if (keyboard) editOpts.reply_markup = keyboard;
+        await this.bot!.api.editMessageText(
+          rotaGroupId,
+          messageId,
+          text,
+          editOpts,
+        );
+      },
+      sendDm: async (userId, text) => {
+        await sendTelegramMessage(this.bot!.api, userId, text);
+      },
+    };
+    this.rotaOpts = rotaOpts;
+    registerRotaCommands(this.bot, rotaOpts, InlineKeyboard);
 
     // /start deep link handler (NFC stickers, DM entry points)
     this.bot.command('start', async (ctx) => {
@@ -1000,6 +1055,11 @@ export class TelegramChannel implements Channel {
     const numericId = jid.replace(/^tg:/, '');
     await this.bot.api.sendDocument(numericId, new InputFile(buffer, filename));
     logger.info({ jid, filename }, 'Telegram file sent');
+  }
+
+  async refreshShiftsBoard(): Promise<void> {
+    if (!this.rotaOpts) return;
+    await postShiftsBoard(this.rotaOpts, InlineKeyboard);
   }
 
   async disconnect(): Promise<void> {

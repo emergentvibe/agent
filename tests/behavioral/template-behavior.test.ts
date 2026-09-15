@@ -160,7 +160,7 @@ describe.skipIf(!HAS_API_KEY)(
       );
 
       const lower = text.toLowerCase();
-      expect(lower).toMatch(/\/myrota|\/shifts|\/openshifts/);
+      expect(lower).toMatch(/\/myrota|\/shiftstoday|\/shiftsopen/);
       expect(lower).not.toMatch(
         /your shift is|you're on|you are scheduled/,
       );

@@ -64,12 +64,28 @@ export function buildDmClaudeMd(
     template = stripDisabledFeatures(template, features);
   }
 
+  // Read voice from group-config.json if available
+  let voice = '';
+  if (groupFolder) {
+    try {
+      const configPath = path.join(
+        resolveGroupFolderPath(groupFolder),
+        'group-config.json',
+      );
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      voice = config.voice || '';
+    } catch {
+      // No group-config.json — voice stays empty
+    }
+  }
+
   return template
     .replace(/\{\{community_name\}\}/g, communityName)
     .replace(/\{\{user_name\}\}/g, userName)
     .replace(/\{\{user_id\}\}/g, userId)
     .replace(/\{\{slug\}\}/g, slug)
     .replace(/\{\{crew_list\}\}/g, crewList || 'the crew')
+    .replace(/\{\{voice\}\}/g, voice)
     .replace(
       /\{\{community_start_date\}\}/g,
       communityStartDate || new Date().toISOString().split('T')[0],

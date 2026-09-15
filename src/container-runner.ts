@@ -28,6 +28,7 @@ import {
 } from './container-runtime.js';
 import { detectAuthMode } from './credential-proxy.js';
 import { readEnvFile } from './env.js';
+import { loadFeatureConfig } from './feature-config.js';
 import { validateAdditionalMounts } from './mount-security.js';
 import { RegisteredGroup } from './types.js';
 
@@ -54,6 +55,27 @@ export interface ContainerOutput {
   result: string | null;
   newSessionId?: string;
   error?: string;
+}
+
+// Container runs as node (uid 1000) but host creates dirs as root.
+// SDK needs to write projects/ for session persistence.
+const CONTAINER_UID = 1000;
+const CONTAINER_GID = 1000;
+
+function chownRecursive(dir: string, uid: number, gid: number): void {
+  try {
+    fs.chownSync(dir, uid, gid);
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        chownRecursive(full, uid, gid);
+      } else {
+        fs.chownSync(full, uid, gid);
+      }
+    }
+  } catch {
+    // chown requires root — skip on dev machines / in tests
+  }
 }
 
 interface VolumeMount {
@@ -161,12 +183,14 @@ function buildVolumeMounts(
     );
   }
 
-  // Sync skills from container/skills/ and governance/skills/ into each group's .claude/skills/
+  // Sync skills into each group's .claude/skills/
+  // Governance skills only sync when governance feature is enabled
+  const features = loadFeatureConfig(group.folder);
   const skillsDst = path.join(groupSessionsDir, 'skills');
-  const skillSources = [
-    path.join(process.cwd(), 'container', 'skills'),
-    path.join(process.cwd(), 'governance', 'skills'),
-  ];
+  const skillSources = [path.join(process.cwd(), 'container', 'skills')];
+  if (features.commands.governance) {
+    skillSources.push(path.join(process.cwd(), 'governance', 'skills'));
+  }
   for (const skillsSrc of skillSources) {
     if (fs.existsSync(skillsSrc)) {
       for (const skillDir of fs.readdirSync(skillsSrc)) {
@@ -177,6 +201,8 @@ function buildVolumeMounts(
       }
     }
   }
+  chownRecursive(groupSessionsDir, CONTAINER_UID, CONTAINER_GID);
+
   mounts.push({
     hostPath: groupSessionsDir,
     containerPath: '/home/node/.claude',

@@ -33,7 +33,7 @@ function groupByBlock(assignments: RotaAssignment[]): BlockGroup[] {
   return Array.from(map.values());
 }
 
-function buildAttendeeMap(): Map<string, AttendeeRecord> {
+export function buildAttendeeMap(): Map<string, AttendeeRecord> {
   const map = new Map<string, AttendeeRecord>();
   for (const a of attendeeGetAll()) {
     if (a.name) map.set(a.name.toLowerCase(), a);
@@ -42,7 +42,7 @@ function buildAttendeeMap(): Map<string, AttendeeRecord> {
   return map;
 }
 
-function resolveDisplayIdentity(
+export function resolveDisplayIdentity(
   a: RotaAssignment,
   attendeeMap: Map<string, AttendeeRecord>,
 ): string {
@@ -75,6 +75,20 @@ function resolveDisplayIdentity(
     let covererContact = '';
     if (a.current_telegram && a.current_telegram.startsWith('@')) {
       covererContact = a.current_telegram;
+    } else {
+      let covAtt: AttendeeRecord | undefined;
+      if (a.current_telegram) {
+        covAtt = attendeeMap.get(a.current_telegram.toLowerCase());
+      }
+      if (!covAtt && a.current_name) {
+        covAtt = attendeeMap.get(a.current_name.toLowerCase());
+      }
+      if (covAtt?.telegram_handle) {
+        const h = covAtt.telegram_handle;
+        covererContact = h.startsWith('@') ? h : `@${h}`;
+      } else if (covAtt?.telegram_display) {
+        covererContact = `(${covAtt.telegram_display})`;
+      }
     }
     const coverer = covererContact
       ? `${covererName} ${covererContact}`
@@ -83,6 +97,54 @@ function resolveDisplayIdentity(
   }
 
   return line;
+}
+
+export function resolveShortIdentifier(
+  a: RotaAssignment,
+  attendeeMap: Map<string, AttendeeRecord>,
+): string {
+  if (a.original_telegram && a.original_telegram.startsWith('@')) {
+    return a.original_telegram;
+  }
+  let attendee: AttendeeRecord | undefined;
+  if (a.original_telegram) {
+    attendee = attendeeMap.get(a.original_telegram.toLowerCase());
+  }
+  if (!attendee && a.original_name) {
+    attendee = attendeeMap.get(a.original_name.toLowerCase());
+  }
+  if (attendee?.telegram_handle) {
+    const h = attendee.telegram_handle;
+    return h.startsWith('@') ? h : `@${h}`;
+  }
+  if (attendee?.telegram_display) {
+    return `(${attendee.telegram_display})`;
+  }
+  return '';
+}
+
+export function resolveCovererIdentifier(
+  a: RotaAssignment,
+  attendeeMap: Map<string, AttendeeRecord>,
+): string {
+  if (a.current_telegram && a.current_telegram.startsWith('@')) {
+    return a.current_telegram;
+  }
+  let attendee: AttendeeRecord | undefined;
+  if (a.current_telegram) {
+    attendee = attendeeMap.get(a.current_telegram.toLowerCase());
+  }
+  if (!attendee && a.current_name) {
+    attendee = attendeeMap.get(a.current_name.toLowerCase());
+  }
+  if (attendee?.telegram_handle) {
+    const h = attendee.telegram_handle;
+    return h.startsWith('@') ? h : `@${h}`;
+  }
+  if (attendee?.telegram_display) {
+    return `(${attendee.telegram_display})`;
+  }
+  return '';
 }
 
 function formatDateHeader(date: string, day?: number): string {
@@ -192,7 +254,7 @@ export async function generateRotaPdf(
       .fontSize(11)
       .font('Helvetica-Bold')
       .text(
-        `${openCount} open slot${openCount > 1 ? 's' : ''} — DM the bot: /cover`,
+        `${openCount} open slot${openCount > 1 ? 's' : ''} — head to the Shifts channel to claim`,
         { width: PAGE_WIDTH },
       );
   }
@@ -214,15 +276,6 @@ export async function generateRotaPdf(
     );
 
   doc.moveDown(1);
-
-  // Handwriting box
-  const boxX = 40 + PAGE_WIDTH - 200;
-  const boxY = doc.y;
-  doc.rect(boxX, boxY, 200, 60).lineWidth(0.5).stroke();
-  doc
-    .fontSize(8)
-    .font('Helvetica-Oblique')
-    .text('swapped? write it here', boxX + 5, boxY + 5, { width: 190 });
 
   doc.end();
 
@@ -267,52 +320,85 @@ export async function generateWeeklyRotaPdf(): Promise<
     timeZone: meta.timezone || undefined,
   });
 
-  // Collect block labels in order of appearance
+  // Collect block slots in order of appearance (same label can have different times)
   const blockOrder: string[] = [];
-  const blockTimes = new Map<string, { start: string; end: string }>();
+  const blockMeta = new Map<
+    string,
+    { label: string; start: string; end: string }
+  >();
   for (const a of all) {
-    if (!blockOrder.includes(a.block_label)) {
-      blockOrder.push(a.block_label);
-      blockTimes.set(a.block_label, { start: a.start, end: a.end });
+    const key = `${a.start}-${a.end}-${a.block_label}`;
+    if (!blockOrder.includes(key)) {
+      blockOrder.push(key);
+      blockMeta.set(key, {
+        label: a.block_label,
+        start: a.start,
+        end: a.end,
+      });
     }
   }
 
-  // Build grid data: blockLabel → date → names
+  // Build grid data: blockKey → date → names
   const grid = new Map<string, Map<string, string[]>>();
-  for (const label of blockOrder) {
-    grid.set(label, new Map());
+  for (const key of blockOrder) {
+    grid.set(key, new Map());
   }
+  const attendeeMap = buildAttendeeMap();
   for (const a of all) {
-    const dateMap = grid.get(a.block_label)!;
+    const key = `${a.start}-${a.end}-${a.block_label}`;
+    const dateMap = grid.get(key)!;
     if (!dateMap.has(a.date)) dateMap.set(a.date, []);
     const name = a.original_name || '???';
     if (a.state === 'open') {
       dateMap.get(a.date)!.push('(open)');
     } else if (a.state === 'covered') {
-      dateMap.get(a.date)!.push(a.current_name || name);
+      const covererName = a.current_name || '???';
+      const covererIdentifier = resolveCovererIdentifier(a, attendeeMap);
+      const covererLabel = covererIdentifier
+        ? `${covererName} ${covererIdentifier}`
+        : covererName;
+      dateMap.get(a.date)!.push(`${name} → ${covererLabel}`);
     } else {
-      dateMap.get(a.date)!.push(name);
+      const identifier = resolveShortIdentifier(a, attendeeMap);
+      dateMap.get(a.date)!.push(identifier ? `${name} ${identifier}` : name);
     }
   }
 
-  // Hall of Fame: crew with fixed roles
+  // Hall of Fame: crew with fixed roles, sorted by rank
   const noShifts = rotaGetAllNoShifts();
   const allAttendees = attendeeGetAll();
-  const crewWithTitles: Array<{ name: string; title: string }> = [];
+  const crewWithTitles: Array<{
+    name: string;
+    title: string;
+    role: string;
+  }> = [];
 
-  // From attendees with role crew/organizer and a title
   for (const att of allAttendees) {
     if ((att.role === 'crew' || att.role === 'organizer') && att.title) {
-      crewWithTitles.push({ name: att.name, title: att.title });
+      crewWithTitles.push({ name: att.name, title: att.title, role: att.role });
     }
   }
 
-  // From no_shifts table (people with fixed roles who aren't in the rota)
   for (const ns of noShifts) {
     if (!crewWithTitles.some((c) => c.name === ns.name) && ns.reason) {
-      crewWithTitles.push({ name: ns.name, title: ns.reason });
+      crewWithTitles.push({ name: ns.name, title: ns.reason, role: 'crew' });
     }
   }
+
+  const TITLE_RANK: Record<string, number> = {
+    captain: 0,
+    quartermaster: 1,
+    'first mate': 2,
+    chef: 3,
+    'sous chef': 4,
+  };
+  crewWithTitles.sort((a, b) => {
+    if (a.role !== b.role) return a.role === 'organizer' ? -1 : 1;
+    const ra = TITLE_RANK[a.title.toLowerCase()] ?? 10;
+    const rb = TITLE_RANK[b.title.toLowerCase()] ?? 10;
+    if (ra !== rb) return ra - rb;
+    return a.name.localeCompare(b.name);
+  });
 
   // --- Layout ---
   const MARGIN = 30;
@@ -379,22 +465,22 @@ export async function generateWeeklyRotaPdf(): Promise<
 
   // Grid rows
   for (let r = 0; r < blockCount; r++) {
-    const label = blockOrder[r];
-    const times = blockTimes.get(label)!;
+    const key = blockOrder[r];
+    const meta2 = blockMeta.get(key)!;
     const rowY = tableTop + r * ROW_H;
 
     // Block label cell
     doc.fontSize(7).font('Helvetica-Bold');
-    doc.text(`${times.start}–${times.end}`, MARGIN + 2, rowY + 3, {
+    doc.text(`${meta2.start}–${meta2.end}`, MARGIN + 2, rowY + 3, {
       width: LABEL_COL_W - 4,
     });
     doc.fontSize(8).font('Helvetica-Bold');
-    doc.text(label, MARGIN + 2, rowY + 13, {
+    doc.text(meta2.label, MARGIN + 2, rowY + 13, {
       width: LABEL_COL_W - 4,
     });
 
     // Day cells
-    const dateMap = grid.get(label)!;
+    const dateMap = grid.get(key)!;
     for (let c = 0; c < dayCount; c++) {
       const x = MARGIN + LABEL_COL_W + c * DAY_COL_W;
       const names = dateMap.get(dates[c]) || [];
