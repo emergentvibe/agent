@@ -216,7 +216,7 @@ export async function generateRotaPdf(
       .fontSize(11)
       .font('Helvetica-Bold')
       .text(
-        `${openCount} open slot${openCount > 1 ? 's' : ''} — DM the bot: /cover`,
+        `${openCount} open slot${openCount > 1 ? 's' : ''} — head to the Shifts channel to claim`,
         { width: PAGE_WIDTH },
       );
   }
