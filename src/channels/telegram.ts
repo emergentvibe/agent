@@ -154,6 +154,12 @@ export class TelegramChannel implements Channel {
         featureGate: 'subscribe',
       },
       {
+        command: 'subscriptions',
+        description: 'List your subscriptions',
+        local: true,
+        featureGate: 'subscribe',
+      },
+      {
         command: 'bar',
         description: 'Buy a drink',
         local: true,
@@ -473,6 +479,31 @@ export class TelegramChannel implements Channel {
       } else {
         await ctx.reply(`You weren't subscribed to "${topic}".`);
       }
+    });
+
+    this.bot.command('subscriptions', async (ctx) => {
+      if (!isSubscribeEnabled()) {
+        await ctx.reply('Subscriptions are not available.');
+        return;
+      }
+      const chatJid = `tg:${ctx.chat.id}`;
+      const groupFolder = resolveGroupFolder(chatJid);
+      if (!groupFolder) {
+        await ctx.reply('Subscriptions are not available in this chat.');
+        return;
+      }
+      const userId = ctx.from?.id?.toString() || '';
+      const subs = getSubscriptions(groupFolder, userId);
+      if (subs.length === 0) {
+        await ctx.reply(
+          "You don't have any subscriptions yet. Use /subscribe [topic] to get started.",
+        );
+        return;
+      }
+      const lines = subs.map((s) => `• ${s.topic}`);
+      await ctx.reply(
+        `Your subscriptions:\n${lines.join('\n')}\n\nI'll DM you when any of these come up in the group. Use /unsubscribe [topic] to remove one.`,
+      );
     });
 
     // --- Rota commands (local, no containers) ---

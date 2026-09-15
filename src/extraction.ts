@@ -356,7 +356,7 @@ function notifySubscribers(
       const notification = {
         type: 'message',
         chatJid: sub.chatJid,
-        text: `Heads up — there's an update about "${sub.topic}". Check the group for details.`,
+        text: `🔔 ${sub.topic} — ${mem.text}`,
       };
       const filename = `sub-${Date.now()}-${Math.random().toString(36).slice(2, 6)}.json`;
       fs.writeFileSync(
