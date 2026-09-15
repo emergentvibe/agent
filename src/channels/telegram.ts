@@ -402,8 +402,33 @@ export class TelegramChannel implements Channel {
         text: `Added ${item} (€${price.toFixed(2)})`,
       });
       try {
+        const prices2 = loadPrices();
+        const categoryItems = prices2?.[category];
+        if (categoryItems) {
+          const kb = buildCategoryKeyboard(category, categoryItems);
+          kb.row().text('No, thanks', `buy_done:${userId}`);
+          await ctx.editMessageText(
+            `Added *${item}* (€${price.toFixed(2)})\nRunning total: *€${total.toFixed(2)}*\n\nAnything else?`,
+            { reply_markup: kb, parse_mode: 'Markdown' },
+          );
+        } else {
+          await ctx.editMessageText(
+            `${userName} bought *${item}* (€${price.toFixed(2)})\nRunning total: *€${total.toFixed(2)}*`,
+            { parse_mode: 'Markdown' },
+          );
+        }
+      } catch {
+        // Message may be too old to edit
+      }
+    });
+
+    this.bot.callbackQuery(/^buy_done:(.+)$/, async (ctx) => {
+      const userId = ctx.from.id.toString();
+      const total = getUserTotal(userId);
+      await ctx.answerCallbackQuery();
+      try {
         await ctx.editMessageText(
-          `${userName} bought *${item}* (€${price.toFixed(2)})\nRunning total: *€${total.toFixed(2)}*`,
+          `Done! Your tab: *€${total.toFixed(2)}*`,
           { parse_mode: 'Markdown' },
         );
       } catch {
