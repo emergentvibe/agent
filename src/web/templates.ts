@@ -10,13 +10,24 @@ import {
   rotaGetCoveredByPerson,
   rotaGetOpenSlots,
 } from '../rota-db.js';
+import { getUserTotal } from '../db.js';
 import { CSS } from './styles.js';
-import { getTodaySchedule, formatDate } from './schedule.js';
+import {
+  getTodaySchedule,
+  formatDate,
+  getEventPhase,
+  getEventStartStr,
+  getEventEndStr,
+  daysBetween,
+  getScheduleForDate,
+  addDays,
+} from './schedule.js';
 import { getCachedUpdates, getCacheAge } from './schedule-refresh.js';
 import {
   getSynthesizedSchedule,
   type SynthesizedSchedule,
 } from './schedule-synthesis.js';
+import { getMealsForDate } from './food.js';
 
 function esc(s: string): string {
   return s
@@ -45,6 +56,7 @@ function shell(
     ${body}
   </div>
   ${nav(activeTab, openCount)}
+  <script>document.querySelectorAll('.synth-card').forEach(function(c){if(c.querySelector('.meal-details')){c.style.cursor='pointer';c.addEventListener('click',function(){c.classList.toggle('meal-open')})}})</script>
 </body>
 </html>`;
 }
@@ -69,20 +81,29 @@ function nav(active: string, openCount: number): string {
 }
 
 function header(today: string): string {
-  const schedule = getTodaySchedule(today);
-  const dayLabel = schedule
-    ? `Day ${schedule.dayNumber} · ${schedule.dayName}`
-    : formatDate(today);
+  const phase = getEventPhase(today);
+  const startStr = getEventStartStr();
+  let dayLabel: string;
+  if (phase === 'pre') {
+    const days = daysBetween(today, startStr);
+    dayLabel = days === 1 ? 'starts tomorrow' : `starts in ${days} days`;
+  } else if (phase === 'during') {
+    const schedule = getTodaySchedule(today);
+    dayLabel = schedule
+      ? `Day ${schedule.dayNumber} of 8 · ${schedule.dayName}`
+      : formatDate(today);
+  } else {
+    const endStr = getEventEndStr();
+    const days = daysBetween(endStr, today);
+    dayLabel = days <= 0 ? 'just ended' : days === 1 ? 'ended yesterday' : `ended ${days} days ago`;
+  }
   return `<div class="header">
     <h1>TREEWEEK III</h1>
     <span class="day-label">${esc(dayLabel)}</span>
   </div>`;
 }
 
-function heroCard(
-  telegramId: string | null,
-  webToken?: string | null,
-): string {
+function heroCard(telegramId: string | null, webToken?: string | null): string {
   if (!telegramId) {
     return connectCard(webToken);
   }
@@ -318,6 +339,8 @@ function renderSynthesizedTimeline(synthesis: SynthesizedSchedule): string {
           ? ` <span style="font-size:12px;color:var(--ink-muted);font-style:italic">(${esc(e.note)})</span>`
           : '';
 
+      const mealHtml = renderMealDetails(e.name, synthesis.date, true, currentTime);
+
       return `<li class="synth-card${statusCls}${timeCls}">
         <div class="card-row">
           <span class="time">${esc(e.time)}</span>
@@ -325,6 +348,7 @@ function renderSynthesizedTimeline(synthesis: SynthesizedSchedule): string {
           ${badgeHtml}
         </div>
         ${buildDetailLine(e)}
+        ${mealHtml}
       </li>`;
     })
     .join('');
@@ -341,8 +365,7 @@ function renderSynthesizedTimeline(synthesis: SynthesizedSchedule): string {
     ? `<div class="cache-age">last sync: ${esc(ageLabel)}</div>`
     : '';
 
-  return `<div class="section-divider"><span>Today</span></div>
-  ${highlightHtml}
+  return `${highlightHtml}
   <ul class="synth-list">${items}</ul>
   ${ageHtml}`;
 }
@@ -379,26 +402,168 @@ function renderStaticSchedule(today: string): string {
     })
     .join('');
 
-  return `<div class="section-divider"><span>Today</span></div>
-  ${highlightHtml}
+  return `${highlightHtml}
   <ul class="schedule-list">${items}</ul>
   ${updatesSection()}`;
 }
 
 // ── Page renderers ──
 
+function dayNav(selectedDate: string, today: string): string {
+  const prevDate = addDays(selectedDate, -1);
+  const nextDate = addDays(selectedDate, 1);
+  const isToday = selectedDate === today;
+
+  const prev = `<a href="/?date=${prevDate}" class="day-nav-arrow">&larr;</a>`;
+  const next = `<a href="/?date=${nextDate}" class="day-nav-arrow">&rarr;</a>`;
+
+  const eventDay = getScheduleForDate(selectedDate);
+  const label = eventDay
+    ? `Day ${eventDay.dayNumber} · ${eventDay.dayName}`
+    : formatDate(selectedDate);
+
+  const todayLink = !isToday ? `<a href="/" class="day-nav-today">today</a>` : '';
+
+  return `<div class="day-nav">
+    ${prev}
+    <span class="day-nav-label">${esc(label)}</span>
+    ${next}
+    ${todayLink}
+  </div>`;
+}
+
+function preEventHero(telegramId: string | null, webToken: string | null | undefined): string {
+  let firstShiftHtml = '';
+  if (telegramId) {
+    const ownShifts = rotaGetByTelegramId(telegramId).filter((s) => s.state === 'assigned');
+    if (ownShifts.length > 0) {
+      const first = ownShifts.sort((a, b) => a.date === b.date ? a.start.localeCompare(b.start) : a.date.localeCompare(b.date))[0];
+      firstShiftHtml = `<div class="pre-event-shift">
+        <div class="pre-event-shift-label">Your first shift</div>
+        <div class="pre-event-shift-detail">${esc(formatDate(first.date))} · ${esc(first.block_label)} · ${esc(first.start)}–${esc(first.end)}</div>
+      </div>`;
+    }
+  }
+
+  const connectHtml = !telegramId ? connectCard(webToken) : '';
+
+  return `${connectHtml}${firstShiftHtml}`;
+}
+
+function renderMealDetails(mealName: string, date: string, isToday: boolean, currentTime: string): string {
+  const meals = getMealsForDate(date);
+  const mealInfo = meals.find((m) => m.meal.toLowerCase() === mealName.toLowerCase());
+  if (!mealInfo || mealInfo.dishes.length === 0) return '';
+
+  const isCurrentMeal = isToday && isMealTimeNow(mealName.toLowerCase(), currentTime);
+  const expandCls = isCurrentMeal ? ' meal-expanded' : '';
+  const dishes = mealInfo.dishes.map((d) => {
+    const tags: string[] = [];
+    if (d.isVegan) tags.push('<span class="allergen-tag vg">VG</span>');
+    if (!d.allergens.includes('gluten')) tags.push('<span class="allergen-tag gf">GF</span>');
+    return `<span class="dish">${esc(d.name)}${tags.join('')}</span>`;
+  }).join(' · ');
+  return `<div class="meal-details${expandCls}">${dishes}</div>`;
+}
+
+function renderDateSchedule(dateStr: string, today: string): string {
+  const day = getScheduleForDate(dateStr);
+  if (!day) return '';
+
+  const now = new Date();
+  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const isToday = day.date === today;
+
+  const highlightHtml =
+    day.highlights.length > 0
+      ? `<div class="day-highlights">${day.highlights.map((h) => `<span class="highlight-tag">${esc(h)}</span>`).join('')}</div>`
+      : '';
+
+  const items = day.events
+    .map((e, i) => {
+      const noteInline = e.note
+        ? ` <span style="font-size:12px;color:var(--ink-muted);font-style:italic">(${esc(e.note)})</span>`
+        : '';
+      const nextTime = i + 1 < day.events.length ? day.events[i + 1].time : '23:59';
+      const isPast = isToday && e.time < currentTime && nextTime <= currentTime;
+      const isNow = isToday && e.time <= currentTime && nextTime > currentTime;
+      const timeCls = isPast ? ' past' : isNow ? ' now' : '';
+
+      const mealHtml = renderMealDetails(e.name, day.date, isToday, currentTime);
+
+      return `<li class="synth-card card-on${timeCls}">
+        <div class="card-row">
+          <span class="time">${esc(e.time)}</span>
+          <span class="name">${esc(e.name)}${noteInline}</span>
+        </div>
+        ${mealHtml}
+      </li>`;
+    })
+    .join('');
+
+  return `${highlightHtml}
+  <ul class="synth-list">${items}</ul>`;
+}
+
+function isMealTimeNow(meal: string, currentTime: string): boolean {
+  switch (meal) {
+    case 'breakfast': return currentTime >= '09:00' && currentTime < '13:00';
+    case 'lunch': return currentTime >= '13:00' && currentTime < '18:00';
+    case 'dinner': return currentTime >= '18:00';
+    default: return false;
+  }
+}
+
 export function renderToday(
   telegramId: string | null,
   webToken?: string | null,
+  dateParam?: string | null,
 ): string {
   const today = getToday();
+  const phase = getEventPhase(today);
   const openCount = rotaGetOpenSlots().length;
+
+  const selectedDate = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)
+    ? dateParam
+    : today;
+  const isToday = selectedDate === today;
+
+  // Tagline
+  const tagline = phase === 'post'
+    ? '<div class="pre-event-tagline">That was the week.</div>'
+    : '<div class="pre-event-tagline">LARP your higher self</div>';
+
+  // Phase-specific hero content
+  let phaseHero = '';
+  if (phase === 'during') {
+    phaseHero = heroCard(telegramId, webToken);
+  } else if (phase === 'pre') {
+    phaseHero = preEventHero(telegramId, webToken);
+  }
+
+  // Schedule for the selected date
+  const isEventDay = !!getScheduleForDate(selectedDate);
+  let scheduleHtml: string;
+
+  if (isToday && phase === 'during') {
+    scheduleHtml = scheduleSection(today);
+  } else if (isEventDay) {
+    scheduleHtml = renderDateSchedule(selectedDate, today);
+  } else {
+    scheduleHtml = '';
+  }
+
+  const dividerLabel = isToday ? 'Today' : formatDate(selectedDate);
+
   const body = `
     ${header(today)}
-    ${heroCard(telegramId, webToken)}
-    ${scheduleSection(today)}
+    ${tagline}
+    ${phaseHero}
+    <div class="section-divider"><span>${esc(dividerLabel)}</span></div>
+    ${dayNav(selectedDate, today)}
+    ${scheduleHtml}
   `;
-  return shell('Today', body, 'today', openCount);
+  return shell('Treeweek III', body, 'today', openCount);
 }
 
 export function renderMyShifts(
@@ -466,6 +631,9 @@ export function renderMyShifts(
         const detailParts: string[] = [];
         if (s.state === 'covered' && s.current_name)
           detailParts.push(`now: ${esc(s.current_name)}`);
+        const coworkers = getCoworkers(s);
+        if (coworkers.length > 0)
+          detailParts.push(`with: ${esc(coworkers.join(', '))}`);
         const showCover = s.state === 'assigned' && !isPast;
         const detailHtml =
           detailParts.length > 0
@@ -509,10 +677,24 @@ export function renderMyShifts(
     html += `<div class="section-divider"><span>Shifts you picked up</span></div>${pickedUpCards}`;
   }
 
+  let tabHtml = '';
+  const tabTotal = getUserTotal(telegramId);
+  if (tabTotal > 0) {
+    tabHtml = `<div class="section-divider"><span>Your Tab</span></div>
+    <div class="synth-card">
+      <div class="card-row">
+        <span class="name">Total</span>
+        <span class="tab-amount">&euro;${tabTotal.toFixed(2)}</span>
+      </div>
+      <a href="https://t.me/${esc(TELEGRAM_BOT_USERNAME)}?start=bar" class="btn btn-outline">Log a drink</a>
+    </div>`;
+  }
+
   const body = `
     ${header(today)}
     <div class="section-divider"><span>My Shifts</span></div>
     ${html}
+    ${tabHtml}
   `;
   return shell('My Shifts', body, 'my-shifts', openCount);
 }

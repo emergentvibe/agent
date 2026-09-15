@@ -10,6 +10,9 @@ import { setCachedUpdates, type ScheduleUpdate } from './schedule-refresh.js';
 import { refreshSynthesis } from './schedule-synthesis.js';
 
 process.env.WEB_DEV_MODE = '1';
+if (!process.env.DATE_OVERRIDE_EXPLICIT) {
+  delete process.env.DATE_OVERRIDE;
+}
 
 initDatabase();
 logger.info('Database initialized (standalone web)');
@@ -69,7 +72,9 @@ setCachedUpdates(loadSeedData());
 
 refreshSynthesis()
   .then(() => logger.info('Synthesis seeded from dev data'))
-  .catch((err) => logger.warn({ err }, 'Synthesis seed failed — using static fallback'));
+  .catch((err) =>
+    logger.warn({ err }, 'Synthesis seed failed — using static fallback'),
+  );
 
 startWebServer(WEB_PORT).then(() => {
   logger.info({ port: WEB_PORT }, 'Standalone web server ready');

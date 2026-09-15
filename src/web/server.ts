@@ -67,9 +67,11 @@ export function startWebServer(port: number): Promise<Server> {
         const webToken = ensureCookie(req, res);
         const telegramId = getTelegramId(req);
 
+        const dateParam = url.searchParams.get('date') || null;
+
         switch (pathname) {
           case '/':
-            html(res, 200, renderToday(telegramId, webToken));
+            html(res, 200, renderToday(telegramId, webToken, dateParam));
             break;
           case '/my-shifts':
             html(res, 200, renderMyShifts(telegramId, webToken));
@@ -84,7 +86,7 @@ export function startWebServer(port: number): Promise<Server> {
             html(
               res,
               404,
-              '<!DOCTYPE html><html><body style="background:#0d1118;color:#f1ead9;font-family:system-ui;text-align:center;padding:80px"><h1>404</h1></body></html>',
+              '<!DOCTYPE html><html><body style="background:#0d0b08;color:#f1ead9;font-family:system-ui;text-align:center;padding:80px"><h1>404</h1></body></html>',
             );
         }
       } catch (err) {

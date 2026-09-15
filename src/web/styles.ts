@@ -1,16 +1,16 @@
 export const CSS = `
 :root {
-  --ground: #0d1118;
-  --surface: #151d28;
-  --surface-raised: #1c2636;
+  --ground: #0d0b08;
+  --surface: #1a1610;
+  --surface-raised: #231e16;
   --ink: #f1ead9;
   --ink-muted: #9a9488;
   --fire: #e8763a;
   --fire-glow: #ffb066;
   --open-red: #e85050;
   --covered-green: #4a9a5a;
-  --border: #2a3444;
-  --event-new: #7ea8be;
+  --border: #2e2820;
+  --event-new: #587448;
 
   --font-body: system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', ui-monospace, monospace;
@@ -615,7 +615,7 @@ body {
 
 .synth-badge.badge-new {
   color: var(--event-new);
-  background: rgba(126, 168, 190, 0.15);
+  background: rgba(88, 116, 72, 0.2);
 }
 
 .synth-badge.badge-cancelled {
@@ -679,6 +679,142 @@ body {
 
 .synth-card.now .time { color: var(--fire); font-weight: 700; }
 .synth-card.now .name { font-weight: 600; }
+
+/* ── Pre-event ── */
+
+.pre-event-tagline {
+  font-size: 20px;
+  font-style: italic;
+  color: var(--fire-glow);
+  text-align: center;
+  padding: 16px 0 8px;
+  letter-spacing: 0.02em;
+}
+
+.pre-event-shift {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--covered-green);
+  border-radius: 0 6px 6px 0;
+  padding: 10px 12px;
+  margin: 12px 0;
+}
+
+.pre-event-shift-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin-bottom: 4px;
+}
+
+.pre-event-shift-detail {
+  font-size: 14px;
+  color: var(--ink);
+}
+
+/* ── Day navigation ── */
+
+.day-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.day-nav-arrow {
+  font-size: 18px;
+  color: var(--fire);
+  text-decoration: none;
+  padding: 4px 8px;
+  min-width: 32px;
+  text-align: center;
+}
+
+.day-nav-arrow.disabled {
+  visibility: hidden;
+}
+
+.day-nav-arrow:hover {
+  color: var(--fire-glow);
+}
+
+.day-nav-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.day-nav-today {
+  font-size: 11px;
+  color: var(--ink-muted);
+  text-decoration: none;
+  border: 1px solid var(--border);
+  padding: 2px 8px;
+  border-radius: 3px;
+}
+
+.day-nav-today:hover {
+  color: var(--ink);
+  border-color: var(--ink-muted);
+}
+
+/* ── Meal details ── */
+
+.meal-details {
+  display: none;
+  font-size: 12px;
+  color: var(--ink-muted);
+  margin-top: 6px;
+  padding-left: 0;
+  line-height: 1.8;
+}
+
+.meal-details.meal-expanded,
+.synth-card.meal-open .meal-details {
+  display: block;
+}
+
+@media (hover: hover) {
+  .synth-card:hover .meal-details {
+    display: block;
+  }
+}
+
+.dish {
+  white-space: nowrap;
+}
+
+.allergen-tag {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 0 3px;
+  border-radius: 2px;
+  margin-left: 2px;
+  vertical-align: middle;
+}
+
+.allergen-tag.vg {
+  color: var(--covered-green);
+  background: rgba(74, 154, 90, 0.15);
+}
+
+.allergen-tag.gf {
+  color: var(--fire-glow);
+  background: rgba(255, 176, 102, 0.12);
+}
+
+/* ── Tab amount ── */
+
+.tab-amount {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--fire);
+}
 
 /* ── Responsive ── */
 

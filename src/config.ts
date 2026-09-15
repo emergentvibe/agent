@@ -130,5 +130,7 @@ export const TIMEZONE =
 // DATE_OVERRIDE: force the bot to think today is a different date (yyyy-MM-dd).
 // For testing rota commands outside the event window.
 export function getToday(): string {
-  return process.env.DATE_OVERRIDE || new Date().toISOString().slice(0, 10);
+  if (process.env.DATE_OVERRIDE) return process.env.DATE_OVERRIDE;
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }

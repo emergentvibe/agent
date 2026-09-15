@@ -172,7 +172,53 @@ export function getTodaySchedule(today: string): DaySchedule | undefined {
   return week.find((d) => d.date === today);
 }
 
+export type EventPhase = 'pre' | 'during' | 'post';
+
+export function getEventPhase(today: string): EventPhase {
+  const start = getEventStartDate();
+  const startStr = localDateStr(start);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 7);
+  const endStr = localDateStr(end);
+  if (today < startStr) return 'pre';
+  if (today > endStr) return 'post';
+  return 'during';
+}
+
+export function getEventStartStr(): string {
+  return localDateStr(getEventStartDate());
+}
+
+export function getEventEndStr(): string {
+  const start = getEventStartDate();
+  const end = new Date(start);
+  end.setDate(end.getDate() + 7);
+  return localDateStr(end);
+}
+
+export function getDaySchedule(dayNumber: number): DaySchedule | undefined {
+  const week = getFullWeekSchedule();
+  return week.find((d) => d.dayNumber === dayNumber);
+}
+
+export function daysBetween(a: string, b: string): number {
+  const da = new Date(a + 'T12:00:00');
+  const db = new Date(b + 'T12:00:00');
+  return Math.round((db.getTime() - da.getTime()) / 86400000);
+}
+
 export function formatDate(dateStr: string): string {
   const d = new Date(dateStr + 'T12:00:00');
   return `${DAY_NAMES[d.getDay()]} ${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;
+}
+
+export function getScheduleForDate(dateStr: string): DaySchedule | undefined {
+  const week = getFullWeekSchedule();
+  return week.find((d) => d.date === dateStr);
+}
+
+export function addDays(dateStr: string, n: number): string {
+  const d = new Date(dateStr + 'T12:00:00');
+  d.setDate(d.getDate() + n);
+  return localDateStr(d);
 }
