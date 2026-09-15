@@ -7,16 +7,11 @@ import type { RotaAssignment } from '../rota-db.js';
 import {
   rotaGetByDate,
   rotaGetByTelegramId,
+  rotaGetCoveredByPerson,
   rotaGetOpenSlots,
 } from '../rota-db.js';
 import { CSS } from './styles.js';
-import {
-  getTodaySchedule,
-  getFullWeekSchedule,
-  formatDate,
-  type DaySchedule,
-  type ScheduleEvent,
-} from './schedule.js';
+import { getTodaySchedule, formatDate } from './schedule.js';
 import { getCachedUpdates, getCacheAge } from './schedule-refresh.js';
 
 function esc(s: string): string {
@@ -55,7 +50,6 @@ function nav(active: string, openCount: number): string {
     { href: '/', label: 'Today', key: 'today' },
     { href: '/my-shifts', label: 'My Shifts', key: 'my-shifts' },
     { href: '/help', label: 'Help Needed', key: 'help' },
-    { href: '/week', label: 'The Week', key: 'week' },
   ];
   const links = tabs
     .map((t) => {
@@ -89,9 +83,16 @@ function heroCard(telegramId: string | null): string {
   const today = getToday();
   const now = new Date();
   const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  const shifts = rotaGetByTelegramId(telegramId);
 
-  const upcoming = shifts.filter((s) => {
+  const ownShifts = rotaGetByTelegramId(telegramId).filter(
+    (s) => s.state === 'assigned',
+  );
+  const pickedUp = rotaGetCoveredByPerson(telegramId);
+  const allShifts = [...ownShifts, ...pickedUp].sort((a, b) =>
+    a.date === b.date ? a.start.localeCompare(b.start) : a.date.localeCompare(b.date),
+  );
+
+  const upcoming = allShifts.filter((s) => {
     if (s.date > today) return true;
     if (s.date === today && s.end > currentTime) return true;
     return false;
@@ -106,6 +107,7 @@ function heroCard(telegramId: string | null): string {
   }
 
   const next = upcoming[0];
+  const isCovering = next.state === 'covered';
   const isToday = next.date === today;
   const coworkers = getCoworkers(next);
 
@@ -124,6 +126,9 @@ function heroCard(telegramId: string | null): string {
     }
   }
 
+  const label = isCovering
+    ? `Covering for ${esc(next.original_name || '?')}`
+    : 'Your next shift';
   const dateDisplay = isToday
     ? ''
     : `<div class="shift-date">${esc(formatDate(next.date))}</div>`;
@@ -136,13 +141,13 @@ function heroCard(telegramId: string | null): string {
       : '';
 
   return `<div class="hero-card">
-    <div class="label">Your next shift</div>
+    <div class="label">${label}</div>
     <div class="shift-name">${esc(next.block_label)}</div>
     <div class="shift-time">${esc(next.start)}–${esc(next.end)}</div>
     ${dateDisplay}
     ${countdownHtml}
     ${coworkerHtml}
-    <a href="https://t.me/${esc(TELEGRAM_BOT_USERNAME)}?start=cover" class="btn btn-fire">Can't make it</a>
+    ${!isCovering ? `<a href="https://t.me/${esc(TELEGRAM_BOT_USERNAME)}?start=cover" class="btn btn-fire">Can't make it</a>` : ''}
   </div>`;
 }
 
@@ -205,9 +210,7 @@ function updatesSection(): string {
       const sourceTag = u.source
         ? `<span class="update-source">${esc(u.source)}</span>`
         : '';
-      const agoTag = ago
-        ? `<span class="update-ago">${esc(ago)}</span>`
-        : '';
+      const agoTag = ago ? `<span class="update-ago">${esc(ago)}</span>` : '';
       const meta =
         sourceTag || agoTag
           ? `<div class="update-meta">${sourceTag}${agoTag}</div>`
@@ -300,8 +303,10 @@ export function renderMyShifts(telegramId: string | null): string {
     return shell('My Shifts', body, 'my-shifts', openCount);
   }
 
-  const shifts = rotaGetByTelegramId(telegramId);
-  if (shifts.length === 0) {
+  const ownShifts = rotaGetByTelegramId(telegramId);
+  const pickedUp = rotaGetCoveredByPerson(telegramId);
+
+  if (ownShifts.length === 0 && pickedUp.length === 0) {
     const body = `
       ${header(today)}
       <div class="section-divider"><span>My Shifts</span></div>
@@ -311,7 +316,7 @@ export function renderMyShifts(telegramId: string | null): string {
   }
 
   const byDate = new Map<string, RotaAssignment[]>();
-  for (const s of shifts) {
+  for (const s of ownShifts) {
     const existing = byDate.get(s.date) || [];
     existing.push(s);
     byDate.set(s.date, existing);
@@ -327,15 +332,35 @@ export function renderMyShifts(telegramId: string | null): string {
         totalShifts++;
         totalHours += s.hours;
         const isPast = date < today;
-        const statusClass = isPast ? 'status-done' : 'status-upcoming';
-        const statusText = isPast ? 'done' : 'upcoming';
-        return `<div class="shift-card">
+
+        let statusClass: string;
+        let statusText: string;
+        if (s.state === 'open') {
+          statusClass = 'status-open';
+          statusText = 'released';
+        } else if (s.state === 'covered') {
+          statusClass = 'status-covered';
+          statusText = 'covered';
+        } else {
+          statusClass = isPast ? 'status-done' : 'status-upcoming';
+          statusText = isPast ? 'done' : 'upcoming';
+        }
+
+        const coverInfo =
+          s.state === 'covered' && s.current_name
+            ? `<div class="shift-meta">now: ${esc(s.current_name)}</div>`
+            : '';
+        const showCover =
+          s.state === 'assigned' && !isPast;
+
+        return `<div class="shift-card${s.state === 'open' ? ' muted' : ''}">
           <div class="shift-header">
             <span class="shift-name">${esc(s.block_label)}</span>
             <span class="status-badge ${statusClass}">${statusText}</span>
           </div>
           <div class="shift-time">${esc(s.start)}–${esc(s.end)}</div>
-          ${!isPast ? `<a href="https://t.me/${esc(TELEGRAM_BOT_USERNAME)}?start=cover" class="btn btn-outline" style="font-size:12px;padding:4px 10px;margin-top:8px">Can't make it</a>` : ''}
+          ${coverInfo}
+          ${showCover ? `<a href="https://t.me/${esc(TELEGRAM_BOT_USERNAME)}?start=cover" class="btn btn-outline" style="font-size:12px;padding:4px 10px;margin-top:8px">Can't make it</a>` : ''}
         </div>`;
       })
       .join('');
@@ -347,6 +372,23 @@ export function renderMyShifts(telegramId: string | null): string {
   }
 
   html += `<div class="shift-total">${totalShifts} shifts · ${totalHours}h total</div>`;
+
+  if (pickedUp.length > 0) {
+    const pickedUpCards = pickedUp
+      .map(
+        (s) => `<div class="shift-card">
+          <div class="shift-header">
+            <span class="shift-name">${esc(s.block_label)}</span>
+            <span class="status-badge status-covered">covering</span>
+          </div>
+          <div class="shift-time">${esc(s.start)}–${esc(s.end)}</div>
+          <div class="shift-date">${esc(formatDate(s.date))}</div>
+          <div class="shift-meta">for: ${esc(s.original_name || '?')}</div>
+        </div>`,
+      )
+      .join('');
+    html += `<div class="section-divider"><span>Shifts you picked up</span></div>${pickedUpCards}`;
+  }
 
   const body = `
     ${header(today)}
@@ -393,44 +435,6 @@ export function renderHelp(): string {
     <script>setTimeout(function(){ location.reload(); }, 60000);</script>
   `;
   return shell('Help Needed', body, 'help', openCount);
-}
-
-export function renderWeek(): string {
-  const week = getFullWeekSchedule();
-  const today = getToday();
-  const openCount = rotaGetOpenSlots().length;
-
-  const html = week
-    .map((day) => {
-      const isToday = day.date === today;
-      const marker = isToday
-        ? ' <span class="today-marker">← today</span>'
-        : '';
-      const items = day.events
-        .map((e) => {
-          const note = e.note
-            ? ` <span class="note">(${esc(e.note)})</span>`
-            : '';
-          return `<li class="schedule-item">
-            <span class="time">${esc(e.time)}</span>
-            <span class="event">${esc(e.name)}${note}</span>
-          </li>`;
-        })
-        .join('');
-      return `<div class="week-day">
-        <div class="day-title">${esc(day.dayName)} · Day ${day.dayNumber}${marker}</div>
-        <ul class="schedule-list">${items}</ul>
-      </div>`;
-    })
-    .join('');
-
-  const body = `
-    ${header(today)}
-    ${updatesSection()}
-    <div class="section-divider"><span>The Week</span></div>
-    ${html}
-  `;
-  return shell('The Week', body, 'week', openCount);
 }
 
 export function renderKitchen(): string {

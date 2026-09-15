@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import Anthropic from '@anthropic-ai/sdk';
-import { extractMemories, _setClient } from './extraction.js';
+import {
+  extractMemories,
+  buildExtractionPrompt,
+  _setClient,
+} from './extraction.js';
 import type { NewMessage } from './types.js';
 
 function makeMessage(
@@ -174,5 +178,42 @@ describe('extractMemories', () => {
     expect(promptContent).toContain('CONTEXT');
     expect(promptContent).toContain('Context from earlier');
     expect(promptContent).toContain('Fresh message');
+  });
+});
+
+describe('Extraction prompt: absolute dates', () => {
+  it('includes current date in the prompt', () => {
+    const prompt = buildExtractionPrompt(
+      'Test Group',
+      'test-slug',
+      [],
+      [makeMessage('Alice', 'Dinner moved to 6pm')],
+    );
+    expect(prompt).toMatch(/Current date: \w+, \d+ \w+ \d{4}/);
+  });
+
+  it('instructs never to use relative dates', () => {
+    const prompt = buildExtractionPrompt(
+      'Test Group',
+      'test-slug',
+      [],
+      [makeMessage('Alice', 'Dinner moved to 6pm')],
+    );
+    expect(prompt).toContain('Always use absolute dates');
+    expect(prompt).toContain('never relative dates');
+    expect(prompt).toContain('"today"');
+    expect(prompt).toContain('"tonight"');
+    expect(prompt).toContain('"tomorrow"');
+  });
+
+  it('uses absolute dates in example extractions', () => {
+    const prompt = buildExtractionPrompt(
+      'Test Group',
+      'test-slug',
+      [],
+      [makeMessage('Alice', 'Workshop at 3pm')],
+    );
+    expect(prompt).toContain('Thu 25 Sep');
+    expect(prompt).not.toContain('"Workshop at 3pm in the garden today');
   });
 });

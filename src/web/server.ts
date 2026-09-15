@@ -14,7 +14,6 @@ import {
   renderToday,
   renderMyShifts,
   renderHelp,
-  renderWeek,
   renderKitchen,
 } from './templates.js';
 import { seedDevData } from './dev-seed.js';
@@ -77,9 +76,6 @@ export function startWebServer(port: number): Promise<Server> {
             break;
           case '/help':
             html(res, 200, renderHelp());
-            break;
-          case '/week':
-            html(res, 200, renderWeek());
             break;
           case '/kitchen':
             html(res, 200, renderKitchen());

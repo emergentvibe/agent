@@ -427,6 +427,10 @@ body {
   color: var(--covered-green);
 }
 
+.shift-card.muted {
+  opacity: 0.5;
+}
+
 .shift-total {
   font-size: 14px;
   color: var(--ink-muted);
@@ -613,26 +617,6 @@ body {
   font-size: 15px;
   color: var(--ink-muted);
   text-align: center;
-}
-
-/* ── Week view ── */
-
-.week-day {
-  margin-bottom: 28px;
-}
-
-.week-day .day-title {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--ink);
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 10px;
-}
-
-.week-day .today-marker {
-  color: var(--fire);
-  font-weight: 700;
 }
 
 /* ── Auth polling ── */

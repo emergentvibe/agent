@@ -33,17 +33,6 @@ setCachedUpdates([
     source: 'Alex',
     created_at: new Date(Date.now() - 4 * 3600000).toISOString(),
   },
-  {
-    memory:
-      'Multiple people (Alex, Priya, River) expressed interest in morning lake swimming',
-    source: undefined,
-    created_at: new Date(Date.now() - 6 * 3600000).toISOString(),
-  },
-  {
-    memory: 'Wifi password changed to oak2026',
-    source: 'Jordan',
-    created_at: new Date(Date.now() - 12 * 3600000).toISOString(),
-  },
 ]);
 
 startWebServer(WEB_PORT).then(() => {

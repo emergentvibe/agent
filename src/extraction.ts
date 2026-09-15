@@ -71,7 +71,7 @@ function formatMessagesForExtraction(messages: NewMessage[]): string {
     .join('\n');
 }
 
-function buildExtractionPrompt(
+export function buildExtractionPrompt(
   groupName: string,
   communitySlug: string,
   contextMessages: NewMessage[],
@@ -90,8 +90,18 @@ People have subscribed to notifications about: ${subscriptionTopics.join(', ')}
 If a message contains a substantive mention of any of these topics — an event, announcement, proposal, or update about it — extract it even if it doesn't fit the categories above. Do NOT extract personal information even if it matches a subscription keyword.\n`
       : '';
 
+  const now = new Date();
+  const todayStr = now.toLocaleDateString('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+
   return `You extract event and activity information from group chat messages for "${groupName}".
 Your output will be stored in a semantic search database for future retrieval.
+Current date: ${todayStr}.
+Always use absolute dates (e.g., "Thu 25 Sep"), never relative dates like "today", "tonight", "tomorrow", "yesterday".
 
 ${contextBlock}## NEW MESSAGES (extract from these only)
 ${formatMessagesForExtraction(newMessages)}
@@ -99,18 +109,18 @@ ${formatMessagesForExtraction(newMessages)}
 ## What to extract
 
 EVENT/ACTIVITY ANNOUNCEMENTS — workshops, gatherings, scheduled activities:
-- "Workshop at 3pm in the garden today (announced by Alex)"
-- Write complete, search-friendly sentences
+- "Workshop at 3pm in the garden on Thu 25 Sep (announced by Alex)"
+- Write complete, search-friendly sentences with absolute dates
 
 SCHEDULE CHANGES — times, venues, cancellations:
-- When something CHANGES, include what changed: "Dinner moved from 7pm to 6:30pm (updated by Alex)"
+- When something CHANGES, include what changed: "Dinner moved from 7pm to 6:30pm on Thu 25 Sep (updated by Alex)"
 
 FACILITY STATUS — infrastructure that affects everyone:
 - "Hot water is out in building B (reported by River)"
 - "Wifi password changed to oak2026 (announced by Jordan)"
 
 ACTIVITY PROPOSALS — things people want to organize:
-- "Alex proposed a music jam tonight in the barn"
+- "Alex proposed a music jam on Thu 25 Sep evening in the barn"
 
 PATTERNS — when 2+ people propose the same activity:
 - "Multiple people (Alex, Priya, River) expressed interest in morning lake swimming"

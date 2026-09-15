@@ -1,3 +1,4 @@
+import { getToday } from '../config.js';
 import { logger } from '../logger.js';
 import { searchMemories, type Mem0Memory } from '../mem0-client.js';
 import type { RegisteredGroup } from '../types.js';
@@ -7,11 +8,24 @@ const SCHEDULE_CACHE_INTERVAL = parseInt(
   10,
 );
 
-const SCHEDULE_QUERIES = [
-  'schedule changes today events times',
-  'cancelled events activities',
-  'new events announcements workshops',
-];
+function formatTodayForQuery(): string {
+  const today = getToday();
+  const d = new Date(today + 'T12:00:00');
+  return d.toLocaleDateString('en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+}
+
+export function buildScheduleQueries(): string[] {
+  const label = formatTodayForQuery();
+  return [
+    `schedule changes ${label} events times`,
+    `cancelled events ${label} activities`,
+    `new events ${label} announcements workshops`,
+  ];
+}
 
 export interface ScheduleUpdate {
   memory: string;
@@ -68,7 +82,8 @@ async function refreshScheduleCache(deps: ScheduleCacheDeps): Promise<void> {
 
   try {
     const allResults: Mem0Memory[] = [];
-    for (const query of SCHEDULE_QUERIES) {
+    const queries = buildScheduleQueries();
+    for (const query of queries) {
       const results = await searchMemories(query, userId);
       allResults.push(...results);
     }
