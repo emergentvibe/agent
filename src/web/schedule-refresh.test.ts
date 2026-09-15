@@ -43,11 +43,41 @@ describe('Schedule refresh: top-N per query', () => {
   it('takes top N results per query, deduplicating across queries', async () => {
     const queryResults: Record<string, typeof mockResults> = {};
     const mockResults = [
-      { id: '1', memory: 'Dinner at 6pm on Thu 25 Sep', user_id: 'u', score: 0.63, created_at: '2026-09-14T09:00:00Z' },
-      { id: '2', memory: 'Yoga cancelled Thu 25 Sep', user_id: 'u', score: 0.52, created_at: '2026-09-14T09:00:00Z' },
-      { id: '3', memory: 'Bonfire at 9pm Thu 25 Sep', user_id: 'u', score: 0.44, created_at: '2026-09-14T09:00:00Z' },
-      { id: '4', memory: 'Kitchen hours 6am-11pm', user_id: 'u', score: 0.40, created_at: '2026-09-14T09:00:00Z' },
-      { id: '5', memory: 'Alex is a painter', user_id: 'u', score: 0.22, created_at: '2026-09-14T09:00:00Z' },
+      {
+        id: '1',
+        memory: 'Dinner at 6pm on Thu 25 Sep',
+        user_id: 'u',
+        score: 0.63,
+        created_at: '2026-09-14T09:00:00Z',
+      },
+      {
+        id: '2',
+        memory: 'Yoga cancelled Thu 25 Sep',
+        user_id: 'u',
+        score: 0.52,
+        created_at: '2026-09-14T09:00:00Z',
+      },
+      {
+        id: '3',
+        memory: 'Bonfire at 9pm Thu 25 Sep',
+        user_id: 'u',
+        score: 0.44,
+        created_at: '2026-09-14T09:00:00Z',
+      },
+      {
+        id: '4',
+        memory: 'Kitchen hours 6am-11pm',
+        user_id: 'u',
+        score: 0.4,
+        created_at: '2026-09-14T09:00:00Z',
+      },
+      {
+        id: '5',
+        memory: 'Alex is a painter',
+        user_id: 'u',
+        score: 0.22,
+        created_at: '2026-09-14T09:00:00Z',
+      },
     ];
 
     // Each query returns same 5 results; top-3 per query means
@@ -57,7 +87,12 @@ describe('Schedule refresh: top-N per query', () => {
     const { refreshScheduleCache } = await import('./schedule-refresh.js');
     await (refreshScheduleCache as any)({
       registeredGroups: () => ({
-        '-100123': { chatId: -100123, folder: 'test', isMain: true, name: 'Test' },
+        '-100123': {
+          chatId: -100123,
+          folder: 'test',
+          isMain: true,
+          name: 'Test',
+        },
       }),
     });
 
@@ -69,9 +104,27 @@ describe('Schedule refresh: top-N per query', () => {
 
   it('respects floor score — filters truly irrelevant results', async () => {
     const mockResults = [
-      { id: '1', memory: 'Dinner at 6pm', user_id: 'u', score: 0.55, created_at: '2026-09-14T09:00:00Z' },
-      { id: '2', memory: 'Random noise', user_id: 'u', score: 0.10, created_at: '2026-09-14T09:00:00Z' },
-      { id: '3', memory: 'More noise', user_id: 'u', score: 0.08, created_at: '2026-09-14T09:00:00Z' },
+      {
+        id: '1',
+        memory: 'Dinner at 6pm',
+        user_id: 'u',
+        score: 0.55,
+        created_at: '2026-09-14T09:00:00Z',
+      },
+      {
+        id: '2',
+        memory: 'Random noise',
+        user_id: 'u',
+        score: 0.1,
+        created_at: '2026-09-14T09:00:00Z',
+      },
+      {
+        id: '3',
+        memory: 'More noise',
+        user_id: 'u',
+        score: 0.08,
+        created_at: '2026-09-14T09:00:00Z',
+      },
     ];
 
     vi.mocked(searchMemories).mockResolvedValue(mockResults);
@@ -79,7 +132,12 @@ describe('Schedule refresh: top-N per query', () => {
     const { refreshScheduleCache } = await import('./schedule-refresh.js');
     await (refreshScheduleCache as any)({
       registeredGroups: () => ({
-        '-100123': { chatId: -100123, folder: 'test', isMain: true, name: 'Test' },
+        '-100123': {
+          chatId: -100123,
+          folder: 'test',
+          isMain: true,
+          name: 'Test',
+        },
       }),
     });
 
@@ -94,8 +152,18 @@ describe('Schedule refresh: top-N per query', () => {
 
   it('keeps memories with no score (cloud backend compat)', async () => {
     const mockResults = [
-      { id: '1', memory: 'Dinner at 6pm', user_id: 'u', created_at: '2026-09-14T09:00:00Z' },
-      { id: '2', memory: 'Yoga cancelled', user_id: 'u', created_at: '2026-09-14T09:00:00Z' },
+      {
+        id: '1',
+        memory: 'Dinner at 6pm',
+        user_id: 'u',
+        created_at: '2026-09-14T09:00:00Z',
+      },
+      {
+        id: '2',
+        memory: 'Yoga cancelled',
+        user_id: 'u',
+        created_at: '2026-09-14T09:00:00Z',
+      },
     ];
 
     vi.mocked(searchMemories).mockResolvedValue(mockResults);
@@ -103,7 +171,12 @@ describe('Schedule refresh: top-N per query', () => {
     const { refreshScheduleCache } = await import('./schedule-refresh.js');
     await (refreshScheduleCache as any)({
       registeredGroups: () => ({
-        '-100123': { chatId: -100123, folder: 'test', isMain: true, name: 'Test' },
+        '-100123': {
+          chatId: -100123,
+          folder: 'test',
+          isMain: true,
+          name: 'Test',
+        },
       }),
     });
 

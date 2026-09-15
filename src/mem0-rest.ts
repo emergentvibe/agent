@@ -27,7 +27,8 @@ export async function restStoreMemory(
   userId: string,
   metadata?: Record<string, string>,
 ): Promise<void> {
-  if (!baseUrl) throw new Error('Mem0 REST not initialized — call initMem0Rest()');
+  if (!baseUrl)
+    throw new Error('Mem0 REST not initialized — call initMem0Rest()');
 
   const body: Record<string, unknown> = {
     user_id: userId,
@@ -50,5 +51,8 @@ export async function restStoreMemory(
     throw new Error(`Mem0 REST store failed (${response.status}): ${errBody}`);
   }
 
-  logger.debug({ userId, textLength: text.length }, 'Stored memory (REST, infer=false)');
+  logger.debug(
+    { userId, textLength: text.length },
+    'Stored memory (REST, infer=false)',
+  );
 }

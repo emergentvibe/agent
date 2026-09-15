@@ -22,8 +22,13 @@ function loadSeedData(): ScheduleUpdate[] {
   for (const p of [seedPath, srcSeedPath]) {
     if (fs.existsSync(p)) {
       try {
-        const data = JSON.parse(fs.readFileSync(p, 'utf-8')) as ScheduleUpdate[];
-        logger.info({ path: p, count: data.length }, 'Loaded seed data from sim');
+        const data = JSON.parse(
+          fs.readFileSync(p, 'utf-8'),
+        ) as ScheduleUpdate[];
+        logger.info(
+          { path: p, count: data.length },
+          'Loaded seed data from sim',
+        );
         return data;
       } catch (err) {
         logger.warn({ err, path: p }, 'Failed to parse seed data');

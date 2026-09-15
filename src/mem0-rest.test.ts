@@ -63,8 +63,8 @@ describe('mem0-rest', () => {
       text: () => Promise.resolve('Internal Server Error'),
     });
 
-    await expect(
-      restStoreMemory('test', 'community:treeweek'),
-    ).rejects.toThrow('Mem0 REST store failed (500)');
+    await expect(restStoreMemory('test', 'community:treeweek')).rejects.toThrow(
+      'Mem0 REST store failed (500)',
+    );
   });
 });

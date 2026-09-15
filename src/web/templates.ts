@@ -89,7 +89,9 @@ function heroCard(telegramId: string | null): string {
   );
   const pickedUp = rotaGetCoveredByPerson(telegramId);
   const allShifts = [...ownShifts, ...pickedUp].sort((a, b) =>
-    a.date === b.date ? a.start.localeCompare(b.start) : a.date.localeCompare(b.date),
+    a.date === b.date
+      ? a.start.localeCompare(b.start)
+      : a.date.localeCompare(b.date),
   );
 
   const upcoming = allShifts.filter((s) => {
@@ -350,8 +352,7 @@ export function renderMyShifts(telegramId: string | null): string {
           s.state === 'covered' && s.current_name
             ? `<div class="shift-meta">now: ${esc(s.current_name)}</div>`
             : '';
-        const showCover =
-          s.state === 'assigned' && !isPast;
+        const showCover = s.state === 'assigned' && !isPast;
 
         return `<div class="shift-card${s.state === 'open' ? ' muted' : ''}">
           <div class="shift-header">
