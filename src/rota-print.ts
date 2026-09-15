@@ -85,6 +85,30 @@ function resolveDisplayIdentity(
   return line;
 }
 
+function resolveShortIdentifier(
+  a: RotaAssignment,
+  attendeeMap: Map<string, AttendeeRecord>,
+): string {
+  if (a.original_telegram && a.original_telegram.startsWith('@')) {
+    return a.original_telegram;
+  }
+  let attendee: AttendeeRecord | undefined;
+  if (a.original_telegram) {
+    attendee = attendeeMap.get(a.original_telegram.toLowerCase());
+  }
+  if (!attendee && a.original_name) {
+    attendee = attendeeMap.get(a.original_name.toLowerCase());
+  }
+  if (attendee?.telegram_handle) {
+    const h = attendee.telegram_handle;
+    return h.startsWith('@') ? h : `@${h}`;
+  }
+  if (attendee?.telegram_display) {
+    return `(${attendee.telegram_display})`;
+  }
+  return '';
+}
+
 function formatDateHeader(date: string, day?: number): string {
   const d = new Date(date + 'T12:00:00');
   const weekday = d.toLocaleDateString('en-GB', { weekday: 'short' });
@@ -215,15 +239,6 @@ export async function generateRotaPdf(
 
   doc.moveDown(1);
 
-  // Handwriting box
-  const boxX = 40 + PAGE_WIDTH - 200;
-  const boxY = doc.y;
-  doc.rect(boxX, boxY, 200, 60).lineWidth(0.5).stroke();
-  doc
-    .fontSize(8)
-    .font('Helvetica-Oblique')
-    .text('swapped? write it here', boxX + 5, boxY + 5, { width: 190 });
-
   doc.end();
 
   return new Promise((resolve) => {
@@ -290,6 +305,7 @@ export async function generateWeeklyRotaPdf(): Promise<
   for (const key of blockOrder) {
     grid.set(key, new Map());
   }
+  const attendeeMap = buildAttendeeMap();
   for (const a of all) {
     const key = `${a.start}-${a.end}-${a.block_label}`;
     const dateMap = grid.get(key)!;
@@ -297,10 +313,10 @@ export async function generateWeeklyRotaPdf(): Promise<
     const name = a.original_name || '???';
     if (a.state === 'open') {
       dateMap.get(a.date)!.push('(open)');
-    } else if (a.state === 'covered') {
-      dateMap.get(a.date)!.push(a.current_name || name);
     } else {
-      dateMap.get(a.date)!.push(name);
+      const displayName = a.state === 'covered' ? (a.current_name || name) : name;
+      const identifier = resolveShortIdentifier(a, attendeeMap);
+      dateMap.get(a.date)!.push(identifier ? `${displayName} ${identifier}` : displayName);
     }
   }
 
