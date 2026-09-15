@@ -1214,6 +1214,12 @@ export async function main(): Promise<void> {
       }
       await ch.sendMessage(jid, text);
     },
+    refreshShiftsBoard: async () => {
+      if (!ROTA_GROUP_JID) return;
+      const ch = findChannel(channels, ROTA_GROUP_JID);
+      if (!ch || !('refreshShiftsBoard' in ch)) return;
+      await (ch as { refreshShiftsBoard: () => Promise<void> }).refreshShiftsBoard();
+    },
   });
 
   recoverPendingMessages();

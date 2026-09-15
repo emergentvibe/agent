@@ -75,7 +75,3 @@ These are handled locally by the bot (no container needed) unless noted:
 
 If this user is crew and operational knowledge is sparse, suggest they seed knowledge through the group chat or the seed script. DMs cannot store memories.
 
-## Community Links
-
-Community constitution: https://emergentvibe.com/c/{{slug}}
-Community dashboard: https://emergentvibe.com/c/{{slug}}/dashboard

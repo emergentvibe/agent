@@ -37,7 +37,8 @@ import type { RotaImportPayload } from '../rota-db.js';
 import { adaptRotaExport, type SheetRotaExport } from '../sheet-adapter.js';
 import { isCrewMember } from '../crew.js';
 import { loadFeatureConfig } from '../feature-config.js';
-import { rotaCommandEntries, registerRotaCommands } from '../rota-commands.js';
+import { rotaCommandEntries, registerRotaCommands, postShiftsBoard } from '../rota-commands.js';
+import type { RotaCommandOpts } from '../rota-commands.js';
 import { registerChannel, ChannelOpts } from './registry.js';
 import {
   Channel,
@@ -85,6 +86,7 @@ export class TelegramChannel implements Channel {
   // Telegram's typing state only lasts ~5s; refresh just under that.
   private typingIntervals = new Map<string, ReturnType<typeof setInterval>>();
   private readonly TYPING_REFRESH_MS = 4000;
+  private rotaOpts: RotaCommandOpts | null = null;
 
   constructor(botToken: string, opts: TelegramChannelOpts) {
     this.botToken = botToken;
@@ -471,46 +473,44 @@ export class TelegramChannel implements Channel {
 
     // --- Rota commands (local, no containers) ---
     const rotaGroupId = ROTA_GROUP_JID.replace(/^tg:/, '');
-    registerRotaCommands(
-      this.bot,
-      {
-        registeredGroups: this.opts.registeredGroups,
-        sendToShiftsTopic: async (text, keyboard) => {
-          if (!rotaGroupId || !ROTA_SHIFTS_TOPIC_ID) {
-            logger.warn(
-              'Rota: ROTA_GROUP_JID or ROTA_SHIFTS_TOPIC_ID not configured',
-            );
-            return undefined;
-          }
-          const msgOpts: Record<string, unknown> = {
-            message_thread_id: ROTA_SHIFTS_TOPIC_ID,
-            parse_mode: 'Markdown',
-          };
-          if (keyboard) msgOpts.reply_markup = keyboard;
-          const msg = await this.bot!.api.sendMessage(
-            rotaGroupId,
-            text,
-            msgOpts,
+    const rotaOpts: RotaCommandOpts = {
+      registeredGroups: this.opts.registeredGroups,
+      sendToShiftsTopic: async (text, keyboard) => {
+        if (!rotaGroupId || !ROTA_SHIFTS_TOPIC_ID) {
+          logger.warn(
+            'Rota: ROTA_GROUP_JID or ROTA_SHIFTS_TOPIC_ID not configured',
           );
-          return msg.message_id;
-        },
-        editShiftsTopicMessage: async (messageId, text, keyboard) => {
-          if (!rotaGroupId) return;
-          const editOpts: Record<string, unknown> = {};
-          if (keyboard) editOpts.reply_markup = keyboard;
-          await this.bot!.api.editMessageText(
-            rotaGroupId,
-            messageId,
-            text,
-            editOpts,
-          );
-        },
-        sendDm: async (userId, text) => {
-          await sendTelegramMessage(this.bot!.api, userId, text);
-        },
+          return undefined;
+        }
+        const msgOpts: Record<string, unknown> = {
+          message_thread_id: ROTA_SHIFTS_TOPIC_ID,
+          parse_mode: 'Markdown',
+        };
+        if (keyboard) msgOpts.reply_markup = keyboard;
+        const msg = await this.bot!.api.sendMessage(
+          rotaGroupId,
+          text,
+          msgOpts,
+        );
+        return msg.message_id;
       },
-      InlineKeyboard,
-    );
+      editShiftsTopicMessage: async (messageId, text, keyboard) => {
+        if (!rotaGroupId) return;
+        const editOpts: Record<string, unknown> = {};
+        if (keyboard) editOpts.reply_markup = keyboard;
+        await this.bot!.api.editMessageText(
+          rotaGroupId,
+          messageId,
+          text,
+          editOpts,
+        );
+      },
+      sendDm: async (userId, text) => {
+        await sendTelegramMessage(this.bot!.api, userId, text);
+      },
+    };
+    this.rotaOpts = rotaOpts;
+    registerRotaCommands(this.bot, rotaOpts, InlineKeyboard);
 
     // /start deep link handler (NFC stickers, DM entry points)
     this.bot.command('start', async (ctx) => {
@@ -961,6 +961,11 @@ export class TelegramChannel implements Channel {
     const numericId = jid.replace(/^tg:/, '');
     await this.bot.api.sendDocument(numericId, new InputFile(buffer, filename));
     logger.info({ jid, filename }, 'Telegram file sent');
+  }
+
+  async refreshShiftsBoard(): Promise<void> {
+    if (!this.rotaOpts) return;
+    await postShiftsBoard(this.rotaOpts, InlineKeyboard);
   }
 
   async disconnect(): Promise<void> {

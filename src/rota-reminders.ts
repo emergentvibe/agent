@@ -12,6 +12,7 @@ export interface ReminderCallbacks {
   sendToShiftsTopic: (text: string) => Promise<void>;
   sendDm: (userId: string, text: string) => Promise<void>;
   getCrewIds?: () => string[];
+  refreshShiftsBoard?: () => Promise<void>;
 }
 
 const CHECK_INTERVAL_MS = 60_000;
@@ -19,7 +20,7 @@ const SHIFT_PING_LEAD_MINUTES = 30;
 const MAX_DM_PINGS_PER_DAY = 2;
 
 let intervalHandle: ReturnType<typeof setInterval> | null = null;
-let morningPostedToday: string | null = null;
+const MORNING_ANNOUNCEMENT_ID = '__morning__';
 
 function formatDate(date: string): string {
   const d = new Date(date + 'T12:00:00');
@@ -139,13 +140,14 @@ async function tick(callbacks: ReminderCallbacks): Promise<void> {
 
   if (assignments.length === 0) return;
 
-  if (morningPostedToday !== today && now >= '08:00' && ROTA_SHIFTS_TOPIC_ID) {
+  if (!rotaHasPinged(MORNING_ANNOUNCEMENT_ID, today) && now >= '08:00' && ROTA_SHIFTS_TOPIC_ID) {
     const announcement = buildMorningAnnouncement(today, assignments);
     if (announcement) {
       try {
         await callbacks.sendToShiftsTopic(announcement);
-        morningPostedToday = today;
+        rotaRecordPing(MORNING_ANNOUNCEMENT_ID, today);
         logger.info('Rota: morning announcement posted');
+        await callbacks.refreshShiftsBoard?.();
       } catch (err) {
         logger.error({ err }, 'Rota: failed to post morning announcement');
       }
@@ -258,7 +260,6 @@ export function stopRotaReminders(): void {
 }
 
 export function _resetForTests(): void {
-  morningPostedToday = null;
   if (intervalHandle) {
     clearInterval(intervalHandle);
     intervalHandle = null;
