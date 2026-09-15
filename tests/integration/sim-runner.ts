@@ -594,13 +594,14 @@ async function runScenario(scenarioName: string): Promise<AssertionResult[]> {
     try {
       const { buildScheduleQueries } = await import('../../src/web/schedule-refresh.js');
       const queries = buildScheduleQueries();
-      const allResults: Array<{ id: string; memory: string; metadata?: Record<string, unknown>; created_at?: string }> = [];
+      const minScore = parseFloat(process.env.SCHEDULE_MIN_SCORE || '0.5');
+      const allResults: Array<{ id: string; memory: string; score?: number; metadata?: Record<string, unknown>; created_at?: string }> = [];
       const seenIds = new Set<string>();
 
       for (const query of queries) {
         const results = await searchMemories(query, `community:${slug}`);
         for (const m of results) {
-          if (!seenIds.has(m.id)) {
+          if (!seenIds.has(m.id) && (m.score === undefined || m.score >= minScore)) {
             seenIds.add(m.id);
             allResults.push(m);
           }

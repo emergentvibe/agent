@@ -72,6 +72,7 @@ export interface LocalMem0Memory {
   id: string;
   memory: string;
   user_id: string;
+  score?: number;
   metadata?: Record<string, unknown>;
   created_at?: string;
 }
@@ -101,12 +102,14 @@ export async function localSearchMemories(
           id?: string;
           memory?: string;
           text?: string;
+          score?: number;
           created_at?: string;
           metadata?: Record<string, unknown>;
         }) => ({
           id: m.id || '',
           memory: m.memory || m.text || '',
           user_id: userId,
+          score: m.score,
           metadata: m.metadata,
           created_at: m.created_at,
         }),

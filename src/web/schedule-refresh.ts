@@ -8,6 +8,10 @@ const SCHEDULE_CACHE_INTERVAL = parseInt(
   10,
 );
 
+const SCHEDULE_MIN_SCORE = parseFloat(
+  process.env.SCHEDULE_MIN_SCORE || '0.5',
+);
+
 function formatTodayForQuery(): string {
   const today = getToday();
   const d = new Date(today + 'T12:00:00');
@@ -68,7 +72,7 @@ export interface ScheduleCacheDeps {
   registeredGroups: () => Record<string, RegisteredGroup>;
 }
 
-async function refreshScheduleCache(deps: ScheduleCacheDeps): Promise<void> {
+export async function refreshScheduleCache(deps: ScheduleCacheDeps): Promise<void> {
   const groups = deps.registeredGroups();
   const mainEntry = Object.entries(groups).find(([, g]) => g.isMain);
   if (!mainEntry) {
@@ -89,15 +93,21 @@ async function refreshScheduleCache(deps: ScheduleCacheDeps): Promise<void> {
     }
 
     const unique = deduplicateMemories(allResults);
+    const aboveThreshold = unique.filter(
+      (m) => m.score === undefined || m.score >= SCHEDULE_MIN_SCORE,
+    );
 
-    const updates: ScheduleUpdate[] = unique.map((m) => ({
+    const updates: ScheduleUpdate[] = aboveThreshold.map((m) => ({
       memory: m.memory,
       source: extractSource(m.metadata),
       created_at: m.created_at,
     }));
 
     setCachedUpdates(updates);
-    logger.info({ count: updates.length }, 'Schedule cache updated from Mem0');
+    logger.info(
+      { count: updates.length, filtered: unique.length - aboveThreshold.length, threshold: SCHEDULE_MIN_SCORE },
+      'Schedule cache updated from Mem0',
+    );
   } catch (err) {
     logger.error({ err }, 'Schedule cache refresh failed');
   }

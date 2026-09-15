@@ -98,6 +98,7 @@ export interface Mem0Memory {
   id: string;
   memory: string;
   user_id: string;
+  score?: number;
   metadata?: Record<string, unknown>;
   created_at?: string;
 }
@@ -116,6 +117,7 @@ export async function searchMemories(
       id: r.id,
       memory: r.memory,
       user_id: r.user_id,
+      score: r.score,
       metadata: r.metadata,
       created_at: r.created_at,
     }));
