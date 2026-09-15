@@ -26,7 +26,7 @@ process.env.POLL_INTERVAL = '1000';
 process.env.EXTRACTION_INTERVAL = '5000';
 process.env.EXTRACTION_WINDOW = '60000';
 process.env.MIN_CONTEXT_MESSAGES = '20';
-process.env.SCHEDULE_CACHE_INTERVAL = '60000';
+process.env.SCHEDULE_CACHE_INTERVAL = '20000';
 process.chdir(AGENT_ROOT);
 
 // --- Types ---
@@ -91,9 +91,9 @@ const TIME_SLOTS: Record<string, string> = {
   evening: '19',
 };
 const TRIGGER_PATTERN = /^@Andy\b/i;
-const INTER_MESSAGE_DELAY = 4000;
+const INTER_MESSAGE_DELAY = 8000;
 const RESPONSE_TIMEOUT = 180_000;
-const POST_DAY_EXTRACTION_WAIT = 10_000;
+const POST_DAY_EXTRACTION_WAIT = 15_000;
 
 // --- Helpers ---
 

@@ -101,6 +101,13 @@ export const ROTA_SHIFTS_TOPIC_ID =
 export const ROTA_GROUP_JID =
   process.env.ROTA_GROUP_JID || envConfig.ROTA_GROUP_JID || '';
 
+export function getShiftsTopicLink(): string | null {
+  if (!ROTA_SHIFTS_TOPIC_ID || !ROTA_GROUP_JID) return null;
+  const raw = ROTA_GROUP_JID.replace(/^tg:/, '');
+  const numericId = raw.replace(/^-100/, '');
+  return `https://t.me/c/${numericId}/${ROTA_SHIFTS_TOPIC_ID}`;
+}
+
 // Background memory extraction timing
 export const EXTRACTION_INTERVAL = parseInt(
   process.env.EXTRACTION_INTERVAL || '300000',

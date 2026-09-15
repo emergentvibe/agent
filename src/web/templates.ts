@@ -1,4 +1,8 @@
-import { getToday, TELEGRAM_BOT_USERNAME } from '../config.js';
+import {
+  getToday,
+  TELEGRAM_BOT_USERNAME,
+  getShiftsTopicLink,
+} from '../config.js';
 import type { RotaAssignment } from '../rota-db.js';
 import {
   rotaGetByDate,
@@ -176,26 +180,61 @@ function getCoworkers(shift: RotaAssignment): string[] {
     .filter(Boolean);
 }
 
+function relativeTime(isoStr?: string): string {
+  if (!isoStr) return '';
+  const diff = Date.now() - new Date(isoStr).getTime();
+  if (diff < 0) return '';
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
+const TRUNCATE_LENGTH = 120;
+
 function updatesSection(): string {
   const updates = getCachedUpdates();
   if (updates.length === 0) return '';
 
   const items = updates
-    .map((u) => {
-      const source = u.source
-        ? ` <span class="update-source">${esc(u.source)}</span>`
+    .map((u, i) => {
+      const ago = relativeTime(u.created_at);
+      const sourceTag = u.source
+        ? `<span class="update-source">${esc(u.source)}</span>`
         : '';
-      return `<li class="update-item">${esc(u.memory)}${source}</li>`;
+      const agoTag = ago
+        ? `<span class="update-ago">${esc(ago)}</span>`
+        : '';
+      const meta =
+        sourceTag || agoTag
+          ? `<div class="update-meta">${sourceTag}${agoTag}</div>`
+          : '';
+
+      const text = u.memory;
+      if (text.length > TRUNCATE_LENGTH) {
+        const preview = text.slice(0, TRUNCATE_LENGTH);
+        return `<li class="update-card" id="upd-${i}">
+          <div class="update-text">
+            <span class="update-preview">${esc(preview)}…</span>
+            <span class="update-full" hidden>${esc(text)}</span>
+          </div>
+          ${meta}
+          <button class="update-expand" onclick="var c=this.closest('.update-card');var p=c.querySelector('.update-preview');var f=c.querySelector('.update-full');if(f.hidden){f.hidden=false;p.hidden=true;this.textContent='less'}else{f.hidden=true;p.hidden=false;this.textContent='more'}">more</button>
+        </li>`;
+      }
+
+      return `<li class="update-card">
+        <div class="update-text">${esc(text)}</div>
+        ${meta}
+      </li>`;
     })
     .join('');
 
-  const ageMs = getCacheAge();
-  const ageMins = Math.floor(ageMs / 60000);
-  const ageLabel = ageMins < 1 ? 'just now' : `${ageMins}m ago`;
-
   return `<div class="section-divider"><span>Updates from chat</span></div>
-  <ul class="update-list">${items}</ul>
-  <div class="cache-age">Updated ${esc(ageLabel)}</div>`;
+  <ul class="update-list">${items}</ul>`;
 }
 
 function scheduleSection(today: string): string {
@@ -205,10 +244,25 @@ function scheduleSection(today: string): string {
     <div class="schedule-empty">No schedule data for today.</div>`;
   }
 
+  const now = new Date();
+  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+  const highlightHtml =
+    schedule.highlights.length > 0
+      ? `<div class="day-highlights">${schedule.highlights.map((h) => `<span class="highlight-tag">${esc(h)}</span>`).join('')}</div>`
+      : '';
+
   const items = schedule.events
-    .map((e) => {
+    .map((e, i) => {
       const note = e.note ? ` <span class="note">(${esc(e.note)})</span>` : '';
-      return `<li class="schedule-item">
+      const nextTime =
+        i + 1 < schedule.events.length ? schedule.events[i + 1].time : '23:59';
+      const isPast = e.time < currentTime && nextTime <= currentTime;
+      const isNow = e.time <= currentTime && nextTime > currentTime;
+      const cls = isPast ? ' past' : isNow ? ' now' : '';
+      const nowDot = isNow ? '<span class="now-dot"></span>' : '';
+      return `<li class="schedule-item${cls}">
+        ${nowDot}
         <span class="time">${esc(e.time)}</span>
         <span class="event">${esc(e.name)}${note}</span>
       </li>`;
@@ -216,6 +270,7 @@ function scheduleSection(today: string): string {
     .join('');
 
   return `<div class="section-divider"><span>Today</span></div>
+  ${highlightHtml}
   <ul class="schedule-list">${items}</ul>
   ${updatesSection()}`;
 }
@@ -324,7 +379,7 @@ export function renderHelp(): string {
           <div class="shift-time">${esc(s.start)}–${esc(s.end)}</div>
           <div class="shift-date">${esc(formatDate(s.date))}</div>
           ${wasLabel}
-          <a href="https://t.me/${esc(TELEGRAM_BOT_USERNAME)}" class="btn btn-fire" style="font-size:13px">I'll do it →</a>
+          <a href="${esc(getShiftsTopicLink() || `https://t.me/${TELEGRAM_BOT_USERNAME}`)}" class="btn btn-fire" style="font-size:13px">I'll do it →</a>
         </div>`;
       })
       .join('');

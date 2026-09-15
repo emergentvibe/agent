@@ -171,7 +171,6 @@ export function getTodaySchedule(today: string): DaySchedule | undefined {
   return week.find((d) => d.date === today);
 }
 
-
 export function formatDate(dateStr: string): string {
   const d = new Date(dateStr + 'T12:00:00');
   return `${DAY_NAMES[d.getDay()]} ${d.getDate()} ${MONTH_NAMES[d.getMonth()]}`;

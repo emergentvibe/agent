@@ -82,10 +82,7 @@ async function refreshScheduleCache(deps: ScheduleCacheDeps): Promise<void> {
     }));
 
     setCachedUpdates(updates);
-    logger.info(
-      { count: updates.length },
-      'Schedule cache updated from Mem0',
-    );
+    logger.info({ count: updates.length }, 'Schedule cache updated from Mem0');
   } catch (err) {
     logger.error({ err }, 'Schedule cache refresh failed');
   }

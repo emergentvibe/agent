@@ -231,21 +231,126 @@ body {
 
 .update-list {
   list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.update-item {
+.update-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--fire);
+  border-radius: 0 6px 6px 0;
+  padding: 10px 12px;
+  position: relative;
+}
+
+.update-text {
   font-size: 14px;
   color: var(--ink);
-  padding: 6px 0;
-  padding-left: 12px;
-  border-left: 2px solid var(--fire);
-  margin-bottom: 4px;
-  line-height: 1.45;
+  line-height: 1.5;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.update-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 6px;
 }
 
 .update-source {
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fire-glow);
+  background: rgba(232, 118, 58, 0.12);
+  padding: 1px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.02em;
+}
+
+.update-ago {
+  font-size: 11px;
   color: var(--ink-muted);
+  font-family: var(--font-mono);
+}
+
+.update-expand {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--ink-muted);
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+}
+
+.update-expand:hover {
+  color: var(--ink);
+  border-color: var(--ink-muted);
+}
+
+/* ── Day highlights ── */
+
+.day-highlights {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.highlight-tag {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fire);
+  background: rgba(232, 118, 58, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+}
+
+/* ── Time-aware schedule ── */
+
+.schedule-item {
+  position: relative;
+}
+
+.schedule-item.past .time,
+.schedule-item.past .event {
+  opacity: 0.4;
+}
+
+.schedule-item.now {
+  background: rgba(232, 118, 58, 0.06);
+  margin: 0 -8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+
+.schedule-item.now .time {
+  color: var(--fire);
+  font-weight: 700;
+}
+
+.schedule-item.now .event {
+  font-weight: 600;
+}
+
+.now-dot {
+  position: absolute;
+  left: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fire);
+  box-shadow: 0 0 6px var(--fire);
 }
 
 /* ── Shift cards (My Shifts, Help Needed) ── */
