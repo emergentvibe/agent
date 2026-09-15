@@ -180,6 +180,14 @@ async function runScenario(scenarioName: string): Promise<AssertionResult[]> {
   cleanupSimData();
   console.log('  Cleaned previous sim data from DB');
 
+  // Clean Mem0 memories from previous runs of this scenario
+  try {
+    await deleteMemoriesByUser(`community:${slug}`);
+    console.log('  Cleaned previous Mem0 memories');
+  } catch (err) {
+    console.log(`  Warning: Mem0 pre-cleanup failed: ${err}`);
+  }
+
   // Clean up stale escalation/IPC files from previous runs
   const staleEscDir = path.join(AGENT_ROOT, 'data', 'escalations', groupFolder);
   if (fs.existsSync(staleEscDir)) fs.rmSync(staleEscDir, { recursive: true });
