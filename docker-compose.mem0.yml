@@ -17,7 +17,7 @@ services:
 
   openmemory:
     image: mem0/openmemory-mcp:latest
-    ports: ["127.0.0.1:8765:8765"]
+    ports: ["0.0.0.0:8765:8765"]
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     depends_on: [mem0_store]
