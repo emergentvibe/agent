@@ -267,23 +267,32 @@ export async function generateWeeklyRotaPdf(): Promise<
     timeZone: meta.timezone || undefined,
   });
 
-  // Collect block labels in order of appearance
+  // Collect block slots in order of appearance (same label can have different times)
   const blockOrder: string[] = [];
-  const blockTimes = new Map<string, { start: string; end: string }>();
+  const blockMeta = new Map<
+    string,
+    { label: string; start: string; end: string }
+  >();
   for (const a of all) {
-    if (!blockOrder.includes(a.block_label)) {
-      blockOrder.push(a.block_label);
-      blockTimes.set(a.block_label, { start: a.start, end: a.end });
+    const key = `${a.start}-${a.end}-${a.block_label}`;
+    if (!blockOrder.includes(key)) {
+      blockOrder.push(key);
+      blockMeta.set(key, {
+        label: a.block_label,
+        start: a.start,
+        end: a.end,
+      });
     }
   }
 
-  // Build grid data: blockLabel → date → names
+  // Build grid data: blockKey → date → names
   const grid = new Map<string, Map<string, string[]>>();
-  for (const label of blockOrder) {
-    grid.set(label, new Map());
+  for (const key of blockOrder) {
+    grid.set(key, new Map());
   }
   for (const a of all) {
-    const dateMap = grid.get(a.block_label)!;
+    const key = `${a.start}-${a.end}-${a.block_label}`;
+    const dateMap = grid.get(key)!;
     if (!dateMap.has(a.date)) dateMap.set(a.date, []);
     const name = a.original_name || '???';
     if (a.state === 'open') {
@@ -379,22 +388,22 @@ export async function generateWeeklyRotaPdf(): Promise<
 
   // Grid rows
   for (let r = 0; r < blockCount; r++) {
-    const label = blockOrder[r];
-    const times = blockTimes.get(label)!;
+    const key = blockOrder[r];
+    const meta2 = blockMeta.get(key)!;
     const rowY = tableTop + r * ROW_H;
 
     // Block label cell
     doc.fontSize(7).font('Helvetica-Bold');
-    doc.text(`${times.start}–${times.end}`, MARGIN + 2, rowY + 3, {
+    doc.text(`${meta2.start}–${meta2.end}`, MARGIN + 2, rowY + 3, {
       width: LABEL_COL_W - 4,
     });
     doc.fontSize(8).font('Helvetica-Bold');
-    doc.text(label, MARGIN + 2, rowY + 13, {
+    doc.text(meta2.label, MARGIN + 2, rowY + 13, {
       width: LABEL_COL_W - 4,
     });
 
     // Day cells
-    const dateMap = grid.get(label)!;
+    const dateMap = grid.get(key)!;
     for (let c = 0; c < dayCount; c++) {
       const x = MARGIN + LABEL_COL_W + c * DAY_COL_W;
       const names = dateMap.get(dates[c]) || [];
