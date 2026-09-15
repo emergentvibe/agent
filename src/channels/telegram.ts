@@ -427,10 +427,9 @@ export class TelegramChannel implements Channel {
       const total = getUserTotal(userId);
       await ctx.answerCallbackQuery();
       try {
-        await ctx.editMessageText(
-          `Done! Your tab: *€${total.toFixed(2)}*`,
-          { parse_mode: 'Markdown' },
-        );
+        await ctx.editMessageText(`Done! Your tab: *€${total.toFixed(2)}*`, {
+          parse_mode: 'Markdown',
+        });
       } catch {
         // Message may be too old to edit
       }

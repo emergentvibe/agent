@@ -360,9 +360,7 @@ export async function generateWeeklyRotaPdf(): Promise<
       dateMap.get(a.date)!.push(`${name} → ${covererLabel}`);
     } else {
       const identifier = resolveShortIdentifier(a, attendeeMap);
-      dateMap
-        .get(a.date)!
-        .push(identifier ? `${name} ${identifier}` : name);
+      dateMap.get(a.date)!.push(identifier ? `${name} ${identifier}` : name);
     }
   }
 
