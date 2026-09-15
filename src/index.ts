@@ -107,6 +107,7 @@ import {
 } from './rota-db.js';
 import { startRotaReminders, stopRotaReminders } from './rota-reminders.js';
 import { startScheduleCacheLoop } from './web/schedule-refresh.js';
+import { refreshSynthesis } from './web/schedule-synthesis.js';
 import { startWebServer } from './web/server.js';
 
 let lastTimestamp = '';
@@ -1208,9 +1209,10 @@ export async function main(): Promise<void> {
   });
 
   // Schedule cache: periodic agent query for live schedule updates
-  startScheduleCacheLoop({
-    registeredGroups: () => registeredGroups,
-  });
+  startScheduleCacheLoop(
+    { registeredGroups: () => registeredGroups },
+    refreshSynthesis,
+  );
 
   // Rota shift reminders (morning announcement + DM pings before shifts)
   startRotaReminders({

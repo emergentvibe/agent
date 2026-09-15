@@ -146,7 +146,10 @@ export async function refreshScheduleCache(
 
 let running = false;
 
-export function startScheduleCacheLoop(deps: ScheduleCacheDeps): void {
+export function startScheduleCacheLoop(
+  deps: ScheduleCacheDeps,
+  onRefreshed?: () => Promise<void>,
+): void {
   if (running) return;
   running = true;
 
@@ -156,9 +159,11 @@ export function startScheduleCacheLoop(deps: ScheduleCacheDeps): void {
   );
 
   const tick = () => {
-    refreshScheduleCache(deps).catch((err) =>
-      logger.error({ err }, 'Schedule cache tick error'),
-    );
+    refreshScheduleCache(deps)
+      .then(() => onRefreshed?.())
+      .catch((err) =>
+        logger.error({ err }, 'Schedule cache tick error'),
+      );
   };
 
   const initialDelay = Math.min(15_000, SCHEDULE_CACHE_INTERVAL);

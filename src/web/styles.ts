@@ -10,6 +10,7 @@ export const CSS = `
   --open-red: #e85050;
   --covered-green: #4a9a5a;
   --border: #2a3444;
+  --event-new: #7ea8be;
 
   --font-body: system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', ui-monospace, monospace;
@@ -627,6 +628,176 @@ body {
 }
 
 .polling { animation: pulse 2s ease-in-out infinite; }
+
+/* ── Synthesized timeline ── */
+
+.synth-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.synth-item {
+  display: flex;
+  gap: 12px;
+  padding: 6px 0;
+  position: relative;
+}
+
+.synth-item .time {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--fire-glow);
+  min-width: 50px;
+  flex-shrink: 0;
+}
+
+.synth-item .name {
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.synth-item .note {
+  font-size: 13px;
+  color: var(--ink-muted);
+  font-style: italic;
+}
+
+.synth-item.past .time,
+.synth-item.past .name {
+  opacity: 0.4;
+}
+
+.synth-item.now {
+  background: rgba(232, 118, 58, 0.06);
+  margin: 0 -8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+
+.synth-item.now .time {
+  color: var(--fire);
+  font-weight: 700;
+}
+
+.synth-item.now .name {
+  font-weight: 600;
+}
+
+.synth-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0 8px 8px 0;
+  padding: 12px 14px;
+  margin: 4px 0;
+  list-style: none;
+}
+
+.synth-card.card-changed {
+  border-left: 3px solid var(--fire);
+}
+
+.synth-card.card-new {
+  border-left: 3px solid var(--event-new);
+}
+
+.synth-card.card-cancelled {
+  border-left: 3px solid var(--ink-muted);
+  opacity: 0.55;
+}
+
+.synth-card .card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.synth-card .time {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--fire-glow);
+}
+
+.synth-card .name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.synth-card.card-cancelled .name {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.synth-badge {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.synth-badge.badge-changed {
+  color: var(--fire);
+  background: rgba(232, 118, 58, 0.12);
+}
+
+.synth-badge.badge-new {
+  color: var(--event-new);
+  background: rgba(126, 168, 190, 0.15);
+}
+
+.synth-badge.badge-cancelled {
+  color: var(--open-red);
+  background: rgba(232, 80, 80, 0.1);
+}
+
+.synth-card .change-detail {
+  font-size: 13px;
+  color: var(--fire-glow);
+  margin-top: 2px;
+}
+
+.synth-card .note-text {
+  font-size: 13px;
+  color: var(--ink-muted);
+  font-style: italic;
+  margin-top: 2px;
+}
+
+.synth-card .card-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.synth-card .location-label {
+  font-size: 12px;
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+}
+
+.synth-card .source-tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fire-glow);
+  background: rgba(232, 118, 58, 0.12);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.synth-card.past {
+  opacity: 0.4;
+}
+
+.synth-card.now {
+  border-color: var(--fire);
+  box-shadow: 0 0 8px rgba(232, 118, 58, 0.15);
+}
 
 /* ── Responsive ── */
 

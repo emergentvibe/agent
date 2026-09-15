@@ -13,6 +13,10 @@ import {
 import { CSS } from './styles.js';
 import { getTodaySchedule, formatDate } from './schedule.js';
 import { getCachedUpdates, getCacheAge } from './schedule-refresh.js';
+import {
+  getSynthesizedSchedule,
+  type SynthesizedSchedule,
+} from './schedule-synthesis.js';
 
 function esc(s: string): string {
   return s
@@ -243,6 +247,112 @@ function updatesSection(): string {
 }
 
 function scheduleSection(today: string): string {
+  const synthesis = getSynthesizedSchedule();
+  if (synthesis && synthesis.date === today) {
+    return renderSynthesizedTimeline(synthesis);
+  }
+  return renderStaticSchedule(today);
+}
+
+function renderSynthesizedTimeline(synthesis: SynthesizedSchedule): string {
+  const now = new Date();
+  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+  const highlightHtml =
+    synthesis.highlights.length > 0
+      ? `<div class="day-highlights">${synthesis.highlights.map((h) => `<span class="highlight-tag">${esc(h)}</span>`).join('')}</div>`
+      : '';
+
+  const hasChanges = synthesis.events.some((e) => e.status !== 'on');
+
+  const items = synthesis.events
+    .map((e, i) => {
+      const nextTime =
+        i + 1 < synthesis.events.length
+          ? synthesis.events[i + 1].time
+          : '23:59';
+      const isPast = e.time < currentTime && nextTime <= currentTime;
+      const isNow = e.time <= currentTime && nextTime > currentTime;
+
+      if (e.status === 'on') {
+        const cls = isPast ? ' past' : isNow ? ' now' : '';
+        const nowDot = isNow ? '<span class="now-dot"></span>' : '';
+        const note = e.note
+          ? ` <span class="note">(${esc(e.note)})</span>`
+          : '';
+        return `<li class="synth-item${cls}">
+          ${nowDot}
+          <span class="time">${esc(e.time)}</span>
+          <span class="name">${esc(e.name)}${note}</span>
+        </li>`;
+      }
+
+      const cardCls = `card-${e.status}`;
+      const timeCls = isPast ? ' past' : isNow ? ' now' : '';
+
+      const badgeMap: Record<string, [string, string]> = {
+        changed: ['badge-changed', 'changed'],
+        new: ['badge-new', 'new'],
+        cancelled: ['badge-cancelled', 'cancelled'],
+      };
+      const [badgeCls, badgeText] = badgeMap[e.status] || ['', ''];
+
+      const nameTag =
+        e.status === 'cancelled'
+          ? `<del class="name">${esc(e.name)}</del>`
+          : `<div class="name">${esc(e.name)}</div>`;
+
+      const changeHtml = e.change
+        ? `<div class="change-detail">${esc(e.change)}</div>`
+        : '';
+      const noteHtml = e.note
+        ? `<div class="note-text">${esc(e.note)}</div>`
+        : '';
+
+      const metaParts: string[] = [];
+      if (e.location)
+        metaParts.push(
+          `<span class="location-label">${esc(e.location)}</span>`,
+        );
+      if (e.source)
+        metaParts.push(`<span class="source-tag">${esc(e.source)}</span>`);
+      const metaHtml =
+        metaParts.length > 0
+          ? `<div class="card-meta">${metaParts.join('')}</div>`
+          : '';
+
+      return `<li class="synth-card ${cardCls}${timeCls}">
+        <div class="card-top">
+          <span class="time">${esc(e.time)}</span>
+          <span class="synth-badge ${badgeCls}">${badgeText}</span>
+        </div>
+        ${nameTag}
+        ${changeHtml}
+        ${noteHtml}
+        ${metaHtml}
+      </li>`;
+    })
+    .join('');
+
+  const cacheAge = getCacheAge();
+  const ageMinutes = Math.floor(cacheAge / 60000);
+  const ageLabel =
+    ageMinutes < 1
+      ? 'just now'
+      : ageMinutes < 60
+        ? `${ageMinutes}m ago`
+        : `${Math.floor(ageMinutes / 60)}h ago`;
+  const ageHtml = hasChanges
+    ? `<div class="cache-age">last sync: ${esc(ageLabel)}</div>`
+    : '';
+
+  return `<div class="section-divider"><span>Today</span></div>
+  ${highlightHtml}
+  <ul class="synth-list">${items}</ul>
+  ${ageHtml}`;
+}
+
+function renderStaticSchedule(today: string): string {
   const schedule = getTodaySchedule(today);
   if (!schedule) {
     return `<div class="section-divider"><span>Today</span></div>
