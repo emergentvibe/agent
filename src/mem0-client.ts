@@ -115,9 +115,11 @@ export async function searchMemories(
 
   if (backend === 'disabled') return [];
 
+  const searchStart = Date.now();
+
   if (backend === 'local') {
     const results = await localSearchMemories(query, userId);
-    return results.map((r: LocalMem0Memory) => ({
+    const mapped = results.map((r: LocalMem0Memory) => ({
       id: r.id,
       memory: r.memory,
       user_id: r.user_id,
@@ -125,6 +127,16 @@ export async function searchMemories(
       metadata: r.metadata,
       created_at: r.created_at,
     }));
+    logger.info(
+      {
+        query: query.slice(0, 60),
+        userId,
+        latencyMs: Date.now() - searchStart,
+        resultCount: mapped.length,
+      },
+      'MEM0_SEARCH: latency',
+    );
+    return mapped;
   }
 
   // Cloud path

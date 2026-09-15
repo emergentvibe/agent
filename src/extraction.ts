@@ -314,6 +314,13 @@ async function runExtractionCycle(deps: ExtractionLoopDeps): Promise<void> {
       topics,
     );
 
+    for (const mem of result.memories) {
+      logger.info(
+        { text: mem.text, metadata: mem.metadata, userId: mem.user_id },
+        'EXTRACTION_STORE: sending to Mem0',
+      );
+    }
+
     const storeResults = await Promise.allSettled(
       result.memories.map((mem) =>
         storeMemory(mem.text, mem.user_id, mem.metadata),

@@ -110,7 +110,7 @@ const DAY_OVERRIDES: DayOverride[] = [
   },
 ];
 
-const EVENT_START = '2025-09-22';
+const EVENT_START = '2026-09-22';
 
 function getEventStartDate(): Date {
   const eventsPath = path.resolve(

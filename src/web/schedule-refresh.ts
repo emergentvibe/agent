@@ -10,7 +10,7 @@ const SCHEDULE_CACHE_INTERVAL = parseInt(
 
 const SCHEDULE_TOP_N = parseInt(process.env.SCHEDULE_TOP_N || '3', 10);
 const SCHEDULE_FLOOR_SCORE = parseFloat(
-  process.env.SCHEDULE_FLOOR_SCORE || '0.15',
+  process.env.SCHEDULE_FLOOR_SCORE || '0.25',
 );
 
 function formatTodayForQuery(): string {
@@ -83,18 +83,46 @@ export async function refreshScheduleCache(
     const seen = new Set<string>();
     const selected: Mem0Memory[] = [];
 
+    let totalReturned = 0;
+    let belowFloor = 0;
+    let dedupHits = 0;
+
     for (const query of queries) {
       const results = await searchMemories(query, userId);
+      totalReturned += results.length;
+      logger.info(
+        {
+          query,
+          resultCount: results.length,
+          results: results.map((m) => ({
+            id: m.id.slice(0, 8),
+            score: m.score,
+            memory: m.memory.slice(0, 100),
+          })),
+        },
+        'SCHEDULE_QUERY: raw results',
+      );
       let taken = 0;
       for (const m of results) {
         if (taken >= SCHEDULE_TOP_N) break;
-        if (seen.has(m.id)) continue;
-        if (m.score !== undefined && m.score < SCHEDULE_FLOOR_SCORE) continue;
+        if (seen.has(m.id)) {
+          dedupHits++;
+          continue;
+        }
+        if (m.score !== undefined && m.score < SCHEDULE_FLOOR_SCORE) {
+          belowFloor++;
+          continue;
+        }
         seen.add(m.id);
         selected.push(m);
         taken++;
       }
     }
+
+    logger.info(
+      { selectedCount: selected.length, totalReturned, dedupHits, belowFloor },
+      'SCHEDULE_CACHE: selection summary',
+    );
 
     const updates: ScheduleUpdate[] = selected.map((m) => ({
       memory: m.memory,
