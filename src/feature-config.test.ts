@@ -98,7 +98,12 @@ describe('stripDisabledFeatures', () => {
 
   it('strips multiple sections when multiple features disabled', () => {
     const features = {
-      commands: { purchase: false, subscribe: false, rota: true, governance: true },
+      commands: {
+        purchase: false,
+        subscribe: false,
+        rota: true,
+        governance: true,
+      },
       behaviors: { daily_digest: true, crew_digest: true },
     };
     const result = stripDisabledFeatures(template, features);

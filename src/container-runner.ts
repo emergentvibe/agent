@@ -187,9 +187,7 @@ function buildVolumeMounts(
   // Governance skills only sync when governance feature is enabled
   const features = loadFeatureConfig(group.folder);
   const skillsDst = path.join(groupSessionsDir, 'skills');
-  const skillSources = [
-    path.join(process.cwd(), 'container', 'skills'),
-  ];
+  const skillSources = [path.join(process.cwd(), 'container', 'skills')];
   if (features.commands.governance) {
     skillSources.push(path.join(process.cwd(), 'governance', 'skills'));
   }

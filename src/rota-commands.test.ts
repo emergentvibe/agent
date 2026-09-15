@@ -157,7 +157,7 @@ describe('rotaCommandEntries', () => {
     expect(entries.every((e) => e.local === true)).toBe(true);
     const names = entries.map((e) => e.command);
     expect(names).toContain('cover');
-    expect(names).toContain('shifts');
+    expect(names).toContain('shiftstoday');
     expect(names).toContain('myrota');
     expect(names).toContain('leaveearly');
     expect(names).toContain('hands');

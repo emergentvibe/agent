@@ -185,9 +185,9 @@ All admin commands are DM-only, gated by `ADMIN_TELEGRAM_ID` (comma-separated fo
 
 ## User Commands
 
-**Visible in Telegram menu:** `today`, `hello`, `connect`, `bar`, `bbq`, `purchase`, `show_total`, `cover`, `shifts`, `myrota`
+**Visible in Telegram menu:** `today`, `hello`, `connect`, `bar`, `bbq`, `purchase`, `show_total`, `cover`, `shiftstoday`, `myrota`
 
-**Hidden (work when typed):** `cancel_purchase`, `chatid`, `ping`, `leaveearly` (admin-only), `openshifts`, `hands` / `h` (crew-only), `subscribe` / `unsubscribe`
+**Hidden (work when typed):** `cancel_purchase`, `chatid`, `ping`, `leaveearly` (admin-only), `shiftsopen`, `hands` / `h` (crew-only), `subscribe` / `unsubscribe`
 
 ## Kitchen Rota System
 
@@ -195,8 +195,8 @@ Requires: rota JSON imported via `/admin-rota-import`, `ROTA_SHIFTS_TOPIC_ID` in
 
 - `/cover` — release a shift, post cover request in Shifts topic with [Claim] button
 - `/myrota` — show all your shifts for the week
-- `/shifts` — today's kitchen schedule
-- `/openshifts` — consolidated Shifts Board with all open slots
+- `/shiftstoday` — today's kitchen schedule
+- `/shiftsopen` — consolidated Shifts Board with all open slots
 - `/hands` — crew emergency call: "Kitchen needs help!" with [I'm coming] button
 - `/leaveearly` — (admin-only) bulk-release someone's remaining shifts
 - Uncovered shift warnings fire 30 min before unassigned slots

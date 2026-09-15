@@ -226,7 +226,8 @@ function buildPersonalContext(
     if (attendee.telegram_display) {
       identifiers.push(`display name: "${attendee.telegram_display}"`);
     }
-    const idSuffix = identifiers.length > 0 ? ` (${identifiers.join(', ')})` : '';
+    const idSuffix =
+      identifiers.length > 0 ? ` (${identifiers.join(', ')})` : '';
     parts.push(`This is ${attendee.name}${idSuffix}.`);
     if (attendee.role === 'crew') {
       const titleSuffix = attendee.title ? ` (${attendee.title})` : '';

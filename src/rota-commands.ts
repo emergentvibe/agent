@@ -178,7 +178,7 @@ export function rotaCommandEntries(): Array<{
       featureGate: 'rota',
     },
     {
-      command: 'shifts',
+      command: 'shiftstoday',
       description: "Today's kitchen schedule",
       local: true,
       featureGate: 'rota',
@@ -197,7 +197,7 @@ export function rotaCommandEntries(): Array<{
       featureGate: 'rota',
     },
     {
-      command: 'openshifts',
+      command: 'shiftsopen',
       description: 'See open shifts you can claim',
       local: true,
       featureGate: 'rota',
@@ -272,8 +272,8 @@ export function registerRotaCommands(
     await ctx.reply('Which shift do you need covered?', { reply_markup: kb });
   });
 
-  // /shifts — today's schedule
-  bot.command('shifts', async (ctx) => {
+  // /shiftstoday — today's schedule
+  bot.command('shiftstoday', async (ctx) => {
     if (!isRotaEnabled(opts.registeredGroups())) {
       await ctx.reply('Kitchen rota is not set up yet.');
       return;
@@ -607,8 +607,8 @@ export function registerRotaCommands(
     }
   });
 
-  // /openshifts — text-only list, claim from Kitchen Shifts topic
-  bot.command('openshifts', async (ctx) => {
+  // /shiftsopen — text-only list, claim from Kitchen Shifts topic
+  bot.command('shiftsopen', async (ctx) => {
     if (!isRotaEnabled(opts.registeredGroups())) {
       await ctx.reply('Kitchen rota is not set up yet.');
       return;

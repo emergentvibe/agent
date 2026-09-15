@@ -36,7 +36,7 @@ Three bot modes: `normal` (full operation), `silenced` (complete stop), `degrade
 
 Kitchen shift management lives entirely in SQLite — no containers, no API cost. Rota data is imported via `/admin-rota-import` (JSON file upload). Identity resolution is lazy: on first `/myrota` or `/cover`, the bot matches Telegram ID or @handle against imported assignments and binds them permanently.
 
-Key flows: `/cover` releases a shift → post in Shifts topic with [Claim] button → anyone taps to claim → DM notifications to both parties. `/hands` is a crew-only emergency call. `/leaveearly` (admin-only) bulk-releases someone's remaining shifts. An uncovered shift warning fires 30 min before unassigned slots. The Shifts Board (`/openshifts`) consolidates all open shifts into a single pinnable message.
+Key flows: `/cover` releases a shift → post in Shifts topic with [Claim] button → anyone taps to claim → DM notifications to both parties. `/hands` is a crew-only emergency call. `/leaveearly` (admin-only) bulk-releases someone's remaining shifts. An uncovered shift warning fires 30 min before unassigned slots. The Shifts Board (`/shiftsopen`) consolidates all open shifts into a single pinnable message.
 
 ### Purchase System
 
@@ -44,7 +44,7 @@ Bar/BBQ tab tracking via inline Telegram keyboards — pure SQLite, no container
 
 ### Command Visibility
 
-Commands are split into visible (appear in Telegram autocomplete) and hidden (work when typed, not in menu). Visible: `today`, `hello`, `connect`, `bar`, `bbq`, `purchase`, `show_total`, `cancel_purchase`, `cover`, `shifts`, `openshifts`, `myrota`, `hands`, `subscribe`, `unsubscribe`. Hidden: `chatid`, `ping`, `leaveearly`, `h`.
+Commands are split into visible (appear in Telegram autocomplete) and hidden (work when typed, not in menu). Visible: `today`, `hello`, `connect`, `bar`, `bbq`, `purchase`, `show_total`, `cancel_purchase`, `cover`, `shiftstoday`, `shiftsopen`, `myrota`, `hands`, `subscribe`, `unsubscribe`. Hidden: `chatid`, `ping`, `leaveearly`, `h`.
 
 ### DM Registration & NFC Check-in
 

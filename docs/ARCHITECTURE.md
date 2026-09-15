@@ -179,7 +179,7 @@ Standalone feature modules — rota, purchases, admin.
 
 | File | Lines | Role |
 |------|-------|------|
-| `src/rota-commands.ts` | 640 | Slash commands: /cover, /myrota, /shifts, /openshifts, /hands, /leaveearly |
+| `src/rota-commands.ts` | 640 | Slash commands: /cover, /myrota, /shiftstoday, /shiftsopen, /hands, /leaveearly |
 | `src/rota-reminders.ts` | 266 | Morning announcements, pre-shift DM pings, uncovered shift warnings |
 | `src/rota-print.ts` | 197 | PDF generation for printable daily shift sheets |
 | `src/admin-commands.ts` | 541 | Admin slash commands, bot mode state, status reporting |
