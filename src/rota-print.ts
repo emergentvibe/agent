@@ -314,30 +314,49 @@ export async function generateWeeklyRotaPdf(): Promise<
     if (a.state === 'open') {
       dateMap.get(a.date)!.push('(open)');
     } else {
-      const displayName = a.state === 'covered' ? (a.current_name || name) : name;
+      const displayName = a.state === 'covered' ? a.current_name || name : name;
       const identifier = resolveShortIdentifier(a, attendeeMap);
-      dateMap.get(a.date)!.push(identifier ? `${displayName} ${identifier}` : displayName);
+      dateMap
+        .get(a.date)!
+        .push(identifier ? `${displayName} ${identifier}` : displayName);
     }
   }
 
-  // Hall of Fame: crew with fixed roles
+  // Hall of Fame: crew with fixed roles, sorted by rank
   const noShifts = rotaGetAllNoShifts();
   const allAttendees = attendeeGetAll();
-  const crewWithTitles: Array<{ name: string; title: string }> = [];
+  const crewWithTitles: Array<{
+    name: string;
+    title: string;
+    role: string;
+  }> = [];
 
-  // From attendees with role crew/organizer and a title
   for (const att of allAttendees) {
     if ((att.role === 'crew' || att.role === 'organizer') && att.title) {
-      crewWithTitles.push({ name: att.name, title: att.title });
+      crewWithTitles.push({ name: att.name, title: att.title, role: att.role });
     }
   }
 
-  // From no_shifts table (people with fixed roles who aren't in the rota)
   for (const ns of noShifts) {
     if (!crewWithTitles.some((c) => c.name === ns.name) && ns.reason) {
-      crewWithTitles.push({ name: ns.name, title: ns.reason });
+      crewWithTitles.push({ name: ns.name, title: ns.reason, role: 'crew' });
     }
   }
+
+  const TITLE_RANK: Record<string, number> = {
+    captain: 0,
+    quartermaster: 1,
+    'first mate': 2,
+    chef: 3,
+    'sous chef': 4,
+  };
+  crewWithTitles.sort((a, b) => {
+    if (a.role !== b.role) return a.role === 'organizer' ? -1 : 1;
+    const ra = TITLE_RANK[a.title.toLowerCase()] ?? 10;
+    const rb = TITLE_RANK[b.title.toLowerCase()] ?? 10;
+    if (ra !== rb) return ra - rb;
+    return a.name.localeCompare(b.name);
+  });
 
   // --- Layout ---
   const MARGIN = 30;
