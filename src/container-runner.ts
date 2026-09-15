@@ -28,6 +28,7 @@ import {
 } from './container-runtime.js';
 import { detectAuthMode } from './credential-proxy.js';
 import { readEnvFile } from './env.js';
+import { loadFeatureConfig } from './feature-config.js';
 import { validateAdditionalMounts } from './mount-security.js';
 import { RegisteredGroup } from './types.js';
 
@@ -182,12 +183,16 @@ function buildVolumeMounts(
     );
   }
 
-  // Sync skills from container/skills/ and governance/skills/ into each group's .claude/skills/
+  // Sync skills into each group's .claude/skills/
+  // Governance skills only sync when governance feature is enabled
+  const features = loadFeatureConfig(group.folder);
   const skillsDst = path.join(groupSessionsDir, 'skills');
   const skillSources = [
     path.join(process.cwd(), 'container', 'skills'),
-    path.join(process.cwd(), 'governance', 'skills'),
   ];
+  if (features.commands.governance) {
+    skillSources.push(path.join(process.cwd(), 'governance', 'skills'));
+  }
   for (const skillsSrc of skillSources) {
     if (fs.existsSync(skillsSrc)) {
       for (const skillDir of fs.readdirSync(skillsSrc)) {
