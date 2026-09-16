@@ -1,16 +1,16 @@
 export const CSS = `
 :root {
-  --ground: #0d0b08;
-  --surface: #1a1610;
-  --surface-raised: #231e16;
-  --ink: #f1ead9;
-  --ink-muted: #9a9488;
-  --fire: #e8763a;
-  --fire-glow: #ffb066;
-  --open-red: #e85050;
-  --covered-green: #4a9a5a;
-  --border: #2e2820;
-  --event-new: #587448;
+  --ground: #f0ead2;
+  --surface: #f7f2e6;
+  --surface-raised: #ece5d1;
+  --ink: #2a2520;
+  --ink-muted: #7a7468;
+  --fire: #2d5a27;
+  --fire-glow: #3a7a32;
+  --open-red: #c04040;
+  --covered-green: #3a8a4a;
+  --border: #c5bba6;
+  --event-new: #4a7a3e;
 
   --font-body: system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', ui-monospace, monospace;
@@ -25,7 +25,6 @@ body {
   font-size: 16px;
   line-height: 1.5;
   min-height: 100dvh;
-  -webkit-font-smoothing: antialiased;
 }
 
 .page {
@@ -263,7 +262,7 @@ body {
   font-size: 11px;
   font-weight: 600;
   color: var(--fire-glow);
-  background: rgba(232, 118, 58, 0.12);
+  background: rgba(45, 90, 39, 0.15);
   padding: 1px 6px;
   border-radius: 3px;
   letter-spacing: 0.02em;
@@ -307,7 +306,7 @@ body {
   font-size: 12px;
   font-weight: 600;
   color: var(--fire);
-  background: rgba(232, 118, 58, 0.1);
+  background: rgba(45, 90, 39, 0.12);
   padding: 2px 8px;
   border-radius: 4px;
   letter-spacing: 0.03em;
@@ -325,7 +324,7 @@ body {
 }
 
 .schedule-item.now {
-  background: rgba(232, 118, 58, 0.06);
+  background: rgba(45, 90, 39, 0.08);
   margin: 0 -8px;
   padding: 6px 8px;
   border-radius: 6px;
@@ -397,6 +396,7 @@ body {
   right: 0;
   background: var(--surface);
   border-top: 1px solid var(--border);
+  box-shadow: 0 -1px 4px rgba(0, 0, 0, 0.06);
   display: flex;
   justify-content: center;
   z-index: 100;
@@ -485,7 +485,7 @@ body {
 
 .kitchen-block.now {
   border-color: var(--fire);
-  box-shadow: 0 0 12px rgba(232, 118, 58, 0.2);
+  box-shadow: 0 0 12px rgba(45, 90, 39, 0.2);
 }
 
 .kitchen-block .block-time {
@@ -610,37 +610,37 @@ body {
 
 .synth-badge.badge-changed {
   color: var(--fire);
-  background: rgba(232, 118, 58, 0.12);
+  background: rgba(45, 90, 39, 0.15);
 }
 
 .synth-badge.badge-new {
   color: var(--event-new);
-  background: rgba(88, 116, 72, 0.2);
+  background: rgba(58, 138, 74, 0.18);
 }
 
 .synth-badge.badge-cancelled {
   color: var(--open-red);
-  background: rgba(232, 80, 80, 0.1);
+  background: rgba(192, 64, 64, 0.12);
 }
 
 .synth-badge.badge-done {
   color: var(--covered-green);
-  background: rgba(74, 154, 90, 0.15);
+  background: rgba(58, 138, 74, 0.15);
 }
 
 .synth-badge.badge-upcoming {
   color: var(--fire);
-  background: rgba(232, 118, 58, 0.12);
+  background: rgba(45, 90, 39, 0.15);
 }
 
 .synth-badge.badge-open {
   color: var(--open-red);
-  background: rgba(232, 80, 80, 0.15);
+  background: rgba(192, 64, 64, 0.18);
 }
 
 .synth-badge.badge-covered {
   color: var(--covered-green);
-  background: rgba(74, 154, 90, 0.15);
+  background: rgba(58, 138, 74, 0.15);
 }
 
 .synth-card .card-detail {
@@ -657,7 +657,7 @@ body {
 .synth-card .card-detail .source-tag {
   font-weight: 600;
   color: var(--fire-glow);
-  background: rgba(232, 118, 58, 0.12);
+  background: rgba(45, 90, 39, 0.15);
   padding: 0 4px;
   border-radius: 2px;
 }
@@ -674,7 +674,7 @@ body {
 .synth-card.now {
   border-color: var(--fire);
   border-left-color: var(--fire);
-  box-shadow: 0 0 8px rgba(232, 118, 58, 0.15);
+  box-shadow: 0 0 8px rgba(45, 90, 39, 0.18);
 }
 
 .synth-card.now .time { color: var(--fire); font-weight: 700; }
@@ -716,12 +716,37 @@ body {
 
 /* ── Pre-event ── */
 
+.pre-event-landing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100dvh - 40px);
+  text-align: center;
+  padding: 0 20px;
+}
+
+.pre-event-title {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fire);
+}
+
+.pre-event-countdown {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--ink-muted);
+  margin-top: 8px;
+  letter-spacing: 0.04em;
+}
+
 .pre-event-tagline {
   font-size: 20px;
   font-style: italic;
   color: var(--fire-glow);
-  text-align: center;
-  padding: 16px 0 8px;
+  margin-top: 24px;
   letter-spacing: 0.02em;
 }
 
@@ -844,12 +869,12 @@ body {
 
 .allergen-tag.vg {
   color: var(--covered-green);
-  background: rgba(74, 154, 90, 0.15);
+  background: rgba(58, 138, 74, 0.15);
 }
 
 .allergen-tag.gf {
-  color: var(--fire-glow);
-  background: rgba(255, 176, 102, 0.12);
+  color: #7a5e20;
+  background: rgba(140, 110, 40, 0.15);
 }
 
 /* ── Tab amount ── */

@@ -53,6 +53,7 @@ function shell(
   <style>${CSS}</style>
 </head>
 <body>
+  <svg class="grain" aria-hidden="true" style="position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:10000;opacity:0.035"><filter id="grain"><feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="3" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(#grain)"/></svg>
   <div class="page">
     ${body}
   </div>
@@ -536,11 +537,14 @@ export function renderToday(
   const openCount = rotaGetOpenSlots().length;
 
   if (phase === 'pre') {
-    const connectHtml = !telegramId ? connectCard(webToken) : '';
+    const days = daysBetween(today, getEventStartStr());
+    const countdown = days === 1 ? 'starts tomorrow' : `starts in ${days} days`;
     const body = `
-      ${header(today)}
-      <div class="pre-event-tagline">LARP your higher self</div>
-      ${connectHtml}
+      <div class="pre-event-landing">
+        <h1 class="pre-event-title">TREEWEEK III</h1>
+        <div class="pre-event-countdown">${esc(countdown)}</div>
+        <div class="pre-event-tagline">LARP your higher self</div>
+      </div>
     `;
     return shell('Treeweek III', body, 'today', openCount, true);
   }
