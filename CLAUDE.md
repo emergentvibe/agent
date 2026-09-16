@@ -6,6 +6,10 @@ A bot that serves as shared memory and connective tissue for real-world communit
 
 This is a fork of [NanoClaw](https://github.com/qwibitai/nanoclaw) (a personal Claude assistant) customized with a community intelligence layer: governance templates, Mem0-based shared memory, knowledge seeding, and a simulation framework for testing behavioral design.
 
+## Working Rules
+
+- **No artifacts unless explicitly asked.** Never publish Claude artifacts (Artifact tool) unless the user explicitly requests one. Subagents must follow this rule too.
+
 ## Design Principles
 
 When making a decision, these are the priorities in order:
