@@ -41,6 +41,7 @@ import {
   rotaCommandEntries,
   registerRotaCommands,
   postShiftsBoard,
+  handleCoverDeepLink,
 } from '../rota-commands.js';
 import type { RotaCommandOpts } from '../rota-commands.js';
 import { registerChannel, ChannelOpts } from './registry.js';
@@ -638,20 +639,7 @@ export class TelegramChannel implements Channel {
           break;
         }
         case 'cover':
-          // Deep link from website "Can't make it" button → trigger /cover DM flow
-          this.opts.onMessage(`tg:${ctx.chat.id}`, {
-            id: ctx.message!.message_id.toString(),
-            chat_jid: `tg:${ctx.chat.id}`,
-            sender: ctx.from?.id?.toString() || '',
-            sender_name:
-              ctx.from?.first_name || ctx.from?.username || 'Unknown',
-            sender_handle: ctx.from?.username
-              ? `@${ctx.from.username}`
-              : undefined,
-            content: `@${ASSISTANT_NAME} /cover`,
-            timestamp: new Date(ctx.message!.date * 1000).toISOString(),
-            is_from_me: false,
-          });
+          await handleCoverDeepLink(ctx, InlineKeyboard, this.opts.registeredGroups);
           break;
         default:
           // Handle web auth link tokens

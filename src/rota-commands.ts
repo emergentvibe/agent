@@ -133,6 +133,42 @@ function buildBoardContent(InlineKeyboard: typeof IKType): {
   };
 }
 
+export async function handleCoverDeepLink(
+  ctx: { from?: { id?: number; username?: string }; reply: (text: string, opts?: any) => Promise<any> },
+  InlineKeyboard: typeof IKType,
+  registeredGroups: () => Record<string, import('./types.js').RegisteredGroup>,
+): Promise<void> {
+  if (!isRotaEnabled(registeredGroups())) {
+    await ctx.reply('Kitchen rota is not set up yet.');
+    return;
+  }
+  const meta = rotaGetMeta();
+  if (!meta) {
+    await ctx.reply('No rota loaded yet.');
+    return;
+  }
+  const telegramId = ctx.from?.id?.toString() || '';
+  const username = ctx.from?.username;
+  const myShifts = resolveIdentity(telegramId, username);
+  const now = getToday();
+  const future = myShifts.filter((a) => a.state === 'assigned' && a.date >= now);
+  const covering = rotaGetCoveredByPerson(telegramId).filter((a) => a.date >= now);
+
+  if (future.length === 0 && covering.length === 0) {
+    await ctx.reply("You don't have any upcoming shifts to cover.");
+    return;
+  }
+
+  const kb = new InlineKeyboard();
+  for (const a of future) {
+    kb.text(formatAssignment(a), `rota:cover:${a.id}`).row();
+  }
+  for (const a of covering) {
+    kb.text(`Give back: ${formatAssignment(a)}`, `rota:rerelease:${a.id}`).row();
+  }
+  await ctx.reply('Which shift do you need covered?', { reply_markup: kb });
+}
+
 export async function postShiftsBoard(
   opts: RotaCommandOpts,
   InlineKeyboard: typeof IKType,
@@ -646,6 +682,8 @@ export function registerRotaCommands(
     await ctx.reply(
       `${future.length} open shift${future.length > 1 ? 's' : ''}:\n${lines.join('\n')}\n\nHead to Kitchen Shifts to claim.`,
     );
+
+    await postShiftsBoard(opts, InlineKeyboard);
   });
 
   // /hands response — toast only
