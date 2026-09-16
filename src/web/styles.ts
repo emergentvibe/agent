@@ -801,6 +801,13 @@ body {
 
 /* ── Meal details ── */
 
+.expand-hint {
+  float: right;
+  font-size: 12px;
+  color: var(--ink-muted);
+  margin-top: 2px;
+}
+
 .meal-details {
   display: none;
   font-size: 12px;
@@ -808,6 +815,7 @@ body {
   margin-top: 6px;
   padding-left: 0;
   line-height: 1.8;
+  clear: both;
 }
 
 .meal-details.meal-expanded,
@@ -851,6 +859,12 @@ body {
   font-size: 16px;
   font-weight: 700;
   color: var(--fire);
+}
+
+.tab-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 /* ── Responsive ── */

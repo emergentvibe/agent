@@ -57,7 +57,7 @@ function shell(
     ${body}
   </div>
   ${hideNav ? '' : nav(activeTab, openCount)}
-  <script>document.querySelectorAll('.synth-card').forEach(function(c){if(c.querySelector('.meal-details')){c.style.cursor='pointer';c.addEventListener('click',function(){c.classList.toggle('meal-open')})}})</script>
+  <script>document.querySelectorAll('.synth-card').forEach(function(c){if(c.querySelector('.meal-details')){c.style.cursor='pointer';c.addEventListener('click',function(){c.classList.toggle('meal-open');var h=c.querySelector('.expand-hint');if(h)h.textContent=c.classList.contains('meal-open')?'▾':'▸'})}})</script>
 </body>
 </html>`;
 }
@@ -243,9 +243,7 @@ function updatesSection(): string {
   const items = updates
     .map((u, i) => {
       const ago = relativeTime(u.created_at);
-      const sourceTag = u.source
-        ? `<span class="update-source">${esc(u.source)}</span>`
-        : '';
+      const sourceTag = '';
       const agoTag = ago ? `<span class="update-ago">${esc(ago)}</span>` : '';
       const meta =
         sourceTag || agoTag
@@ -467,7 +465,7 @@ function renderMealDetails(
       return `<span class="dish">${esc(d.name)}${tags.join('')}</span>`;
     })
     .join(' · ');
-  return `<div class="meal-details${expandCls}">${dishes}</div>`;
+  return `<span class="expand-hint">▸</span><div class="meal-details${expandCls}">${dishes}</div>`;
 }
 
 function renderDateSchedule(dateStr: string, today: string): string {
@@ -695,20 +693,18 @@ export function renderMyShifts(
     html += `<div class="section-divider"><span>Shifts you picked up</span></div>${pickedUpCards}`;
   }
 
-  let tabHtml = '';
   const tabTotal = getUserTotal(telegramId);
-  if (tabTotal > 0) {
-    tabHtml = `<div class="section-divider"><span>Your Tab</span></div>
+  const totalRow = tabTotal > 0
+    ? `<div class="card-row"><span class="name">Total</span><span class="tab-amount">&euro;${tabTotal.toFixed(2)}</span></div>`
+    : '';
+  const tabHtml = `<div class="section-divider"><span>Your Tab</span></div>
     <div class="ticket-card">
-      <div class="card-row">
-        <span class="name">Total</span>
-        <span class="tab-amount">&euro;${tabTotal.toFixed(2)}</span>
-      </div>
+      ${totalRow}
       <div class="tab-actions">
         <a href="https://t.me/${esc(TELEGRAM_BOT_USERNAME)}?start=bar" class="btn btn-outline">Log a drink</a>
+        <a href="https://t.me/${esc(TELEGRAM_BOT_USERNAME)}?start=bbq" class="btn btn-outline">Log a meal</a>
       </div>
     </div>`;
-  }
 
   const body = `
     ${header(today)}
@@ -737,7 +733,9 @@ export function renderHelp(): string {
           (a) => a.block === s.block && a.state !== 'open',
         );
         if (sameBlock.length > 0) {
-          const names = sameBlock.map((a) => a.current_name || a.original_name || '?');
+          const names = sameBlock.map(
+            (a) => a.current_name || a.original_name || '?',
+          );
           detailParts.push(`${names.join(', ')} already in`);
         }
         return `<div class="ticket-card card-open">
