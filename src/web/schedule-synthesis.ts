@@ -16,7 +16,6 @@ export interface SynthesizedEvent {
   location?: string;
   note?: string;
   change?: string;
-  source?: string;
 }
 
 export interface SynthesizedSchedule {
@@ -77,28 +76,41 @@ export function buildSynthesisPrompt(
     })
     .join('\n');
 
-  return `Merge a community event schedule with live updates from group chat.
+  const targetDate = `${base.dayName} (Day ${base.dayNumber} of 8)`;
 
-## Base schedule for ${base.dayName} (Day ${base.dayNumber})
+  return `Update a community event schedule for a specific date using community memories.
+
+## Target date: ${targetDate}
+
+## Base schedule
 ${baseJson}
 
-## Updates from chat
+## Community memories (may or may not be relevant)
 ${updateLines || '(none)'}
 
 ## Rules
-- Start with every base event (status "on")
-- Apply updates: time changes → "changed", cancellations → "cancelled"
-- Add events from updates not in the base → "new"
-- For conflicting updates to the same event, use the latest/most specific
-- Cancelled events: keep in list at original time, status "cancelled"
-- "change" field: brief summary like "moved from 7pm" or "venue: Barn → Library"
-- "source" field: who announced it (from the update text)
-- "location" field: only if mentioned
-- "note" field: only if there's extra context (e.g. "bring gloves", "hands-on")
+
+**Date filtering (critical):** Only apply memories about ${targetDate}. IGNORE any memory about a different date or day number — do not create events or changes from them. "Day 8", "29 September", etc. are different days.
+
+**Change detection:** A memory is a schedule change ONLY if it says an event was MOVED to a different time, CANCELLED, or a genuinely NEW event was ADDED by someone. Everything else is background context — status stays "on". Examples:
+- "dinner moved to 7pm" → changed (explicit time move)
+- "yoga cancelled" → cancelled
+- "jam session at 4pm in the barn" → new (not in base schedule)
+- "people arrive in the afternoon" → NOT a change (arrival already in schedule)
+- "lunch includes couscous" → NOT a change (meal details, not a schedule change)
+- "Day 1 is Tuesday 22 September" → NOT a change (just a fact)
+
+**Output rules:**
+- Start with every base event, status "on"
+- Only set "changed"/"cancelled"/"new" when a memory explicitly describes a modification
+- "change" field: what changed (e.g. "moved from 7pm", "venue: Barn → Library")
+- "note" field: only if genuinely new context (e.g. "bring gloves")
+- Do NOT include a "source" field
+- When in doubt, leave status as "on"
 
 ## Output
-JSON array sorted by time. Every event from the base schedule must appear.
-[{"time":"HH:MM","name":"...","status":"on|changed|cancelled|new","location":"...","note":"...","change":"...","source":"..."}]
+JSON array sorted by time. Every base event must appear.
+[{"time":"HH:MM","name":"...","status":"on|changed|cancelled|new","note":"...","change":"..."}]
 
 Return ONLY the JSON array.`;
 }

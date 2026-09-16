@@ -293,7 +293,7 @@ function buildDetailLine(e: {
   if (e.change) parts.push(`<span class="change-text">${esc(e.change)}</span>`);
   if (e.note && e.status !== 'on') parts.push(esc(e.note));
   if (e.location) parts.push(esc(e.location));
-  if (e.source) parts.push(`<span class="source-tag">${esc(e.source)}</span>`);
+  // e.source contains internal Mem0 refs like "Chat update #5" — not user-facing
   if (parts.length === 0) return '';
   return `<div class="card-detail">${parts.join(' · ')}</div>`;
 }
@@ -694,9 +694,10 @@ export function renderMyShifts(
   }
 
   const tabTotal = getUserTotal(telegramId);
-  const totalRow = tabTotal > 0
-    ? `<div class="card-row"><span class="name">Total</span><span class="tab-amount">&euro;${tabTotal.toFixed(2)}</span></div>`
-    : '';
+  const totalRow =
+    tabTotal > 0
+      ? `<div class="card-row"><span class="name">Total</span><span class="tab-amount">&euro;${tabTotal.toFixed(2)}</span></div>`
+      : '';
   const tabHtml = `<div class="section-divider"><span>Your Tab</span></div>
     <div class="ticket-card">
       ${totalRow}

@@ -639,7 +639,11 @@ export class TelegramChannel implements Channel {
           break;
         }
         case 'cover':
-          await handleCoverDeepLink(ctx, InlineKeyboard, this.opts.registeredGroups);
+          await handleCoverDeepLink(
+            ctx,
+            InlineKeyboard,
+            this.opts.registeredGroups,
+          );
           break;
         default:
           // Handle web auth link tokens

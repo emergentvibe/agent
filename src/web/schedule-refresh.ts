@@ -23,6 +23,36 @@ function formatTodayForQuery(): string {
   });
 }
 
+function getTodayDay(): number {
+  const today = getToday();
+  const d = new Date(today + 'T12:00:00');
+  return d.getDate();
+}
+
+const SEP_DATE_RE = /\b(\d{1,2})\s+September\b/gi;
+const DAY_NUM_RE = /\bday\s+(\d{1,2})\b/gi;
+
+function isDateRelevant(memory: string, targetDay: number): boolean {
+  const mentionedDates = new Set<number>();
+  let match;
+
+  SEP_DATE_RE.lastIndex = 0;
+  while ((match = SEP_DATE_RE.exec(memory)) !== null) {
+    mentionedDates.add(parseInt(match[1], 10));
+  }
+
+  DAY_NUM_RE.lastIndex = 0;
+  while ((match = DAY_NUM_RE.exec(memory)) !== null) {
+    const dayNum = parseInt(match[1], 10);
+    if (dayNum >= 1 && dayNum <= 8) {
+      mentionedDates.add(21 + dayNum);
+    }
+  }
+
+  if (mentionedDates.size === 0) return true;
+  return mentionedDates.has(targetDay);
+}
+
 export function buildScheduleQueries(): string[] {
   const label = formatTodayForQuery();
   return [
@@ -82,10 +112,12 @@ export async function refreshScheduleCache(
     const queries = buildScheduleQueries();
     const seen = new Set<string>();
     const selected: Mem0Memory[] = [];
+    const targetDay = getTodayDay();
 
     let totalReturned = 0;
     let belowFloor = 0;
     let dedupHits = 0;
+    let wrongDate = 0;
 
     for (const query of queries) {
       const results = await searchMemories(query, userId);
@@ -113,6 +145,10 @@ export async function refreshScheduleCache(
           belowFloor++;
           continue;
         }
+        if (!isDateRelevant(m.memory, targetDay)) {
+          wrongDate++;
+          continue;
+        }
         seen.add(m.id);
         selected.push(m);
         taken++;
@@ -120,7 +156,14 @@ export async function refreshScheduleCache(
     }
 
     logger.info(
-      { selectedCount: selected.length, totalReturned, dedupHits, belowFloor },
+      {
+        selectedCount: selected.length,
+        totalReturned,
+        dedupHits,
+        belowFloor,
+        wrongDate,
+        targetDay,
+      },
       'SCHEDULE_CACHE: selection summary',
     );
 

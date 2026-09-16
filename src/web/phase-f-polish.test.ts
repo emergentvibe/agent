@@ -240,7 +240,12 @@ describe('Phase F Polish: Hero card today-only', () => {
 
   it('does not show hero card when next shift is on a different day', () => {
     vi.mocked(rotaGetByTelegramId).mockReturnValue([
-      makeAssignment({ state: 'assigned', date: '2025-09-26', start: '14:00', end: '18:00' }),
+      makeAssignment({
+        state: 'assigned',
+        date: '2025-09-26',
+        start: '14:00',
+        end: '18:00',
+      }),
     ]);
     const html = renderToday('111');
     expect(html).not.toContain('Your next shift');
