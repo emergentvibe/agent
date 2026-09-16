@@ -406,7 +406,7 @@ body {
   flex: 1;
   max-width: 120px;
   text-align: center;
-  padding: 10px 4px 12px;
+  padding: 10px 4px calc(12px + env(safe-area-inset-bottom, 0px));
   font-size: 13px;
   font-weight: 500;
   color: var(--ink-muted);
@@ -680,6 +680,40 @@ body {
 .synth-card.now .time { color: var(--fire); font-weight: 700; }
 .synth-card.now .name { font-weight: 600; }
 
+/* ── Ticket-stub cards (My Stuff + Help) ── */
+
+.ticket-card {
+  background: var(--surface);
+  border: 2px dashed var(--border);
+  border-radius: 6px;
+  padding: 7px 10px;
+}
+.ticket-card.card-open { border-color: var(--open-red); }
+.ticket-card.past { opacity: 0.4; }
+.ticket-card .card-row { display: flex; align-items: baseline; gap: 8px; }
+.ticket-card .time { font-family: var(--font-mono); font-size: 13px; color: var(--fire-glow); flex-shrink: 0; min-width: 42px; }
+.ticket-card .name { font-size: 14px; font-weight: 500; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ticket-card .card-detail { font-size: 12px; color: var(--ink-muted); margin-top: 2px; }
+.ticket-card .btn { margin-top: 6px; font-size: 13px; }
+.ticket-card .synth-badge { font-size: 11px; padding: 1px 6px; border-radius: 3px; white-space: nowrap; }
+
+/* ── Thank you ── */
+
+.thank-you {
+  text-align: center;
+  padding: 60px 20px;
+  font-size: 22px;
+  color: var(--fire-glow);
+}
+
+/* ── Help intro ── */
+
+.help-intro {
+  font-size: 14px;
+  color: var(--ink-muted);
+  margin-bottom: 12px;
+}
+
 /* ── Pre-event ── */
 
 .pre-event-tagline {
@@ -729,8 +763,11 @@ body {
   color: var(--fire);
   text-decoration: none;
   padding: 4px 8px;
-  min-width: 32px;
-  text-align: center;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .day-nav-arrow.disabled {
@@ -789,7 +826,7 @@ body {
 }
 
 .allergen-tag {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 700;
   padding: 0 3px;
   border-radius: 2px;

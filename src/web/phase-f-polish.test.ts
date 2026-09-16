@@ -7,6 +7,10 @@ vi.mock('../rota-db.js', () => ({
   rotaGetOpenSlots: vi.fn().mockReturnValue([]),
 }));
 
+vi.mock('../db.js', () => ({
+  getUserTotal: vi.fn().mockReturnValue(0),
+}));
+
 vi.mock('../config.js', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
@@ -16,11 +20,17 @@ vi.mock('../config.js', async (importOriginal) => {
   };
 });
 
-vi.mock('./schedule.js', () => ({
-  getTodaySchedule: vi.fn().mockReturnValue(null),
-  getFullWeekSchedule: vi.fn().mockReturnValue([]),
-  formatDate: vi.fn((d: string) => d),
-}));
+vi.mock('./schedule.js', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    getTodaySchedule: vi.fn().mockReturnValue(null),
+    getFullWeekSchedule: vi.fn().mockReturnValue([]),
+    formatDate: vi.fn((d: string) => d),
+    getEventPhase: vi.fn().mockReturnValue('during'),
+    getScheduleForDate: vi.fn().mockReturnValue(null),
+  };
+});
 
 vi.mock('./schedule-refresh.js', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
@@ -157,7 +167,7 @@ describe('Phase F Polish: My Shifts state badges', () => {
 
     const html = renderMyShifts('111');
     expect(html).toContain('released');
-    expect(html).toContain('status-open');
+    expect(html).toContain('card-open');
     expect(html).not.toContain("Can't make it");
   });
 
@@ -172,7 +182,7 @@ describe('Phase F Polish: My Shifts state badges', () => {
 
     const html = renderMyShifts('111');
     expect(html).toContain('covered');
-    expect(html).toContain('status-covered');
+    expect(html).toContain('badge-covered');
     expect(html).toContain('now: Bob');
   });
 
@@ -217,7 +227,23 @@ describe('Phase F Polish: Nav tabs', () => {
     expect(html).not.toContain('The Week');
     expect(html).not.toContain('/week');
     expect(html).toContain('Today');
-    expect(html).toContain('My Shifts');
-    expect(html).toContain('Help Needed');
+    expect(html).toContain('My Stuff');
+    expect(html).toContain('Lend a Hand');
+  });
+});
+
+describe('Phase F Polish: Hero card today-only', () => {
+  beforeEach(() => {
+    vi.mocked(rotaGetOpenSlots).mockReturnValue([]);
+    vi.mocked(rotaGetCoveredByPerson).mockReturnValue([]);
+  });
+
+  it('does not show hero card when next shift is on a different day', () => {
+    vi.mocked(rotaGetByTelegramId).mockReturnValue([
+      makeAssignment({ state: 'assigned', date: '2025-09-26', start: '14:00', end: '18:00' }),
+    ]);
+    const html = renderToday('111');
+    expect(html).not.toContain('Your next shift');
+    expect(html).not.toContain('No more shifts');
   });
 });

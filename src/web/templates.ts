@@ -42,6 +42,7 @@ function shell(
   body: string,
   activeTab: string,
   openCount: number,
+  hideNav?: boolean,
 ): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -55,7 +56,7 @@ function shell(
   <div class="page">
     ${body}
   </div>
-  ${nav(activeTab, openCount)}
+  ${hideNav ? '' : nav(activeTab, openCount)}
   <script>document.querySelectorAll('.synth-card').forEach(function(c){if(c.querySelector('.meal-details')){c.style.cursor='pointer';c.addEventListener('click',function(){c.classList.toggle('meal-open')})}})</script>
 </body>
 </html>`;
@@ -64,8 +65,8 @@ function shell(
 function nav(active: string, openCount: number): string {
   const tabs = [
     { href: '/', label: 'Today', key: 'today' },
-    { href: '/my-shifts', label: 'My Shifts', key: 'my-shifts' },
-    { href: '/help', label: 'Help Needed', key: 'help' },
+    { href: '/my-shifts', label: 'My Stuff', key: 'my-shifts' },
+    { href: '/help', label: 'Lend a Hand', key: 'help' },
   ];
   const links = tabs
     .map((t) => {
@@ -95,7 +96,12 @@ function header(today: string): string {
   } else {
     const endStr = getEventEndStr();
     const days = daysBetween(endStr, today);
-    dayLabel = days <= 0 ? 'just ended' : days === 1 ? 'ended yesterday' : `ended ${days} days ago`;
+    dayLabel =
+      days <= 0
+        ? 'just ended'
+        : days === 1
+          ? 'ended yesterday'
+          : `ended ${days} days ago`;
   }
   return `<div class="header">
     <h1>TREEWEEK III</h1>
@@ -131,29 +137,28 @@ function heroCard(telegramId: string | null, webToken?: string | null): string {
   if (upcoming.length === 0) {
     return `<div class="hero-card">
       <div class="done-message">No more shifts</div>
-      <div class="done-sub">You're done! Want to help?</div>
-      <a href="/help" class="btn btn-outline">Help out</a>
+      <div class="done-sub">Lend a hand?</div>
+      <a href="/help" class="btn btn-outline">See open shifts</a>
     </div>`;
   }
 
   const next = upcoming[0];
+  if (next.date !== today) return '';
+
   const isCovering = next.state === 'covered';
-  const isToday = next.date === today;
   const coworkers = getCoworkers(next);
 
+  const [h, m] = next.start.split(':').map(Number);
+  const shiftStart = new Date(now);
+  shiftStart.setHours(h, m, 0, 0);
+  const diff = shiftStart.getTime() - now.getTime();
   let countdown = '';
-  if (isToday) {
-    const [h, m] = next.start.split(':').map(Number);
-    const shiftStart = new Date(now);
-    shiftStart.setHours(h, m, 0, 0);
-    const diff = shiftStart.getTime() - now.getTime();
-    if (diff > 0) {
-      const hrs = Math.floor(diff / 3600000);
-      const mins = Math.floor((diff % 3600000) / 60000);
-      countdown = hrs > 0 ? `starts in ${hrs}h ${mins}m` : `starts in ${mins}m`;
-    } else {
-      countdown = 'happening now';
-    }
+  if (diff > 0) {
+    const hrs = Math.floor(diff / 3600000);
+    const mins = Math.floor((diff % 3600000) / 60000);
+    countdown = hrs > 0 ? `starts in ${hrs}h ${mins}m` : `starts in ${mins}m`;
+  } else {
+    countdown = 'happening now';
   }
 
   const label = isCovering
@@ -161,7 +166,6 @@ function heroCard(telegramId: string | null, webToken?: string | null): string {
     : 'Your next shift';
 
   const detailParts: string[] = [];
-  if (!isToday) detailParts.push(formatDate(next.date));
   if (countdown)
     detailParts.push(`<span class="countdown">${esc(countdown)}</span>`);
   if (coworkers.length > 0)
@@ -268,7 +272,7 @@ function updatesSection(): string {
     })
     .join('');
 
-  return `<div class="section-divider"><span>Updates from chat</span></div>
+  return `<div class="section-divider"><span>From the Grapevine</span></div>
   <ul class="update-list">${items}</ul>`;
 }
 
@@ -339,7 +343,12 @@ function renderSynthesizedTimeline(synthesis: SynthesizedSchedule): string {
           ? ` <span style="font-size:12px;color:var(--ink-muted);font-style:italic">(${esc(e.note)})</span>`
           : '';
 
-      const mealHtml = renderMealDetails(e.name, synthesis.date, true, currentTime);
+      const mealHtml = renderMealDetails(
+        e.name,
+        synthesis.date,
+        true,
+        currentTime,
+      );
 
       return `<li class="synth-card${statusCls}${timeCls}">
         <div class="card-row">
@@ -422,7 +431,9 @@ function dayNav(selectedDate: string, today: string): string {
     ? `Day ${eventDay.dayNumber} · ${eventDay.dayName}`
     : formatDate(selectedDate);
 
-  const todayLink = !isToday ? `<a href="/" class="day-nav-today">today</a>` : '';
+  const todayLink = !isToday
+    ? `<a href="/" class="day-nav-today">today</a>`
+    : '';
 
   return `<div class="day-nav">
     ${prev}
@@ -432,37 +443,30 @@ function dayNav(selectedDate: string, today: string): string {
   </div>`;
 }
 
-function preEventHero(telegramId: string | null, webToken: string | null | undefined): string {
-  let firstShiftHtml = '';
-  if (telegramId) {
-    const ownShifts = rotaGetByTelegramId(telegramId).filter((s) => s.state === 'assigned');
-    if (ownShifts.length > 0) {
-      const first = ownShifts.sort((a, b) => a.date === b.date ? a.start.localeCompare(b.start) : a.date.localeCompare(b.date))[0];
-      firstShiftHtml = `<div class="pre-event-shift">
-        <div class="pre-event-shift-label">Your first shift</div>
-        <div class="pre-event-shift-detail">${esc(formatDate(first.date))} · ${esc(first.block_label)} · ${esc(first.start)}–${esc(first.end)}</div>
-      </div>`;
-    }
-  }
-
-  const connectHtml = !telegramId ? connectCard(webToken) : '';
-
-  return `${connectHtml}${firstShiftHtml}`;
-}
-
-function renderMealDetails(mealName: string, date: string, isToday: boolean, currentTime: string): string {
+function renderMealDetails(
+  mealName: string,
+  date: string,
+  isToday: boolean,
+  currentTime: string,
+): string {
   const meals = getMealsForDate(date);
-  const mealInfo = meals.find((m) => m.meal.toLowerCase() === mealName.toLowerCase());
+  const mealInfo = meals.find(
+    (m) => m.meal.toLowerCase() === mealName.toLowerCase(),
+  );
   if (!mealInfo || mealInfo.dishes.length === 0) return '';
 
-  const isCurrentMeal = isToday && isMealTimeNow(mealName.toLowerCase(), currentTime);
+  const isCurrentMeal =
+    isToday && isMealTimeNow(mealName.toLowerCase(), currentTime);
   const expandCls = isCurrentMeal ? ' meal-expanded' : '';
-  const dishes = mealInfo.dishes.map((d) => {
-    const tags: string[] = [];
-    if (d.isVegan) tags.push('<span class="allergen-tag vg">VG</span>');
-    if (!d.allergens.includes('gluten')) tags.push('<span class="allergen-tag gf">GF</span>');
-    return `<span class="dish">${esc(d.name)}${tags.join('')}</span>`;
-  }).join(' · ');
+  const dishes = mealInfo.dishes
+    .map((d) => {
+      const tags: string[] = [];
+      if (d.isVegan) tags.push('<span class="allergen-tag vg">VG</span>');
+      if (!d.allergens.includes('gluten'))
+        tags.push('<span class="allergen-tag gf">GF</span>');
+      return `<span class="dish">${esc(d.name)}${tags.join('')}</span>`;
+    })
+    .join(' · ');
   return `<div class="meal-details${expandCls}">${dishes}</div>`;
 }
 
@@ -484,12 +488,18 @@ function renderDateSchedule(dateStr: string, today: string): string {
       const noteInline = e.note
         ? ` <span style="font-size:12px;color:var(--ink-muted);font-style:italic">(${esc(e.note)})</span>`
         : '';
-      const nextTime = i + 1 < day.events.length ? day.events[i + 1].time : '23:59';
+      const nextTime =
+        i + 1 < day.events.length ? day.events[i + 1].time : '23:59';
       const isPast = isToday && e.time < currentTime && nextTime <= currentTime;
       const isNow = isToday && e.time <= currentTime && nextTime > currentTime;
       const timeCls = isPast ? ' past' : isNow ? ' now' : '';
 
-      const mealHtml = renderMealDetails(e.name, day.date, isToday, currentTime);
+      const mealHtml = renderMealDetails(
+        e.name,
+        day.date,
+        isToday,
+        currentTime,
+      );
 
       return `<li class="synth-card card-on${timeCls}">
         <div class="card-row">
@@ -507,10 +517,14 @@ function renderDateSchedule(dateStr: string, today: string): string {
 
 function isMealTimeNow(meal: string, currentTime: string): boolean {
   switch (meal) {
-    case 'breakfast': return currentTime >= '09:00' && currentTime < '13:00';
-    case 'lunch': return currentTime >= '13:00' && currentTime < '18:00';
-    case 'dinner': return currentTime >= '18:00';
-    default: return false;
+    case 'breakfast':
+      return currentTime >= '09:00' && currentTime < '13:00';
+    case 'lunch':
+      return currentTime >= '13:00' && currentTime < '18:00';
+    case 'dinner':
+      return currentTime >= '18:00';
+    default:
+      return false;
   }
 }
 
@@ -523,29 +537,34 @@ export function renderToday(
   const phase = getEventPhase(today);
   const openCount = rotaGetOpenSlots().length;
 
-  const selectedDate = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)
-    ? dateParam
-    : today;
-  const isToday = selectedDate === today;
-
-  // Tagline
-  const tagline = phase === 'post'
-    ? '<div class="pre-event-tagline">That was the week.</div>'
-    : '<div class="pre-event-tagline">LARP your higher self</div>';
-
-  // Phase-specific hero content
-  let phaseHero = '';
-  if (phase === 'during') {
-    phaseHero = heroCard(telegramId, webToken);
-  } else if (phase === 'pre') {
-    phaseHero = preEventHero(telegramId, webToken);
+  if (phase === 'pre') {
+    const connectHtml = !telegramId ? connectCard(webToken) : '';
+    const body = `
+      ${header(today)}
+      <div class="pre-event-tagline">LARP your higher self</div>
+      ${connectHtml}
+    `;
+    return shell('Treeweek III', body, 'today', openCount, true);
   }
 
-  // Schedule for the selected date
+  if (phase === 'post') {
+    const body = `
+      ${header(today)}
+      <div class="thank-you">Thank you for coming to TREEWEEK!</div>
+    `;
+    return shell('Treeweek III', body, 'today', openCount);
+  }
+
+  const selectedDate =
+    dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : today;
+  const isToday = selectedDate === today;
+
+  const phaseHero = heroCard(telegramId, webToken);
+
   const isEventDay = !!getScheduleForDate(selectedDate);
   let scheduleHtml: string;
 
-  if (isToday && phase === 'during') {
+  if (isToday) {
     scheduleHtml = scheduleSection(today);
   } else if (isEventDay) {
     scheduleHtml = renderDateSchedule(selectedDate, today);
@@ -553,11 +572,10 @@ export function renderToday(
     scheduleHtml = '';
   }
 
-  const dividerLabel = isToday ? 'Today' : formatDate(selectedDate);
+  const dividerLabel = isToday ? "Today's Rhythm" : formatDate(selectedDate);
 
   const body = `
     ${header(today)}
-    ${tagline}
     ${phaseHero}
     <div class="section-divider"><span>${esc(dividerLabel)}</span></div>
     ${dayNav(selectedDate, today)}
@@ -587,7 +605,7 @@ export function renderMyShifts(
   if (ownShifts.length === 0 && pickedUp.length === 0) {
     const body = `
       ${header(today)}
-      <div class="section-divider"><span>My Shifts</span></div>
+      <div class="section-divider"><span>Your Corner</span></div>
       <div class="schedule-empty">No shifts assigned to you.</div>
     `;
     return shell('My Shifts', body, 'my-shifts', openCount);
@@ -641,7 +659,7 @@ export function renderMyShifts(
             : '';
         const pastCls = isPast ? ' past' : '';
 
-        return `<div class="synth-card${borderCls}${pastCls}">
+        return `<div class="ticket-card${borderCls}${pastCls}">
           <div class="card-row">
             <span class="time">${esc(s.start)}–${esc(s.end)}</span>
             <span class="name">${esc(s.block_label)}</span>
@@ -664,7 +682,7 @@ export function renderMyShifts(
   if (pickedUp.length > 0) {
     const pickedUpCards = pickedUp
       .map(
-        (s) => `<div class="synth-card">
+        (s) => `<div class="ticket-card">
           <div class="card-row">
             <span class="time">${esc(s.start)}–${esc(s.end)}</span>
             <span class="name">${esc(s.block_label)}</span>
@@ -681,18 +699,20 @@ export function renderMyShifts(
   const tabTotal = getUserTotal(telegramId);
   if (tabTotal > 0) {
     tabHtml = `<div class="section-divider"><span>Your Tab</span></div>
-    <div class="synth-card">
+    <div class="ticket-card">
       <div class="card-row">
         <span class="name">Total</span>
         <span class="tab-amount">&euro;${tabTotal.toFixed(2)}</span>
       </div>
-      <a href="https://t.me/${esc(TELEGRAM_BOT_USERNAME)}?start=bar" class="btn btn-outline">Log a drink</a>
+      <div class="tab-actions">
+        <a href="https://t.me/${esc(TELEGRAM_BOT_USERNAME)}?start=bar" class="btn btn-outline">Log a drink</a>
+      </div>
     </div>`;
   }
 
   const body = `
     ${header(today)}
-    <div class="section-divider"><span>My Shifts</span></div>
+    <div class="section-divider"><span>Your Corner</span></div>
     ${html}
     ${tabHtml}
   `;
@@ -707,13 +727,20 @@ export function renderHelp(): string {
   let html = '';
   if (openSlots.length === 0) {
     html =
-      '<div class="schedule-empty">All shifts are covered right now.</div>';
+      '<div class="schedule-empty">All shifts covered. Nice work, everyone.</div>';
   } else {
-    html = openSlots
+    const cards = openSlots
       .map((s) => {
         const detailParts: string[] = [esc(formatDate(s.date))];
         if (s.original_name) detailParts.push(`was: ${esc(s.original_name)}`);
-        return `<div class="synth-card card-open">
+        const sameBlock = rotaGetByDate(s.date).filter(
+          (a) => a.block === s.block && a.state !== 'open',
+        );
+        if (sameBlock.length > 0) {
+          const names = sameBlock.map((a) => a.current_name || a.original_name || '?');
+          detailParts.push(`${names.join(', ')} already in`);
+        }
+        return `<div class="ticket-card card-open">
           <div class="card-row">
             <span class="time">${esc(s.start)}–${esc(s.end)}</span>
             <span class="name">${esc(s.block_label)}</span>
@@ -724,11 +751,12 @@ export function renderHelp(): string {
         </div>`;
       })
       .join('');
+    html = `<p class="help-intro">The kitchen could use a hand.</p>${cards}`;
   }
 
   const body = `
     ${header(today)}
-    <div class="section-divider"><span>Help Needed${openCount > 0 ? ` (${openCount})` : ''}</span></div>
+    <div class="section-divider"><span>Lend a Hand${openCount > 0 ? ` (${openCount})` : ''}</span></div>
     ${html}
     <div class="refresh-note">↻ refreshes every 60s</div>
     <script>setTimeout(function(){ location.reload(); }, 60000);</script>
