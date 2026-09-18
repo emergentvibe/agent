@@ -2,6 +2,8 @@ import { ChildProcess } from 'child_process';
 import { CronExpressionParser } from 'cron-parser';
 import fs from 'fs';
 
+import { loadFeatureConfig } from './feature-config.js';
+
 import { ASSISTANT_NAME, SCHEDULER_POLL_INTERVAL, TIMEZONE } from './config.js';
 import {
   ContainerOutput,
@@ -102,6 +104,20 @@ async function runTask(
     return;
   }
   fs.mkdirSync(groupDir, { recursive: true });
+
+  // Re-check feature flags at execution time — a flag may have been
+  // toggled after the cron task was created.
+  const features = loadFeatureConfig(task.group_folder);
+  if (task.id.startsWith('daily-digest-') && !features.behaviors.daily_digest) {
+    logger.info({ taskId: task.id }, 'Skipping digest — daily_digest disabled');
+    updateTask(task.id, { status: 'paused' });
+    return;
+  }
+  if (task.id.startsWith('crew-digest-') && !features.behaviors.crew_digest) {
+    logger.info({ taskId: task.id }, 'Skipping digest — crew_digest disabled');
+    updateTask(task.id, { status: 'paused' });
+    return;
+  }
 
   logger.info(
     { taskId: task.id, group: task.group_folder },
