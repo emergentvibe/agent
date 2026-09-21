@@ -10,6 +10,7 @@ import {
   attendeeCheckIn,
   attendeeLookupByHandle,
   attendeeLookupByName,
+  attendeeGetByRole,
   attendeeLookupByTelegramDisplay,
   attendeeLookupByTelegramId,
   isAttendeeAdmin,
@@ -1232,6 +1233,12 @@ export async function main(): Promise<void> {
         return;
       }
       await ch.sendMessage(jid, text);
+    },
+    getCrewIds: () => {
+      const organizers = attendeeGetByRole('organizer');
+      return organizers
+        .filter((a) => a.telegram_id)
+        .map((a) => a.telegram_id!);
     },
     refreshShiftsBoard: async () => {
       if (!ROTA_GROUP_JID) return;
