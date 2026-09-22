@@ -24,7 +24,7 @@ import {
 } from './schedule.js';
 import { getCachedUpdates, getCacheAge } from './schedule-refresh.js';
 import {
-  getSynthesizedSchedule,
+  getSynthesizedScheduleForDate,
   type SynthesizedSchedule,
 } from './schedule-synthesis.js';
 import { getMealsForDate } from './food.js';
@@ -275,12 +275,12 @@ function updatesSection(): string {
   <ul class="update-list">${items}</ul>`;
 }
 
-function scheduleSection(today: string): string {
-  const synthesis = getSynthesizedSchedule();
-  if (synthesis && synthesis.date === today) {
+function scheduleSection(dateStr: string): string {
+  const synthesis = getSynthesizedScheduleForDate(dateStr);
+  if (synthesis) {
     return renderSynthesizedTimeline(synthesis);
   }
-  return renderStaticSchedule(today);
+  return renderStaticSchedule(dateStr);
 }
 
 function buildDetailLine(e: {
@@ -566,10 +566,8 @@ export function renderToday(
   const isEventDay = !!getScheduleForDate(selectedDate);
   let scheduleHtml: string;
 
-  if (isToday) {
-    scheduleHtml = scheduleSection(today);
-  } else if (isEventDay) {
-    scheduleHtml = renderDateSchedule(selectedDate, today);
+  if (isEventDay) {
+    scheduleHtml = scheduleSection(selectedDate);
   } else {
     scheduleHtml = '';
   }

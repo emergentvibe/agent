@@ -1,6 +1,7 @@
 import { getToday } from '../config.js';
 import { logger } from '../logger.js';
 import { searchMemories, type Mem0Memory } from '../mem0-client.js';
+import { getFullWeekSchedule } from './schedule.js';
 import type { RegisteredGroup } from '../types.js';
 
 const SCHEDULE_CACHE_INTERVAL = parseInt(
@@ -13,9 +14,8 @@ const SCHEDULE_FLOOR_SCORE = parseFloat(
   process.env.SCHEDULE_FLOOR_SCORE || '0.25',
 );
 
-function formatTodayForQuery(): string {
-  const today = getToday();
-  const d = new Date(today + 'T12:00:00');
+function formatDateForQuery(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00');
   return d.toLocaleDateString('en-GB', {
     weekday: 'long',
     day: 'numeric',
@@ -23,9 +23,8 @@ function formatTodayForQuery(): string {
   });
 }
 
-function getTodayDay(): number {
-  const today = getToday();
-  const d = new Date(today + 'T12:00:00');
+function getDayFromDate(dateStr: string): number {
+  const d = new Date(dateStr + 'T12:00:00');
   return d.getDate();
 }
 
@@ -53,8 +52,8 @@ function isDateRelevant(memory: string, targetDay: number): boolean {
   return mentionedDates.has(targetDay);
 }
 
-export function buildScheduleQueries(): string[] {
-  const label = formatTodayForQuery();
+export function buildScheduleQueries(dateStr: string): string[] {
+  const label = formatDateForQuery(dateStr);
   return [
     `meal times schedule changes ${label}`,
     `events cancelled or moved ${label}`,
@@ -68,11 +67,16 @@ export interface ScheduleUpdate {
   created_at?: string;
 }
 
-let cachedUpdates: ScheduleUpdate[] = [];
+const cachedUpdatesByDate = new Map<string, ScheduleUpdate[]>();
 let cacheTime = 0;
 
 export function getCachedUpdates(): ScheduleUpdate[] {
-  return cachedUpdates;
+  const today = getToday();
+  return cachedUpdatesByDate.get(today) || [];
+}
+
+export function getCachedUpdatesForDate(dateStr: string): ScheduleUpdate[] {
+  return cachedUpdatesByDate.get(dateStr) || [];
 }
 
 export function getCacheAge(): number {
@@ -80,7 +84,8 @@ export function getCacheAge(): number {
 }
 
 export function setCachedUpdates(updates: ScheduleUpdate[]): void {
-  cachedUpdates = updates;
+  const today = getToday();
+  cachedUpdatesByDate.set(today, updates);
   cacheTime = Date.now();
 }
 
@@ -92,6 +97,64 @@ function extractSource(metadata?: Record<string, unknown>): string | undefined {
 
 export interface ScheduleCacheDeps {
   registeredGroups: () => Record<string, RegisteredGroup>;
+}
+
+async function refreshForDate(
+  dateStr: string,
+  targetDay: number,
+  userId: string,
+): Promise<ScheduleUpdate[]> {
+  const queries = buildScheduleQueries(dateStr);
+  const seen = new Set<string>();
+  const selected: Mem0Memory[] = [];
+
+  let totalReturned = 0;
+  let belowFloor = 0;
+  let dedupHits = 0;
+  let wrongDate = 0;
+
+  for (const query of queries) {
+    const results = await searchMemories(query, userId);
+    totalReturned += results.length;
+    let taken = 0;
+    for (const m of results) {
+      if (taken >= SCHEDULE_TOP_N) break;
+      if (seen.has(m.id)) {
+        dedupHits++;
+        continue;
+      }
+      if (m.score !== undefined && m.score < SCHEDULE_FLOOR_SCORE) {
+        belowFloor++;
+        continue;
+      }
+      if (!isDateRelevant(m.memory, targetDay)) {
+        wrongDate++;
+        continue;
+      }
+      seen.add(m.id);
+      selected.push(m);
+      taken++;
+    }
+  }
+
+  logger.info(
+    {
+      date: dateStr,
+      selectedCount: selected.length,
+      totalReturned,
+      dedupHits,
+      belowFloor,
+      wrongDate,
+      targetDay,
+    },
+    'SCHEDULE_CACHE: selection summary',
+  );
+
+  return selected.map((m) => ({
+    memory: m.memory,
+    source: extractSource(m.metadata),
+    created_at: m.created_at,
+  }));
 }
 
 export async function refreshScheduleCache(
@@ -109,76 +172,26 @@ export async function refreshScheduleCache(
   const userId = `community:${communitySlug}`;
 
   try {
-    const queries = buildScheduleQueries();
-    const seen = new Set<string>();
-    const selected: Mem0Memory[] = [];
-    const targetDay = getTodayDay();
+    const week = getFullWeekSchedule();
 
-    let totalReturned = 0;
-    let belowFloor = 0;
-    let dedupHits = 0;
-    let wrongDate = 0;
-
-    for (const query of queries) {
-      const results = await searchMemories(query, userId);
-      totalReturned += results.length;
-      logger.info(
-        {
-          query,
-          resultCount: results.length,
-          results: results.map((m) => ({
-            id: m.id.slice(0, 8),
-            score: m.score,
-            memory: m.memory.slice(0, 100),
-          })),
-        },
-        'SCHEDULE_QUERY: raw results',
-      );
-      let taken = 0;
-      for (const m of results) {
-        if (taken >= SCHEDULE_TOP_N) break;
-        if (seen.has(m.id)) {
-          dedupHits++;
-          continue;
-        }
-        if (m.score !== undefined && m.score < SCHEDULE_FLOOR_SCORE) {
-          belowFloor++;
-          continue;
-        }
-        if (!isDateRelevant(m.memory, targetDay)) {
-          wrongDate++;
-          continue;
-        }
-        seen.add(m.id);
-        selected.push(m);
-        taken++;
-      }
+    for (const day of week) {
+      const targetDay = getDayFromDate(day.date);
+      const updates = await refreshForDate(day.date, targetDay, userId);
+      cachedUpdatesByDate.set(day.date, updates);
     }
 
+    cacheTime = Date.now();
+
+    const today = getToday();
+    const todayCount = cachedUpdatesByDate.get(today)?.length || 0;
     logger.info(
       {
-        selectedCount: selected.length,
-        totalReturned,
-        dedupHits,
-        belowFloor,
-        wrongDate,
-        targetDay,
-      },
-      'SCHEDULE_CACHE: selection summary',
-    );
-
-    const updates: ScheduleUpdate[] = selected.map((m) => ({
-      memory: m.memory,
-      source: extractSource(m.metadata),
-      created_at: m.created_at,
-    }));
-
-    setCachedUpdates(updates);
-    logger.info(
-      {
-        count: updates.length,
-        topN: SCHEDULE_TOP_N,
-        queries: queries.length,
+        daysRefreshed: week.length,
+        todayUpdates: todayCount,
+        totalUpdates: Array.from(cachedUpdatesByDate.values()).reduce(
+          (sum, u) => sum + u.length,
+          0,
+        ),
       },
       'Schedule cache updated from Mem0',
     );

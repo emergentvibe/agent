@@ -2,9 +2,14 @@ import Anthropic from '@anthropic-ai/sdk';
 
 import { readEnvFile } from '../env.js';
 import { logger } from '../logger.js';
-import { getToday } from '../config.js';
-import { getTodaySchedule, type DaySchedule } from './schedule.js';
-import { getCachedUpdates, type ScheduleUpdate } from './schedule-refresh.js';
+import {
+  getFullWeekSchedule,
+  type DaySchedule,
+} from './schedule.js';
+import {
+  getCachedUpdatesForDate,
+  type ScheduleUpdate,
+} from './schedule-refresh.js';
 
 const SYNTHESIS_MODEL = 'claude-haiku-4-5-20251001';
 const SYNTHESIS_MAX_TOKENS = 1024;
@@ -27,8 +32,8 @@ export interface SynthesizedSchedule {
   synthesizedAt: number;
 }
 
-let cachedSynthesis: SynthesizedSchedule | null = null;
-let lastInputHash = '';
+const cachedSynthesisByDate = new Map<string, SynthesizedSchedule>();
+const lastInputHashByDate = new Map<string, string>();
 let client: Anthropic | null = null;
 
 function getClient(): Anthropic {
@@ -146,24 +151,35 @@ export async function synthesize(
   return parsed;
 }
 
+/** @deprecated Use getSynthesizedScheduleForDate */
 export function getSynthesizedSchedule(): SynthesizedSchedule | null {
-  return cachedSynthesis;
+  // kept for backwards compat — returns today's synthesis
+  // callers should migrate to getSynthesizedScheduleForDate
+  for (const [, v] of cachedSynthesisByDate) {
+    return v;
+  }
+  return null;
 }
 
-export async function refreshSynthesis(): Promise<void> {
-  const today = getToday();
-  const base = getTodaySchedule(today);
-  if (!base) return;
+export function getSynthesizedScheduleForDate(
+  dateStr: string,
+): SynthesizedSchedule | null {
+  return cachedSynthesisByDate.get(dateStr) || null;
+}
 
-  const updates = getCachedUpdates();
+async function synthesizeDay(base: DaySchedule): Promise<void> {
+  const updates = getCachedUpdatesForDate(base.date);
   const hash = hashInputs(base, updates);
 
-  if (hash === lastInputHash && cachedSynthesis) {
+  if (
+    hash === lastInputHashByDate.get(base.date) &&
+    cachedSynthesisByDate.has(base.date)
+  ) {
     return;
   }
 
   if (updates.length === 0) {
-    cachedSynthesis = {
+    cachedSynthesisByDate.set(base.date, {
       date: base.date,
       dayNumber: base.dayNumber,
       dayName: base.dayName,
@@ -175,27 +191,43 @@ export async function refreshSynthesis(): Promise<void> {
         note: e.note,
       })),
       synthesizedAt: Date.now(),
-    };
-    lastInputHash = hash;
+    });
+    lastInputHashByDate.set(base.date, hash);
     return;
   }
 
-  try {
-    const events = await synthesize(base, updates);
-    cachedSynthesis = {
+  const events = await synthesize(base, updates);
+  cachedSynthesisByDate.set(base.date, {
+    date: base.date,
+    dayNumber: base.dayNumber,
+    dayName: base.dayName,
+    highlights: base.highlights,
+    events,
+    synthesizedAt: Date.now(),
+  });
+  lastInputHashByDate.set(base.date, hash);
+  logger.info(
+    {
       date: base.date,
       dayNumber: base.dayNumber,
-      dayName: base.dayName,
-      highlights: base.highlights,
-      events,
-      synthesizedAt: Date.now(),
-    };
-    lastInputHash = hash;
-    logger.info(
-      { eventCount: events.length, updateCount: updates.length },
-      'Schedule synthesis complete',
-    );
-  } catch (err) {
-    logger.error({ err }, 'Schedule synthesis failed — using raw schedule');
+      eventCount: events.length,
+      updateCount: updates.length,
+    },
+    'Schedule synthesis complete',
+  );
+}
+
+export async function refreshSynthesis(): Promise<void> {
+  const week = getFullWeekSchedule();
+
+  for (const day of week) {
+    try {
+      await synthesizeDay(day);
+    } catch (err) {
+      logger.error(
+        { err, date: day.date },
+        'Schedule synthesis failed for day — using raw schedule',
+      );
+    }
   }
 }
