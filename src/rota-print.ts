@@ -290,13 +290,10 @@ export async function generateRotaPdf(
 
 // ─── Weekly PDF (landscape grid) ────────────────────────────
 
-const FAIRNESS_LINES = [
-  'Everyone does roughly 1.2 hours a day, adjusted for how many days you are here.',
-  'You never work two shifts in one day, and never the same job more than twice all week.',
-  'Party-night shifts count double, and the morning after counts one and a half.',
-  'Work a party-night dish shift and the next day is yours, guaranteed.',
-  'Arrival day is on crew and volunteers, because most of you are on a train.',
-];
+const FAIRNESS_TEXT =
+  '~1.2 hrs/day adjusted for stay length · Never two shifts in one day, never the same job more than twice · ' +
+  "Party-night shifts count double; morning after counts 1.5× · Work a party-night dish shift and the next day is yours · " +
+  "Arrival day is on crew and volunteers. Can't make a shift? DM the bot: /cover";
 
 export async function generateWeeklyRotaPdf(): Promise<
   { buffer: Buffer; filename: string } | { error: string }
@@ -401,7 +398,7 @@ export async function generateWeeklyRotaPdf(): Promise<
   });
 
   // --- Layout ---
-  const MARGIN = 30;
+  const MARGIN = 24;
   const doc = new PDFDocument({
     size: 'A4',
     layout: 'landscape',
@@ -440,7 +437,7 @@ export async function generateWeeklyRotaPdf(): Promise<
   const DAY_COL_W = (PAGE_W - LABEL_COL_W) / dayCount;
   const HEADER_H = 28;
   const blockCount = blockOrder.length;
-  const availableH = PAGE_H - (gridTop - MARGIN) - HEADER_H - 120; // reserve space for HoF + footer
+  const availableH = PAGE_H - (gridTop - MARGIN) - HEADER_H - 80; // reserve space for HoF + footer
   const ROW_H = Math.min(availableH / blockCount, 80);
 
   // Day headers
@@ -484,12 +481,12 @@ export async function generateWeeklyRotaPdf(): Promise<
     for (let c = 0; c < dayCount; c++) {
       const x = MARGIN + LABEL_COL_W + c * DAY_COL_W;
       const names = dateMap.get(dates[c]) || [];
-      doc.fontSize(7).font('Helvetica');
+      doc.fontSize(6.5).font('Helvetica');
       const cellText = names.join('\n');
-      doc.text(cellText, x + 3, rowY + 3, {
-        width: DAY_COL_W - 6,
-        height: ROW_H - 6,
-        lineGap: 1,
+      doc.text(cellText, x + 2, rowY + 2, {
+        width: DAY_COL_W - 4,
+        height: ROW_H - 4,
+        lineGap: 0.5,
       });
 
       // Vertical column line
@@ -554,28 +551,15 @@ export async function generateWeeklyRotaPdf(): Promise<
     hofY += hofRows * 10 + 6;
   }
 
-  // --- Fairness explainer ---
-  doc.fontSize(7).font('Helvetica-Oblique');
-  for (const line of FAIRNESS_LINES) {
-    doc.text(line, MARGIN, hofY, { width: PAGE_W });
-    hofY += 9;
-  }
-
-  // --- Footer ---
-  hofY += 4;
+  // --- Fairness + footer (compact) ---
   doc
     .moveTo(MARGIN, hofY)
     .lineTo(MARGIN + PAGE_W, hofY)
-    .lineWidth(0.5)
+    .lineWidth(0.25)
     .stroke();
-  hofY += 5;
-  doc.fontSize(7).font('Helvetica');
-  doc.text(
-    "Can't make a shift? DM the bot: /cover — you're still on it until someone claims it.",
-    MARGIN,
-    hofY,
-    { width: PAGE_W },
-  );
+  hofY += 4;
+  doc.fontSize(6).font('Helvetica-Oblique');
+  doc.text(FAIRNESS_TEXT, MARGIN, hofY, { width: PAGE_W });
 
   doc.end();
 
