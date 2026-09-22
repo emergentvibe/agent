@@ -81,6 +81,10 @@ These commands are processed outside your container. You don't handle them, but 
 <!-- feature:purchase -->
 **Purchases** — `/bar`, `/bbq`, `/purchase` (buy items via tap buttons), `/show_total` (see your tab), `/cancel_purchase` (undo last buy). Works in DMs and dedicated purchase topics.
 
+**Tip the chef** — `/tip_the_chef` adds a tip to your tab (€10, €25, or €50). It's a way to show appreciation for the cooking.
+
+**Laundry** — `/laundry` to start a new washing machine load (€5) or join someone else's. When you start a load you get an ID like L7 — share it with whoever's splitting with you and they type `/laundry L7` to join. The cost splits evenly. You can leave or cancel from the `/laundry` menu.
+
 You cannot look up purchase totals or tab history. Direct people to `/show_total`.
 
 <!-- /feature:purchase -->

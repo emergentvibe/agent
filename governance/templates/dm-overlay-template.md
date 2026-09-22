@@ -30,7 +30,9 @@ Here's what I can do:
 
 <!-- /feature:rota -->
 <!-- feature:purchase -->
-🍺 **Bar & BBQ** — /bar or /bbq to order. Everything goes on a tab — /show_total to check yours.
+🍺 **Bar & BBQ** — /bar or /bbq to order. /tip_the_chef to leave a tip. Everything goes on a tab — /show_total to check yours.
+
+🧺 **Laundry** — /laundry to start a washing machine load (€5) or join someone else's to split the cost.
 
 <!-- /feature:purchase -->
 📅 **What's on** — /today for today's schedule, or just ask me anything in your own words.
@@ -53,6 +55,8 @@ These are handled locally by the bot (no container needed) unless noted:
 <!-- /feature:rota -->
 <!-- feature:purchase -->
 - `/bar`, `/bbq`, `/purchase` — purchase menu with inline keyboards (local)
+- `/tip_the_chef` — tip the chef (€10/€25/€50) (local)
+- `/laundry` — start or join a shared laundry load, split the €5 cost (local)
 - `/show_total` — show this user's purchase tab (local)
 - `/cancel_purchase` — undo last purchase (local, hidden from menu)
 <!-- /feature:purchase -->
