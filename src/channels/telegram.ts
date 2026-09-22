@@ -191,6 +191,12 @@ export class TelegramChannel implements Channel {
         featureGate: 'purchase',
       },
       {
+        command: 'tip_the_chef',
+        description: 'Tip the chef',
+        local: true,
+        featureGate: 'purchase',
+      },
+      {
         command: 'chatid',
         description: 'Get this chat ID',
         local: true,
@@ -374,6 +380,41 @@ export class TelegramChannel implements Channel {
       await ctx.reply(
         `Cancelled: ${cancelled.item} (€${cancelled.price.toFixed(2)})\nNew total: €${total.toFixed(2)}`,
       );
+    });
+
+    this.bot.command('tip_the_chef', async (ctx) => {
+      if (!isPurchaseEnabled()) {
+        await ctx.reply(PURCHASE_DISABLED);
+        return;
+      }
+      const kb = new InlineKeyboard()
+        .text('€10', 'tip:10')
+        .text('€25 ⭐', 'tip:25')
+        .text('€50', 'tip:50');
+      await ctx.reply('🍳 *Tip the chef*\nAdded to your tab.', {
+        reply_markup: kb,
+        parse_mode: 'Markdown',
+      });
+    });
+
+    this.bot.callbackQuery(/^tip:(\d+)$/, async (ctx) => {
+      const amount = parseInt(ctx.callbackQuery.data.match(/^tip:(\d+)$/)![1]);
+      const userId = ctx.from.id.toString();
+      const userName = ctx.from.first_name || ctx.from.username || userId;
+      const chatJid = `tg:${ctx.callbackQuery.message?.chat.id || ''}`;
+
+      storePurchase(chatJid, userId, userName, `Chef tip`, amount);
+      const total = getUserTotal(userId);
+
+      await ctx.answerCallbackQuery({ text: `Thank you! €${amount} tip added.` });
+      try {
+        await ctx.editMessageText(
+          `🍳 Thank you! *€${amount}* tip for the chef.\nYour tab: *€${total.toFixed(2)}*`,
+          { parse_mode: 'Markdown' },
+        );
+      } catch {
+        // Message may be too old to edit
+      }
     });
 
     // Handle inline keyboard button taps for purchases
@@ -619,6 +660,21 @@ export class TelegramChannel implements Channel {
         case 'bbq':
           await handlePurchaseCommand(ctx, payload);
           break;
+        case 'tip': {
+          if (!isPurchaseEnabled()) {
+            await ctx.reply(PURCHASE_DISABLED);
+            break;
+          }
+          const kb = new InlineKeyboard()
+            .text('€10', 'tip:10')
+            .text('€25 ⭐', 'tip:25')
+            .text('€50', 'tip:50');
+          await ctx.reply('🍳 *Tip the chef*\nAdded to your tab.', {
+            reply_markup: kb,
+            parse_mode: 'Markdown',
+          });
+          break;
+        }
         case 'tab': {
           if (!isPurchaseEnabled()) {
             await ctx.reply(PURCHASE_DISABLED);

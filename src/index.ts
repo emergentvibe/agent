@@ -1236,9 +1236,7 @@ export async function main(): Promise<void> {
     },
     getCrewIds: () => {
       const organizers = attendeeGetByRole('organizer');
-      return organizers
-        .filter((a) => a.telegram_id)
-        .map((a) => a.telegram_id!);
+      return organizers.filter((a) => a.telegram_id).map((a) => a.telegram_id!);
     },
     refreshShiftsBoard: async () => {
       if (!ROTA_GROUP_JID) return;
