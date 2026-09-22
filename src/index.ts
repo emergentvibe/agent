@@ -481,7 +481,7 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
           silencePattern.test(text) || bracketSilence.test(text);
         logger.info(
           { group: group.name, isSilence },
-          `Agent output: ${raw.slice(0, 200)}`,
+          `Agent output: ${raw}`,
         );
         if (text && !isSilence) {
           try {
@@ -489,6 +489,17 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
               thread_id: lastReplyThreadId[chatJid],
             });
             outputSentToUser = true;
+            storeMessage({
+              id: `bot:${chatJid}:${Date.now()}`,
+              chat_jid: chatJid,
+              sender: 'bot',
+              sender_name: ASSISTANT_NAME,
+              content: text,
+              timestamp: new Date().toISOString(),
+              is_from_me: true,
+              is_bot_message: true,
+              thread_id: lastReplyThreadId[chatJid],
+            });
           } catch (err) {
             // Channel rejected the send — don't mark as delivered.
             // hadError triggers the rollback path below so retries can
