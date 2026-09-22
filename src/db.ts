@@ -6,6 +6,7 @@ import { ASSISTANT_NAME, DATA_DIR, STORE_DIR } from './config.js';
 import { isValidGroupFolder } from './group-folder.js';
 import { logger } from './logger.js';
 import { createAttendeeSchema } from './attendee-db.js';
+import { createLaundrySchema } from './laundry.js';
 import { createRotaSchema } from './rota-db.js';
 import {
   NewMessage,
@@ -187,6 +188,7 @@ function createSchema(database: Database.Database): void {
 
   createRotaSchema(database);
   createAttendeeSchema(database);
+  createLaundrySchema(database);
 }
 
 export function initDatabase(): void {
@@ -978,7 +980,7 @@ export function getAllPurchaseTotals(): Array<{
 export function cancelLastPurchase(userId: string): Purchase | null {
   const last = db
     .prepare(
-      `SELECT * FROM purchases WHERE user_id = ? AND cancelled = 0 ORDER BY id DESC LIMIT 1`,
+      `SELECT * FROM purchases WHERE user_id = ? AND cancelled = 0 AND item NOT LIKE 'Laundry%' ORDER BY id DESC LIMIT 1`,
     )
     .get(userId) as Purchase | undefined;
   if (!last) return null;

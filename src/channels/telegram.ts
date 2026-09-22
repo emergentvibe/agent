@@ -38,6 +38,13 @@ import { adaptRotaExport, type SheetRotaExport } from '../sheet-adapter.js';
 import { isCrewMember } from '../crew.js';
 import { loadFeatureConfig } from '../feature-config.js';
 import {
+  createLoad,
+  joinLoad,
+  leaveLoad,
+  getActiveLoads,
+  LAUNDRY_PRICE,
+} from '../laundry.js';
+import {
   rotaCommandEntries,
   registerRotaCommands,
   postShiftsBoard,
@@ -193,6 +200,12 @@ export class TelegramChannel implements Channel {
       {
         command: 'tip_the_chef',
         description: 'Tip the chef',
+        local: true,
+        featureGate: 'purchase',
+      },
+      {
+        command: 'laundry',
+        description: 'Laundry (€5, split with others)',
         local: true,
         featureGate: 'purchase',
       },
@@ -406,7 +419,9 @@ export class TelegramChannel implements Channel {
       storePurchase(chatJid, userId, userName, `Chef tip`, amount);
       const total = getUserTotal(userId);
 
-      await ctx.answerCallbackQuery({ text: `Thank you! €${amount} tip added.` });
+      await ctx.answerCallbackQuery({
+        text: `Thank you! €${amount} tip added.`,
+      });
       try {
         await ctx.editMessageText(
           `🍳 Thank you! *€${amount}* tip for the chef.\nYour tab: *€${total.toFixed(2)}*`,
@@ -414,6 +429,179 @@ export class TelegramChannel implements Channel {
         );
       } catch {
         // Message may be too old to edit
+      }
+    });
+
+    // --- Laundry system (local, no containers) ---
+
+    const buildLaundryMenu = (userId: string): { text: string; kb: InlineKeyboard } => {
+      const activeLoads = getActiveLoads(userId);
+      const kb = new InlineKeyboard()
+        .text(`New load €${LAUNDRY_PRICE}`, 'laundry:new')
+        .text('Join a load', 'laundry:join_prompt');
+
+      let text = '';
+      if (activeLoads.length > 0) {
+        const lines = activeLoads.map((l) => {
+          const split = l.memberCount > 1 ? ` (${l.memberCount}-way split)` : '';
+          return `• *${l.loadId}*: €${l.shareEach.toFixed(2)}${split}`;
+        });
+        text = `🧺 Your active loads:\n${lines.join('\n')}\n\n`;
+        for (const load of activeLoads) {
+          kb.row();
+          if (load.memberCount === 1) {
+            kb.text(`Cancel ${load.loadId}`, `laundry:cancel:${load.loadId}`);
+          } else {
+            kb.text(`Leave ${load.loadId}`, `laundry:leave:${load.loadId}`);
+          }
+        }
+      } else {
+        text = `🧺 *Laundry* — €${LAUNDRY_PRICE} per load\n`;
+      }
+      return { text, kb };
+    };
+
+    this.bot.command('laundry', async (ctx) => {
+      if (!isPurchaseEnabled()) {
+        await ctx.reply(PURCHASE_DISABLED);
+        return;
+      }
+      if (!isPurchaseAllowed(ctx)) {
+        await ctx.reply(PURCHASE_REDIRECT);
+        return;
+      }
+
+      const userId = ctx.from?.id?.toString() || '';
+      const userName = ctx.from?.first_name || ctx.from?.username || userId;
+      const arg = (ctx.match?.toString() || '').trim().toUpperCase();
+      const chatJid = `tg:${ctx.chat.id}`;
+
+      if (arg && /^L\d+$/.test(arg)) {
+        const result = joinLoad(arg, chatJid, userId, userName);
+        if (!result.success) {
+          await ctx.reply(result.error!);
+          return;
+        }
+
+        const kb = new InlineKeyboard().text('Leave load', `laundry:leave:${arg}`);
+        await ctx.reply(
+          `🧺 Joined *${arg}* — €${result.shareEach.toFixed(2)} each (${result.memberCount} people).`,
+          { reply_markup: kb, parse_mode: 'Markdown' },
+        );
+
+        for (const member of result.existingMembers) {
+          try {
+            await sendTelegramMessage(
+              this.bot!.api,
+              member.userId,
+              `🧺 ${userName} joined laundry *${arg}* — €${result.shareEach.toFixed(2)} each (${result.memberCount} people).`,
+            );
+          } catch (err) {
+            logger.warn({ err, userId: member.userId }, 'Failed to DM laundry member');
+          }
+        }
+        return;
+      }
+
+      if (arg) {
+        await ctx.reply('Invalid load ID. Load IDs look like L1, L42.');
+        return;
+      }
+
+      const { text, kb } = buildLaundryMenu(userId);
+      await ctx.reply(text, { reply_markup: kb, parse_mode: 'Markdown' });
+    });
+
+    this.bot.callbackQuery('laundry:new', async (ctx) => {
+      if (!isPurchaseEnabled()) {
+        await ctx.answerCallbackQuery({ text: 'Purchases are not available.' });
+        return;
+      }
+      const userId = ctx.from.id.toString();
+      const userName = ctx.from.first_name || ctx.from.username || userId;
+      const chatJid = `tg:${ctx.callbackQuery.message?.chat.id || ''}`;
+
+      const { loadId } = createLoad(chatJid, userId, userName);
+      const total = getUserTotal(userId);
+
+      await ctx.answerCallbackQuery({ text: `Load ${loadId} created!` });
+      const kb = new InlineKeyboard().text('Cancel load', `laundry:cancel:${loadId}`);
+      try {
+        await ctx.editMessageText(
+          `🧺 Load *${loadId}* started — €${LAUNDRY_PRICE.toFixed(2)} on your tab.\n\nShare with anyone who wants to split: \`/laundry ${loadId}\`\nYour tab: *€${total.toFixed(2)}*`,
+          { reply_markup: kb, parse_mode: 'Markdown' },
+        );
+      } catch {
+        // Message may be too old to edit
+      }
+    });
+
+    this.bot.callbackQuery('laundry:join_prompt', async (ctx) => {
+      await ctx.answerCallbackQuery();
+      try {
+        await ctx.editMessageText(
+          'Type the load ID you were given, e.g. `/laundry L42`',
+          { parse_mode: 'Markdown' },
+        );
+      } catch {
+        // Message may be too old to edit
+      }
+    });
+
+    this.bot.callbackQuery(/^laundry:cancel:(.+)$/, async (ctx) => {
+      const loadId = ctx.callbackQuery.data.match(/^laundry:cancel:(.+)$/)![1];
+      const userId = ctx.from.id.toString();
+
+      const result = leaveLoad(loadId, userId);
+      if (!result.success) {
+        await ctx.answerCallbackQuery({ text: result.error! });
+        return;
+      }
+
+      const total = getUserTotal(userId);
+      await ctx.answerCallbackQuery({ text: 'Load cancelled.' });
+      try {
+        await ctx.editMessageText(
+          `🧺 Load *${loadId}* cancelled. €${result.refundAmount.toFixed(2)} refunded.\nYour tab: *€${total.toFixed(2)}*`,
+          { parse_mode: 'Markdown' },
+        );
+      } catch {
+        // Message may be too old to edit
+      }
+    });
+
+    this.bot.callbackQuery(/^laundry:leave:(.+)$/, async (ctx) => {
+      const loadId = ctx.callbackQuery.data.match(/^laundry:leave:(.+)$/)![1];
+      const userId = ctx.from.id.toString();
+
+      const result = leaveLoad(loadId, userId);
+      if (!result.success) {
+        await ctx.answerCallbackQuery({ text: result.error! });
+        return;
+      }
+
+      const total = getUserTotal(userId);
+      await ctx.answerCallbackQuery({ text: 'Left load.' });
+      try {
+        await ctx.editMessageText(
+          `🧺 Left load *${loadId}*. €${result.refundAmount.toFixed(2)} refunded.\nYour tab: *€${total.toFixed(2)}*`,
+          { parse_mode: 'Markdown' },
+        );
+      } catch {
+        // Message may be too old to edit
+      }
+
+      for (const member of result.remainingMembers) {
+        try {
+          const count = result.remainingMembers.length;
+          await sendTelegramMessage(
+            this.bot!.api,
+            member.userId,
+            `🧺 Someone left laundry *${loadId}* — €${member.newShare.toFixed(2)} each (${count} ${count === 1 ? 'person' : 'people'}).`,
+          );
+        } catch (err) {
+          logger.warn({ err, userId: member.userId }, 'Failed to DM laundry member');
+        }
       }
     });
 
@@ -673,6 +861,16 @@ export class TelegramChannel implements Channel {
             reply_markup: kb,
             parse_mode: 'Markdown',
           });
+          break;
+        }
+        case 'laundry': {
+          if (!isPurchaseEnabled()) {
+            await ctx.reply(PURCHASE_DISABLED);
+            break;
+          }
+          const userId = ctx.from?.id?.toString() || '';
+          const { text, kb } = buildLaundryMenu(userId);
+          await ctx.reply(text, { reply_markup: kb, parse_mode: 'Markdown' });
           break;
         }
         case 'tab': {
