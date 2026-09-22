@@ -18,6 +18,7 @@ import {
 } from '../subscriptions.js';
 import {
   cancelLastPurchase,
+  getTodayOrdersByItem,
   getUserPurchases,
   getUserTotal,
   isAnyPurchaseTopic,
@@ -206,6 +207,12 @@ export class TelegramChannel implements Channel {
       {
         command: 'laundry',
         description: 'Laundry (€5, split with others)',
+        local: true,
+        featureGate: 'purchase',
+      },
+      {
+        command: 'bbq_orders',
+        description: 'BBQ orders today so far',
         local: true,
         featureGate: 'purchase',
       },
@@ -618,6 +625,36 @@ export class TelegramChannel implements Channel {
           );
         }
       }
+    });
+
+    // --- BBQ orders today (read-only, no topic restriction) ---
+
+    this.bot.command('bbq_orders', async (ctx) => {
+      if (!isPurchaseEnabled()) {
+        await ctx.reply(PURCHASE_DISABLED);
+        return;
+      }
+
+      const prices = loadPrices();
+      const bbqItems = Object.keys(prices?.['bbq'] || {});
+      if (bbqItems.length === 0) {
+        await ctx.reply('No BBQ items configured.');
+        return;
+      }
+
+      const orders = getTodayOrdersByItem(bbqItems);
+      if (orders.length === 0) {
+        await ctx.reply('🍖 No BBQ orders today yet.');
+        return;
+      }
+
+      const lines = orders.map((o) => `${o.item} × ${o.count}`);
+      const totalCount = orders.reduce((s, o) => s + o.count, 0);
+      const totalPrice = orders.reduce((s, o) => s + o.total, 0);
+      await ctx.reply(
+        `🍖 *BBQ orders today so far*\n\n${lines.join('\n')}\n\n${totalCount} orders, €${totalPrice.toFixed(2)} total`,
+        { parse_mode: 'Markdown' },
+      );
     });
 
     // Handle inline keyboard button taps for purchases

@@ -994,6 +994,27 @@ export function getAllPurchases(): Purchase[] {
     .all() as Purchase[];
 }
 
+export function getTodayOrdersByItem(
+  itemNames: string[],
+): Array<{ item: string; count: number; total: number }> {
+  if (itemNames.length === 0) return [];
+  const today = new Date().toISOString().slice(0, 10);
+  const placeholders = itemNames.map(() => '?').join(',');
+  return db
+    .prepare(
+      `SELECT item, COUNT(*) as count, SUM(price) as total
+       FROM purchases
+       WHERE cancelled = 0 AND item IN (${placeholders})
+         AND timestamp >= ? AND timestamp < ?
+       GROUP BY item ORDER BY count DESC`,
+    )
+    .all(...itemNames, `${today}T00:00:00`, `${today}T23:59:59.999`) as Array<{
+    item: string;
+    count: number;
+    total: number;
+  }>;
+}
+
 export function cleanupSimData(): void {
   db.prepare("DELETE FROM messages WHERE chat_jid LIKE 'sim:%'").run();
   db.prepare("DELETE FROM chats WHERE jid LIKE 'sim:%'").run();

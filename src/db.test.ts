@@ -13,6 +13,7 @@ import {
   getRouterState,
   getSession,
   getTaskById,
+  getTodayOrdersByItem,
   isAnyPurchaseTopic,
   isExtractionEnabled,
   isPurchaseTopicForCategory,
@@ -22,6 +23,8 @@ import {
   setTopicExtraction,
   storeChatMetadata,
   storeMessage,
+  cancelLastPurchase,
+  storePurchase,
   updateTask,
   upsertTopic,
 } from './db.js';
@@ -695,5 +698,49 @@ describe('isExtractionEnabled', () => {
     setTopicExtraction(chatJid, 70, true);
     expect(isExtractionEnabled(chatJid, 70)).toBe(true);
     expect(isExtractionEnabled(other, 70)).toBe(false);
+  });
+});
+
+describe('getTodayOrdersByItem', () => {
+  const jid = 'tg:-100test';
+
+  it('returns counts grouped by item for today', () => {
+    storePurchase(jid, 'u1', 'Alice', 'Burger', 4);
+    storePurchase(jid, 'u2', 'Bob', 'Burger', 4);
+    storePurchase(jid, 'u3', 'Charlie', 'Chicken', 5);
+
+    const result = getTodayOrdersByItem(['Burger', 'Chicken']);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual({ item: 'Burger', count: 2, total: 8 });
+    expect(result[1]).toEqual({ item: 'Chicken', count: 1, total: 5 });
+  });
+
+  it('ignores items not in the filter list', () => {
+    storePurchase(jid, 'u1', 'Alice', 'Beer', 1.5);
+    storePurchase(jid, 'u1', 'Alice', 'Burger', 4);
+
+    const result = getTodayOrdersByItem(['Burger']);
+    expect(result).toHaveLength(1);
+    expect(result[0].item).toBe('Burger');
+  });
+
+  it('returns empty for no matching orders', () => {
+    storePurchase(jid, 'u1', 'Alice', 'Beer', 1.5);
+    expect(getTodayOrdersByItem(['Burger'])).toEqual([]);
+  });
+
+  it('returns empty for empty item list', () => {
+    expect(getTodayOrdersByItem([])).toEqual([]);
+  });
+
+  it('excludes cancelled purchases', () => {
+    storePurchase(jid, 'u1', 'Alice', 'Burger', 4);
+    storePurchase(jid, 'u2', 'Bob', 'Burger', 4);
+
+    cancelLastPurchase('u2');
+
+    const result = getTodayOrdersByItem(['Burger']);
+    expect(result).toHaveLength(1);
+    expect(result[0].count).toBe(1);
   });
 });
