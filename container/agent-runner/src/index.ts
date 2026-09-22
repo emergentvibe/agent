@@ -437,13 +437,8 @@ async function runQuery(
         ? { type: 'preset' as const, preset: 'claude_code' as const, append: globalClaudeMd }
         : undefined,
       allowedTools: [
-        'Bash',
         'Read', 'Write', 'Edit', 'Glob', 'Grep',
-        'WebSearch', 'WebFetch',
-        'Task', 'TaskOutput', 'TaskStop',
-        'TeamCreate', 'TeamDelete', 'SendMessage',
         'TodoWrite', 'ToolSearch', 'Skill',
-        'NotebookEdit',
         'mcp__nanoclaw__*',
         // DM containers: search + delete only (privacy wall — nothing in DMs enters shared memory)
         // Both cloud (search_memories, delete_memory) and OpenMemory (search_memory, delete_all_memories, list_memories) names
