@@ -60,9 +60,7 @@ function nextLoadId(): string {
 
 function cancelPurchaseById(purchaseId: number): void {
   const db = _getDb();
-  db.prepare('UPDATE purchases SET cancelled = 1 WHERE id = ?').run(
-    purchaseId,
-  );
+  db.prepare('UPDATE purchases SET cancelled = 1 WHERE id = ?').run(purchaseId);
 }
 
 function assertPurchaseId(id: number): void {
@@ -132,9 +130,7 @@ export function joinLoad(
   if (isExpired(load.created_at)) return fail('Load has expired (>24h).');
 
   const existing = db
-    .prepare(
-      'SELECT * FROM laundry_members WHERE load_id = ? AND user_id = ?',
-    )
+    .prepare('SELECT * FROM laundry_members WHERE load_id = ? AND user_id = ?')
     .get(loadId, userId);
   if (existing) return fail('You are already in this load.');
 
@@ -183,7 +179,10 @@ export function joinLoad(
     ).run(loadId, userId, userName, joinerPurchaseId, now);
   })();
 
-  logger.info({ loadId, userId, memberCount: newCount, shareEach }, 'Joined laundry load');
+  logger.info(
+    { loadId, userId, memberCount: newCount, shareEach },
+    'Joined laundry load',
+  );
   return { success: true, memberCount: newCount, shareEach, existingMembers };
 }
 
@@ -219,12 +218,11 @@ export function leaveLoad(
     .get(loadId) as LoadRow | undefined;
 
   if (!load) return fail('Load not found.');
-  if (isExpired(load.created_at)) return fail('Load has expired (>24h). Charges are final.');
+  if (isExpired(load.created_at))
+    return fail('Load has expired (>24h). Charges are final.');
 
   const leaverRow = db
-    .prepare(
-      'SELECT * FROM laundry_members WHERE load_id = ? AND user_id = ?',
-    )
+    .prepare('SELECT * FROM laundry_members WHERE load_id = ? AND user_id = ?')
     .get(loadId, userId) as MemberRow | undefined;
 
   if (!leaverRow) return fail('You are not in this load.');
@@ -246,7 +244,10 @@ export function leaveLoad(
       db.prepare('DELETE FROM laundry_loads WHERE load_id = ?').run(loadId);
     })();
 
-    logger.info({ loadId, userId }, 'Laundry load cancelled (last member left)');
+    logger.info(
+      { loadId, userId },
+      'Laundry load cancelled (last member left)',
+    );
     return {
       success: true,
       wasLastMember: true,
@@ -255,8 +256,7 @@ export function leaveLoad(
     };
   }
 
-  const newShare =
-    Math.round((LAUNDRY_PRICE / remaining.length) * 100) / 100;
+  const newShare = Math.round((LAUNDRY_PRICE / remaining.length) * 100) / 100;
 
   const remainingResult: Array<{
     userId: string;
@@ -291,7 +291,10 @@ export function leaveLoad(
     }
   })();
 
-  logger.info({ loadId, userId, remainingCount: remaining.length, newShare }, 'Left laundry load');
+  logger.info(
+    { loadId, userId, remainingCount: remaining.length, newShare },
+    'Left laundry load',
+  );
   return {
     success: true,
     wasLastMember: false,
@@ -300,9 +303,7 @@ export function leaveLoad(
   };
 }
 
-export function getActiveLoads(
-  userId: string,
-): Array<{
+export function getActiveLoads(userId: string): Array<{
   loadId: string;
   memberCount: number;
   shareEach: number;

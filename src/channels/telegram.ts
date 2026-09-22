@@ -434,7 +434,9 @@ export class TelegramChannel implements Channel {
 
     // --- Laundry system (local, no containers) ---
 
-    const buildLaundryMenu = (userId: string): { text: string; kb: InlineKeyboard } => {
+    const buildLaundryMenu = (
+      userId: string,
+    ): { text: string; kb: InlineKeyboard } => {
       const activeLoads = getActiveLoads(userId);
       const kb = new InlineKeyboard()
         .text(`New load €${LAUNDRY_PRICE}`, 'laundry:new')
@@ -443,7 +445,8 @@ export class TelegramChannel implements Channel {
       let text = '';
       if (activeLoads.length > 0) {
         const lines = activeLoads.map((l) => {
-          const split = l.memberCount > 1 ? ` (${l.memberCount}-way split)` : '';
+          const split =
+            l.memberCount > 1 ? ` (${l.memberCount}-way split)` : '';
           return `• *${l.loadId}*: €${l.shareEach.toFixed(2)}${split}`;
         });
         text = `🧺 Your active loads:\n${lines.join('\n')}\n\n`;
@@ -483,7 +486,10 @@ export class TelegramChannel implements Channel {
           return;
         }
 
-        const kb = new InlineKeyboard().text('Leave load', `laundry:leave:${arg}`);
+        const kb = new InlineKeyboard().text(
+          'Leave load',
+          `laundry:leave:${arg}`,
+        );
         await ctx.reply(
           `🧺 Joined *${arg}* — €${result.shareEach.toFixed(2)} each (${result.memberCount} people).`,
           { reply_markup: kb, parse_mode: 'Markdown' },
@@ -497,7 +503,10 @@ export class TelegramChannel implements Channel {
               `🧺 ${userName} joined laundry *${arg}* — €${result.shareEach.toFixed(2)} each (${result.memberCount} people).`,
             );
           } catch (err) {
-            logger.warn({ err, userId: member.userId }, 'Failed to DM laundry member');
+            logger.warn(
+              { err, userId: member.userId },
+              'Failed to DM laundry member',
+            );
           }
         }
         return;
@@ -525,7 +534,10 @@ export class TelegramChannel implements Channel {
       const total = getUserTotal(userId);
 
       await ctx.answerCallbackQuery({ text: `Load ${loadId} created!` });
-      const kb = new InlineKeyboard().text('Cancel load', `laundry:cancel:${loadId}`);
+      const kb = new InlineKeyboard().text(
+        'Cancel load',
+        `laundry:cancel:${loadId}`,
+      );
       try {
         await ctx.editMessageText(
           `🧺 Load *${loadId}* started — €${LAUNDRY_PRICE.toFixed(2)} on your tab.\n\nShare with anyone who wants to split: \`/laundry ${loadId}\`\nYour tab: *€${total.toFixed(2)}*`,
@@ -600,7 +612,10 @@ export class TelegramChannel implements Channel {
             `🧺 Someone left laundry *${loadId}* — €${member.newShare.toFixed(2)} each (${count} ${count === 1 ? 'person' : 'people'}).`,
           );
         } catch (err) {
-          logger.warn({ err, userId: member.userId }, 'Failed to DM laundry member');
+          logger.warn(
+            { err, userId: member.userId },
+            'Failed to DM laundry member',
+          );
         }
       }
     });
