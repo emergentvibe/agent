@@ -67,12 +67,19 @@ export function _setClient(mockClient: Anthropic | null): void {
 
 function formatTime(ts: string): string {
   const d = new Date(ts);
-  return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return d.toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
 }
 
 function formatMessagesForExtraction(messages: NewMessage[]): string {
   return messages
-    .map((m) => `[${formatTime(m.timestamp)} ${m.sender_name || m.sender}]: ${m.content}`)
+    .map(
+      (m) =>
+        `[${formatTime(m.timestamp)} ${m.sender_name || m.sender}]: ${m.content}`,
+    )
     .join('\n');
 }
 

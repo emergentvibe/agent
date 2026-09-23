@@ -91,7 +91,10 @@ const MONTH_NAMES_FULL = [
   'December',
 ];
 
-export function buildDatePatterns(dateStr: string, dayNumber: number): string[] {
+export function buildDatePatterns(
+  dateStr: string,
+  dayNumber: number,
+): string[] {
   const d = new Date(dateStr + 'T12:00:00');
   const day = d.getDate();
   const month = d.getMonth();

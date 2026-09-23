@@ -2,10 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 
 import { readEnvFile } from '../env.js';
 import { logger } from '../logger.js';
-import {
-  getFullWeekSchedule,
-  type DaySchedule,
-} from './schedule.js';
+import { getFullWeekSchedule, type DaySchedule } from './schedule.js';
 import {
   getCachedUpdatesForDate,
   type ScheduleUpdate,

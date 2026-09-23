@@ -479,10 +479,7 @@ async function processGroupMessages(chatJid: string): Promise<boolean> {
           /^\[.*?(no response|silence|listening|not respond|casual).*?\]$/is;
         const isSilence =
           silencePattern.test(text) || bracketSilence.test(text);
-        logger.info(
-          { group: group.name, isSilence },
-          `Agent output: ${raw}`,
-        );
+        logger.info({ group: group.name, isSilence }, `Agent output: ${raw}`);
         if (text && !isSilence) {
           try {
             await channel.sendMessage(chatJid, text, {

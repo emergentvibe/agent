@@ -292,7 +292,7 @@ export async function generateRotaPdf(
 
 const FAIRNESS_TEXT =
   '~1.2 hrs/day adjusted for stay length · Never two shifts in one day, never the same job more than twice · ' +
-  "Party-night shifts count double; morning after counts 1.5× · Work a party-night dish shift and the next day is yours · " +
+  'Party-night shifts count double; morning after counts 1.5× · Work a party-night dish shift and the next day is yours · ' +
   "Arrival day is on crew and volunteers. Can't make a shift? DM the bot: /cover";
 
 export async function generateWeeklyRotaPdf(): Promise<

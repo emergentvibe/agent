@@ -38,21 +38,18 @@ export async function qdrantDateScroll(
   patterns: string[],
 ): Promise<QdrantMemory[]> {
   if (!qdrantUrl) return [];
-  const res = await fetch(
-    `${qdrantUrl}/collections/openmemory/points/scroll`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        filter: {
-          must: [{ key: 'user_id', match: { value: userId } }],
-          should: patterns.map((p) => ({ key: 'data', match: { text: p } })),
-        },
-        limit: 100,
-        with_payload: true,
-      }),
-    },
-  );
+  const res = await fetch(`${qdrantUrl}/collections/openmemory/points/scroll`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      filter: {
+        must: [{ key: 'user_id', match: { value: userId } }],
+        should: patterns.map((p) => ({ key: 'data', match: { text: p } })),
+      },
+      limit: 100,
+      with_payload: true,
+    }),
+  });
   if (!res.ok) return [];
   const d = (await res.json()) as {
     result?: {
