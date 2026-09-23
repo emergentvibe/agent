@@ -40,8 +40,6 @@ function localDateStr(d: Date): string {
 
 const DAILY_RHYTHM: ScheduleEvent[] = [
   { time: '09:00', name: 'Breakfast' },
-  { time: '09:30', name: 'Team meeting' },
-  { time: '10:00', name: 'Volunteer meeting' },
   { time: '13:00', name: 'Lunch' },
   { time: '18:00', name: 'Dinner' },
 ];
