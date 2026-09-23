@@ -217,3 +217,200 @@ describe('Extraction prompt: absolute dates', () => {
     expect(prompt).not.toContain('"Workshop at 3pm in the garden today');
   });
 });
+
+describe('Extraction prompt: 24-hour time disambiguation', () => {
+  it('instructs to use 24-hour format', () => {
+    const prompt = buildExtractionPrompt(
+      'Test',
+      'test',
+      [],
+      [makeMessage('Alice', 'workshop at 9')],
+    );
+    expect(prompt).toContain('24-hour times');
+    expect(prompt).toContain('"21:00" not "9pm"');
+  });
+
+  it('tells Haiku to use message timestamps for disambiguation', () => {
+    const prompt = buildExtractionPrompt(
+      'Test',
+      'test',
+      [],
+      [makeMessage('Alice', 'workshop at 9')],
+    );
+    expect(prompt).toContain(
+      'Each message below has a 24-hour timestamp in brackets',
+    );
+  });
+
+  it('limits same-day inference to same-day events only', () => {
+    const prompt = buildExtractionPrompt(
+      'Test',
+      'test',
+      [],
+      [makeMessage('Alice', 'workshop at 9')],
+    );
+    expect(prompt).toContain('ONLY for same-day events');
+  });
+
+  it('defaults future-date bare times to morning', () => {
+    const prompt = buildExtractionPrompt(
+      'Test',
+      'test',
+      [],
+      [makeMessage('Alice', 'tomorrow at 9')],
+    );
+    expect(prompt).toContain(
+      '"tomorrow at 9" or any future date with a bare time defaults to morning (09:00)',
+    );
+  });
+
+  it('overrides future-date morning default with evening context', () => {
+    const prompt = buildExtractionPrompt(
+      'Test',
+      'test',
+      [],
+      [makeMessage('Alice', 'tomorrow evening at 9')],
+    );
+    expect(prompt).toContain('"tomorrow evening at 9" = 21:00');
+  });
+
+  it('handles tonight/this evening as after 17:00', () => {
+    const prompt = buildExtractionPrompt(
+      'Test',
+      'test',
+      [],
+      [makeMessage('Alice', 'jam session tonight')],
+    );
+    expect(prompt).toContain(
+      '"tonight" or "this evening" event is always after 17:00',
+    );
+  });
+
+  it('includes fallback for truly ambiguous times', () => {
+    const prompt = buildExtractionPrompt(
+      'Test',
+      'test',
+      [],
+      [makeMessage('Alice', 'something at 9')],
+    );
+    expect(prompt).toContain('include both possibilities');
+  });
+
+  it('uses 24-hour format in example extractions', () => {
+    const prompt = buildExtractionPrompt(
+      'Test',
+      'test',
+      [],
+      [makeMessage('Alice', 'workshop')],
+    );
+    expect(prompt).toContain('Workshop at 15:00');
+    expect(prompt).toContain('19:00 to 18:30');
+    expect(prompt).toContain('at 20:00');
+    expect(prompt).not.toContain('at 3pm');
+    expect(prompt).not.toContain('from 7pm');
+  });
+
+  it('formats message timestamps in 24-hour for Haiku context', () => {
+    const eveningTs = '2026-09-23T20:15:00.000Z';
+    const prompt = buildExtractionPrompt(
+      'Test',
+      'test',
+      [],
+      [makeMessage('Alice', 'workshop at 9', eveningTs)],
+    );
+    expect(prompt).toMatch(/\[2[0-2]:\d{2} Alice\]/);
+  });
+});
+
+describe('Extraction prompt: Haiku AM/PM accuracy', () => {
+  const HAS_KEY = !!process.env.ANTHROPIC_API_KEY;
+
+  afterEach(() => {
+    _setClient(null);
+  });
+
+  it.skipIf(!HAS_KEY)(
+    'evening post about "at 9" extracts as 21:00',
+    async () => {
+      const eveningTs = new Date();
+      eveningTs.setHours(20, 15, 0, 0);
+
+      const client = mockClient('[]');
+      _setClient(null);
+
+      const result = await extractMemories(
+        [
+          makeMessage(
+            'Val',
+            'Meisner workshop at 9',
+            eveningTs.toISOString(),
+          ),
+        ],
+        [],
+        'test-slug',
+        'Test Group',
+      );
+
+      const texts = result.memories.map((m) => m.text).join(' ');
+      expect(texts).toContain('21:00');
+      expect(texts).not.toContain('09:00');
+    },
+    30000,
+  );
+
+  it.skipIf(!HAS_KEY)(
+    '"tomorrow at 9" extracts as 09:00',
+    async () => {
+      const eveningTs = new Date();
+      eveningTs.setHours(22, 0, 0, 0);
+
+      _setClient(null);
+
+      const result = await extractMemories(
+        [
+          makeMessage(
+            'Alex',
+            'forest walk tomorrow at 9',
+            eveningTs.toISOString(),
+          ),
+        ],
+        [],
+        'test-slug',
+        'Test Group',
+      );
+
+      const texts = result.memories.map((m) => m.text).join(' ');
+      expect(texts).toContain('09:00');
+      expect(texts).not.toContain('21:00');
+    },
+    30000,
+  );
+
+  it.skipIf(!HAS_KEY)(
+    '"tonight at 9" extracts as 21:00',
+    async () => {
+      const afternoonTs = new Date();
+      afternoonTs.setHours(15, 0, 0, 0);
+
+      _setClient(null);
+
+      const result = await extractMemories(
+        [
+          makeMessage(
+            'River',
+            'music jam tonight at 9',
+            afternoonTs.toISOString(),
+          ),
+        ],
+        [],
+        'test-slug',
+        'Test Group',
+      );
+
+      const texts = result.memories.map((m) => m.text).join(' ');
+      expect(texts).toContain('21:00');
+      expect(texts).not.toContain('09:00');
+    },
+    30000,
+  );
+});
