@@ -119,7 +119,7 @@ If a message contains a substantive mention of any of these topics — an event,
 Your output will be stored in a semantic search database for future retrieval.
 Current date and time: ${todayStr}, ${timeStr}.
 Always use absolute dates (e.g., "Thu 25 Sep"), never relative dates like "today", "tonight", "tomorrow", "yesterday".
-Use 24-hour times in all extracted text (e.g., "21:00" not "9pm"). Each message below has a 24-hour timestamp in brackets — use it to disambiguate bare times: if someone posts at 20:15 about something "at 9", that means 21:00, not 09:00. A workshop or social event "tonight" or "this evening" is always after 17:00. Never guess — if you cannot determine AM vs PM, include both possibilities in the text.
+Use 24-hour times in all extracted text (e.g., "21:00" not "9pm"). Each message below has a 24-hour timestamp in brackets — use it to disambiguate bare times, but ONLY for same-day events: if someone posts at 20:15 about something "at 9" today, that means 21:00. But "tomorrow at 9" or any future date with a bare time defaults to morning (09:00) unless context says otherwise (e.g., "tomorrow evening at 9" = 21:00). A "tonight" or "this evening" event is always after 17:00. If you truly cannot determine the time, include both possibilities.
 
 ${contextBlock}## NEW MESSAGES (extract from these only)
 ${formatMessagesForExtraction(newMessages)}
