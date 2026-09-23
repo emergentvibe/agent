@@ -28,10 +28,10 @@ function getDayFromDate(dateStr: string): number {
   return d.getDate();
 }
 
-const SEP_DATE_RE = /\b(\d{1,2})\s+September\b/gi;
+const SEP_DATE_RE = /\b(\d{1,2})\s+Sep(?:tember)?\b/gi;
 const DAY_NUM_RE = /\bday\s+(\d{1,2})\b/gi;
 
-function isDateRelevant(memory: string, targetDay: number): boolean {
+export function isDateRelevant(memory: string, targetDay: number): boolean {
   const mentionedDates = new Set<number>();
   let match;
 
