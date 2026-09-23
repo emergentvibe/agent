@@ -9,7 +9,6 @@ const SCHEDULE_CACHE_INTERVAL = parseInt(
   10,
 );
 
-const SCHEDULE_TOP_N = parseInt(process.env.SCHEDULE_TOP_N || '3', 10);
 const SCHEDULE_FLOOR_SCORE = parseFloat(
   process.env.SCHEDULE_FLOOR_SCORE || '0.25',
 );
@@ -116,9 +115,7 @@ async function refreshForDate(
   for (const query of queries) {
     const results = await searchMemories(query, userId);
     totalReturned += results.length;
-    let taken = 0;
     for (const m of results) {
-      if (taken >= SCHEDULE_TOP_N) break;
       if (seen.has(m.id)) {
         dedupHits++;
         continue;
@@ -133,7 +130,6 @@ async function refreshForDate(
       }
       seen.add(m.id);
       selected.push(m);
-      taken++;
     }
   }
 
