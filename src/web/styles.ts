@@ -892,6 +892,73 @@ body {
   flex-wrap: wrap;
 }
 
+/* ── Crushes ── */
+
+.crush-stats {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  margin: 20px 0;
+}
+
+.crush-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.crush-stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--accent, #c9a87c);
+}
+
+.crush-stat-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  opacity: 0.6;
+}
+
+.crush-leaderboard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 16px 0;
+}
+
+.crush-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 6px;
+}
+
+.crush-rank {
+  font-size: 0.8rem;
+  opacity: 0.4;
+  min-width: 20px;
+}
+
+.crush-name {
+  flex: 1;
+  font-weight: 500;
+}
+
+.crush-count {
+  font-weight: 700;
+  color: var(--accent, #c9a87c);
+}
+
+.crush-footer {
+  text-align: center;
+  font-size: 0.8rem;
+  opacity: 0.5;
+  margin-top: 16px;
+}
+
 /* ── Responsive ── */
 
 @media (min-width: 768px) {

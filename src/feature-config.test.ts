@@ -59,7 +59,7 @@ describe('loadFeatureConfig', () => {
 
 describe('stripDisabledFeatures', () => {
   const allEnabled: typeof DEFAULT_FEATURES = {
-    commands: { purchase: true, subscribe: true, rota: true, governance: true },
+    commands: { purchase: true, subscribe: true, rota: true, governance: true, social: true },
     behaviors: { daily_digest: true, crew_digest: true, web: true },
   };
 
@@ -97,12 +97,13 @@ describe('stripDisabledFeatures', () => {
   });
 
   it('strips multiple sections when multiple features disabled', () => {
-    const features = {
+    const features: typeof DEFAULT_FEATURES = {
       commands: {
         purchase: false,
         subscribe: false,
         rota: true,
         governance: true,
+        social: true,
       },
       behaviors: { daily_digest: true, crew_digest: true, web: false },
     };

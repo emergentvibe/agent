@@ -107,6 +107,7 @@ import {
   rotaGetNoShiftReason,
 } from './rota-db.js';
 import { startRotaReminders, stopRotaReminders } from './rota-reminders.js';
+import { startQuestLoop } from './quests.js';
 import { startScheduleCacheLoop } from './web/schedule-refresh.js';
 import { refreshSynthesis } from './web/schedule-synthesis.js';
 import { startWebServer } from './web/server.js';
@@ -1253,6 +1254,20 @@ export async function main(): Promise<void> {
       await (
         ch as { refreshShiftsBoard: () => Promise<void> }
       ).refreshShiftsBoard();
+    },
+  });
+
+  // Quest delivery loop (random quests DM'd to opted-in users)
+  startQuestLoop({
+    registeredGroups: () => registeredGroups,
+    sendDm: async (userId, text) => {
+      const jid = `tg:${userId}`;
+      const ch = findChannel(channels, jid);
+      if (!ch) {
+        logger.warn({ jid }, 'No channel for quest DM');
+        return;
+      }
+      await ch.sendMessage(jid, text);
     },
   });
 

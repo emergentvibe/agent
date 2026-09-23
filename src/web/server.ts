@@ -15,6 +15,7 @@ import {
   renderMyShifts,
   renderHelp,
   renderKitchen,
+  renderCrushes,
 } from './templates.js';
 import { seedDevData } from './dev-seed.js';
 
@@ -81,6 +82,9 @@ export function startWebServer(port: number): Promise<Server> {
             break;
           case '/kitchen':
             html(res, 200, renderKitchen());
+            break;
+          case '/crushes':
+            html(res, 200, renderCrushes());
             break;
           default:
             html(

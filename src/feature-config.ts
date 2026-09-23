@@ -9,6 +9,7 @@ export interface FeatureConfig {
     subscribe: boolean;
     rota: boolean;
     governance: boolean;
+    social: boolean;
   };
   behaviors: {
     daily_digest: boolean;
@@ -23,6 +24,7 @@ export const DEFAULT_FEATURES: FeatureConfig = {
     subscribe: true,
     rota: false,
     governance: false,
+    social: false,
   },
   behaviors: {
     daily_digest: false,

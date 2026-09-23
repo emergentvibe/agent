@@ -11,6 +11,7 @@ import {
   rotaGetOpenSlots,
 } from '../rota-db.js';
 import { getUserTotal } from '../db.js';
+import { crushGetLeaderboard } from '../crush.js';
 import { CSS } from './styles.js';
 import {
   getTodaySchedule,
@@ -68,6 +69,7 @@ function nav(active: string, openCount: number): string {
     { href: '/', label: 'Today', key: 'today' },
     { href: '/my-shifts', label: 'My Stuff', key: 'my-shifts' },
     { href: '/help', label: 'Lend a Hand', key: 'help' },
+    { href: '/crushes', label: 'Crushes', key: 'crushes' },
   ];
   const links = tabs
     .map((t) => {
@@ -851,4 +853,63 @@ export function renderKitchen(): string {
   <script>setTimeout(function(){ location.reload(); }, 60000);</script>
 </body>
 </html>`;
+}
+
+export function renderCrushes(): string {
+  const openCount = rotaGetOpenSlots().filter(
+    (a) => a.date >= getToday(),
+  ).length;
+  const { totalCrushes, mutualMatches, leaderboard } = crushGetLeaderboard();
+
+  let body: string;
+  if (totalCrushes === 0) {
+    body = `
+    <div class="section">
+      <div class="section-header">
+        <h2>Crushes</h2>
+      </div>
+      <div class="schedule-empty">
+        No crushes yet. Send /crush to the bot in a DM to get started!
+      </div>
+    </div>`;
+  } else {
+    const statsHtml = `
+      <div class="crush-stats">
+        <div class="crush-stat">
+          <span class="crush-stat-value">${totalCrushes}</span>
+          <span class="crush-stat-label">crushes</span>
+        </div>
+        <div class="crush-stat">
+          <span class="crush-stat-value">${mutualMatches}</span>
+          <span class="crush-stat-label">mutual</span>
+        </div>
+      </div>`;
+
+    const rows = leaderboard
+      .map(
+        (entry, i) =>
+          `<div class="crush-row">
+            <span class="crush-rank">${i + 1}</span>
+            <span class="crush-name">${esc(entry.name)}</span>
+            <span class="crush-count">${entry.count}</span>
+          </div>`,
+      )
+      .join('');
+
+    body = `
+    <div class="section">
+      <div class="section-header">
+        <h2>Crushes</h2>
+      </div>
+      ${statsHtml}
+      <div class="crush-leaderboard">
+        ${rows}
+      </div>
+      <div class="crush-footer">
+        Send /crush to the bot in a DM to participate
+      </div>
+    </div>`;
+  }
+
+  return shell('Crushes', body, 'crushes', openCount);
 }

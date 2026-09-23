@@ -52,6 +52,21 @@ import {
   handleCoverDeepLink,
 } from '../rota-commands.js';
 import type { RotaCommandOpts } from '../rota-commands.js';
+import {
+  crushCommandEntries,
+  registerCrushCommands,
+  hasCrushPending,
+  clearCrushPending,
+  handleCrushNameInput,
+} from '../crush.js';
+import type { CrushCommandOpts } from '../crush.js';
+import {
+  questCommandEntries,
+  registerQuestCommands,
+  questOptIn,
+  questIsOptedIn,
+} from '../quests.js';
+import { storeMemory, searchMemories } from '../mem0-client.js';
 import { registerChannel, ChannelOpts } from './registry.js';
 import {
   Channel,
@@ -145,7 +160,7 @@ export class TelegramChannel implements Channel {
       description: string;
       local?: boolean;
       visible?: boolean;
-      featureGate?: 'purchase' | 'subscribe' | 'rota';
+      featureGate?: 'purchase' | 'subscribe' | 'rota' | 'social';
     }> = [
       { command: 'today', description: "Today's events and schedule" },
       { command: 'hello', description: 'Introduce yourself to the community' },
@@ -229,6 +244,14 @@ export class TelegramChannel implements Channel {
         visible: false,
       },
       ...rotaCommandEntries(),
+      ...crushCommandEntries(),
+      ...questCommandEntries(),
+      {
+        command: 'looking_for',
+        description: 'Find people or things',
+        local: true,
+        featureGate: 'social',
+      },
     ];
 
     // Filter commands by feature flags, then register visible ones for Telegram autocomplete.
@@ -855,6 +878,92 @@ export class TelegramChannel implements Channel {
     this.rotaOpts = rotaOpts;
     registerRotaCommands(this.bot, rotaOpts, InlineKeyboard);
 
+    // --- Social commands (crush, quests, looking-for) ---
+    const socialSendDm = async (userId: string, text: string) => {
+      await sendTelegramMessage(this.bot!.api, userId, text);
+    };
+
+    const crushOpts: CrushCommandOpts = {
+      registeredGroups: this.opts.registeredGroups,
+      sendDm: socialSendDm,
+    };
+    registerCrushCommands(this.bot, crushOpts, InlineKeyboard);
+
+    registerQuestCommands(this.bot, {
+      registeredGroups: this.opts.registeredGroups,
+    });
+
+    // /looking_for — store intent in Mem0 + search for matches
+    this.bot.command('looking_for', async (ctx) => {
+      const mainFolder = getMainGroupFolder();
+      if (!mainFolder) return;
+      const features = loadFeatureConfig(mainFolder);
+      if (!features.commands.social) return;
+
+      const arg = (ctx.match?.toString() || '').trim();
+      if (!arg) {
+        await ctx.reply(
+          'What are you looking for? Usage: /looking_for climbing partner',
+        );
+        return;
+      }
+
+      if (ctx.chat.type !== 'private') {
+        await ctx.reply(
+          "I'll search for you — send /looking_for to me in a DM for results.",
+        );
+        return;
+      }
+
+      const senderName =
+        ctx.from?.first_name || ctx.from?.username || 'Someone';
+      const userId = `community:${mainFolder}`;
+
+      try {
+        await storeMemory(
+          `${senderName} is looking for ${arg}`,
+          userId,
+          { type: 'intent', source: senderName, source_context: 'dm' },
+        );
+      } catch (err) {
+        logger.warn({ err }, 'Failed to store looking-for intent');
+      }
+
+      try {
+        const results = await searchMemories(arg, userId);
+        const filtered = results.filter(
+          (r) =>
+            !r.memory.toLowerCase().startsWith(`${senderName.toLowerCase()} is looking for`),
+        );
+
+        if (filtered.length > 0) {
+          const lines = filtered
+            .slice(0, 5)
+            .map((r) => {
+              const source =
+                r.metadata?.source && typeof r.metadata.source === 'string'
+                  ? r.metadata.source
+                  : null;
+              return source
+                ? `• ${source} — ${r.memory}`
+                : `• ${r.memory}`;
+            });
+          await ctx.reply(
+            `Here's what I found:\n${lines.join('\n')}`,
+          );
+        } else {
+          await ctx.reply(
+            "Nobody's mentioned anything like that yet — I'll remember you're looking though.",
+          );
+        }
+      } catch (err) {
+        logger.warn({ err }, 'Failed to search for looking-for matches');
+        await ctx.reply(
+          "I've noted what you're looking for. I'll keep an eye out.",
+        );
+      }
+    });
+
     // /start deep link handler (NFC stickers, DM entry points)
     this.bot.command('start', async (ctx) => {
       const payload = ctx.match?.toString().trim();
@@ -951,6 +1060,27 @@ export class TelegramChannel implements Channel {
             this.opts.registeredGroups,
           );
           break;
+        case 'crush': {
+          const chatJid = `tg:${ctx.chat.id}`;
+          const { setCrushPending } = await import('../crush.js');
+          setCrushPending(chatJid);
+          await ctx.reply("Who's caught your eye? Send me their name.");
+          break;
+        }
+        case 'quests': {
+          const telegramId = ctx.from?.id?.toString() || '';
+          const qName =
+            ctx.from?.first_name || ctx.from?.username || telegramId;
+          if (!questIsOptedIn(telegramId)) {
+            questOptIn(telegramId, qName);
+            await ctx.reply(
+              "You're in! Random quests will appear in your DMs throughout the day. 🎯",
+            );
+          } else {
+            await ctx.reply("You're already signed up for quests! 🎯");
+          }
+          break;
+        }
         default:
           // Handle web auth link tokens
           if (payload.startsWith('link_')) {
@@ -1027,6 +1157,18 @@ export class TelegramChannel implements Channel {
 
       const chatJid = `tg:${ctx.chat.id}`;
       let content = ctx.message.text;
+
+      // Intercept crush name input before forwarding to agent
+      if (
+        hasCrushPending(chatJid) &&
+        ctx.chat.type === 'private' &&
+        !ctx.message.text.startsWith('/')
+      ) {
+        clearCrushPending(chatJid);
+        await handleCrushNameInput(ctx, content, crushOpts, InlineKeyboard);
+        return;
+      }
+
       const timestamp = new Date(ctx.message.date * 1000).toISOString();
       const senderName =
         ctx.from?.first_name ||

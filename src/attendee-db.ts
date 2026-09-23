@@ -348,6 +348,46 @@ export function attendeeClear(): void {
   db.prepare('DELETE FROM attendees').run();
 }
 
+export function attendeeFuzzySearch(query: string): AttendeeRecord[] {
+  const db = _getDb();
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+
+  const seen = new Set<number>();
+  const results: AttendeeRecord[] = [];
+
+  const all = db
+    .prepare('SELECT * FROM attendees ORDER BY name')
+    .all() as Array<Omit<AttendeeRecord, 'checked_in'> & { checked_in: number }>;
+
+  // Pass 1: exact name match (case-insensitive)
+  for (const r of all) {
+    if (r.name.toLowerCase() === q && !seen.has(r.id)) {
+      seen.add(r.id);
+      results.push({ ...r, checked_in: !!r.checked_in });
+    }
+  }
+
+  // Pass 2: first-name prefix match
+  const firstName = q.split(/\s+/)[0];
+  for (const r of all) {
+    if (r.name.toLowerCase().startsWith(firstName) && !seen.has(r.id)) {
+      seen.add(r.id);
+      results.push({ ...r, checked_in: !!r.checked_in });
+    }
+  }
+
+  // Pass 3: substring match anywhere in name
+  for (const r of all) {
+    if (r.name.toLowerCase().includes(q) && !seen.has(r.id)) {
+      seen.add(r.id);
+      results.push({ ...r, checked_in: !!r.checked_in });
+    }
+  }
+
+  return results.slice(0, 4);
+}
+
 export function isAttendeeAdmin(telegramId: string): boolean {
   const db = _getDb();
   const row = db
