@@ -296,6 +296,17 @@ describe('Extraction prompt: 24-hour time disambiguation', () => {
     expect(prompt).toContain('include both possibilities');
   });
 
+  it('provides social event heuristic for bare times', () => {
+    const prompt = buildExtractionPrompt(
+      'Test',
+      'test',
+      [],
+      [makeMessage('Alice', 'workshop at 9')],
+    );
+    expect(prompt).toContain('workshops, jam sessions, movie nights');
+    expect(prompt).toContain('almost always evening (21:00)');
+  });
+
   it('uses 24-hour format in example extractions', () => {
     const prompt = buildExtractionPrompt(
       'Test',
@@ -322,95 +333,4 @@ describe('Extraction prompt: 24-hour time disambiguation', () => {
   });
 });
 
-describe('Extraction prompt: Haiku AM/PM accuracy', () => {
-  const HAS_KEY = !!process.env.ANTHROPIC_API_KEY;
-
-  afterEach(() => {
-    _setClient(null);
-  });
-
-  it.skipIf(!HAS_KEY)(
-    'evening post about "at 9" extracts as 21:00',
-    async () => {
-      const eveningTs = new Date();
-      eveningTs.setHours(20, 15, 0, 0);
-
-      const client = mockClient('[]');
-      _setClient(null);
-
-      const result = await extractMemories(
-        [
-          makeMessage(
-            'Val',
-            'Meisner workshop at 9',
-            eveningTs.toISOString(),
-          ),
-        ],
-        [],
-        'test-slug',
-        'Test Group',
-      );
-
-      const texts = result.memories.map((m) => m.text).join(' ');
-      expect(texts).toContain('21:00');
-      expect(texts).not.toContain('09:00');
-    },
-    30000,
-  );
-
-  it.skipIf(!HAS_KEY)(
-    '"tomorrow at 9" extracts as 09:00',
-    async () => {
-      const eveningTs = new Date();
-      eveningTs.setHours(22, 0, 0, 0);
-
-      _setClient(null);
-
-      const result = await extractMemories(
-        [
-          makeMessage(
-            'Alex',
-            'forest walk tomorrow at 9',
-            eveningTs.toISOString(),
-          ),
-        ],
-        [],
-        'test-slug',
-        'Test Group',
-      );
-
-      const texts = result.memories.map((m) => m.text).join(' ');
-      expect(texts).toContain('09:00');
-      expect(texts).not.toContain('21:00');
-    },
-    30000,
-  );
-
-  it.skipIf(!HAS_KEY)(
-    '"tonight at 9" extracts as 21:00',
-    async () => {
-      const afternoonTs = new Date();
-      afternoonTs.setHours(15, 0, 0, 0);
-
-      _setClient(null);
-
-      const result = await extractMemories(
-        [
-          makeMessage(
-            'River',
-            'music jam tonight at 9',
-            afternoonTs.toISOString(),
-          ),
-        ],
-        [],
-        'test-slug',
-        'Test Group',
-      );
-
-      const texts = result.memories.map((m) => m.text).join(' ');
-      expect(texts).toContain('21:00');
-      expect(texts).not.toContain('09:00');
-    },
-    30000,
-  );
-});
+// Real Haiku AM/PM accuracy tests are in extraction-quality.test.ts
