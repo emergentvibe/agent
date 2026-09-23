@@ -88,7 +88,7 @@ export async function localSearchMemories(
   const conn = await getConnection(userId);
   const result = await conn.client.callTool({
     name: 'search_memory',
-    arguments: { query },
+    arguments: { query, top_k: 30 },
   });
 
   const content = result.content as Array<{ type: string; text?: string }>;
