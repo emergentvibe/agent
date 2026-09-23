@@ -69,6 +69,7 @@ function nav(active: string, openCount: number): string {
     { href: '/', label: 'Today', key: 'today' },
     { href: '/my-shifts', label: 'My Stuff', key: 'my-shifts' },
     { href: '/help', label: 'Lend a Hand', key: 'help' },
+    { href: '/kitchen', label: 'Kitchen', key: 'kitchen' },
     { href: '/crushes', label: 'Crushes', key: 'crushes' },
   ];
   const links = tabs
@@ -767,92 +768,170 @@ export function renderHelp(): string {
   return shell('Help Needed', body, 'help', openCount);
 }
 
+// ── Kitchen tab helpers ──
+
+interface KitchenBlock {
+  key: string;
+  label: string;
+  start: string;
+  end: string;
+  assignments: RotaAssignment[];
+}
+
+function groupShiftsByBlock(shifts: RotaAssignment[]): KitchenBlock[] {
+  const map = new Map<string, KitchenBlock>();
+  const order: string[] = [];
+  for (const s of shifts) {
+    if (!map.has(s.block)) {
+      map.set(s.block, {
+        key: s.block,
+        label: s.block_label,
+        start: s.start,
+        end: s.end,
+        assignments: [],
+      });
+      order.push(s.block);
+    }
+    map.get(s.block)!.assignments.push(s);
+  }
+  return order.map((k) => map.get(k)!);
+}
+
+function kitchenHandle(handle: string | null): string {
+  if (!handle) return '';
+  const bare = handle.replace(/^@/, '');
+  return ` <a href="https://t.me/${esc(bare)}" class="kp-handle">@${esc(bare)}</a>`;
+}
+
+function renderPersonLine(a: RotaAssignment): string {
+  if (a.state === 'open') {
+    const wasName = a.original_name
+      ? ` <span class="kp-was">was: ${esc(a.original_name)}</span>`
+      : '';
+    const link =
+      getShiftsTopicLink() || `https://t.me/${TELEGRAM_BOT_USERNAME}`;
+    return `<li class="kp kp-open">
+      <span class="kp-name">⚠ OPEN</span>${wasName}
+      <a href="${esc(link)}" class="btn btn-fire btn-sm">claim</a>
+    </li>`;
+  }
+
+  if (a.state === 'covered') {
+    const covererName = a.current_name || '?';
+    const covererHandle = a.current_telegram;
+    const origName = a.original_name || '?';
+    return `<li class="kp kp-covered">
+      <span class="kp-name">${esc(covererName)}</span>${kitchenHandle(covererHandle)}
+      <span class="synth-badge badge-covered">covering</span>
+      <span class="kp-detail">for ${esc(origName)}</span>
+    </li>`;
+  }
+
+  const name = a.current_name || a.original_name || '?';
+  const handle = a.original_telegram;
+  return `<li class="kp">
+    <span class="kp-name">${esc(name)}</span>${kitchenHandle(handle)}
+  </li>`;
+}
+
+function renderBlockCard(
+  block: KitchenBlock,
+  status: 'now' | 'upcoming' | 'past',
+): string {
+  const statusCls =
+    status === 'now'
+      ? ' kitchen-now'
+      : status === 'past'
+        ? ' kitchen-past'
+        : '';
+  const badge =
+    status === 'now'
+      ? '<span class="kitchen-now-badge">● NOW</span>'
+      : '';
+
+  const people = block.assignments.map(renderPersonLine).join('');
+
+  return `<div class="kitchen-card${statusCls}">
+    <div class="kitchen-card-header">
+      <div class="kitchen-card-title">
+        <span class="kitchen-card-label">${esc(block.label)}</span>
+        ${badge}
+      </div>
+      <span class="kitchen-card-time">${esc(block.start)}–${esc(block.end)}</span>
+    </div>
+    <ul class="kitchen-people">${people}</ul>
+  </div>`;
+}
+
 export function renderKitchen(): string {
   const today = getToday();
-  const shifts = rotaGetByDate(today);
-  const schedule = getTodaySchedule(today);
-  const dayLabel = schedule
-    ? `Day ${schedule.dayNumber}, ${schedule.dayName}`
-    : formatDate(today);
-
+  const openCount = rotaGetOpenSlots().filter((a) => a.date >= today).length;
   const now = new Date();
   const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-  const blocks = new Map<string, RotaAssignment[]>();
-  const blockOrder: string[] = [];
-  for (const s of shifts) {
-    if (!blocks.has(s.block)) {
-      blocks.set(s.block, []);
-      blockOrder.push(s.block);
-    }
-    blocks.get(s.block)!.push(s);
+  const shifts = rotaGetByDate(today);
+  const blocks = groupShiftsByBlock(shifts);
+
+  const nowBlocks: KitchenBlock[] = [];
+  const upcomingBlocks: KitchenBlock[] = [];
+  const pastBlocks: KitchenBlock[] = [];
+
+  for (const block of blocks) {
+    if (block.end <= currentTime) pastBlocks.push(block);
+    else if (block.start <= currentTime) nowBlocks.push(block);
+    else upcomingBlocks.push(block);
   }
 
-  let openCount = 0;
-  const blockCards = blockOrder
-    .map((blockKey) => {
-      const assignments = blocks.get(blockKey)!;
-      const first = assignments[0];
-      const isNow = first.start <= currentTime && first.end > currentTime;
+  let html = '';
 
-      const people = assignments
-        .map((a) => {
-          if (a.state === 'open') {
-            openCount++;
-            return `<li class="open">⚠ OPEN</li>`;
-          }
-          if (a.state === 'covered') {
-            const orig = a.original_name || '?';
-            const curr = a.current_name || '?';
-            return `<li class="covered">${esc(orig)}→${esc(curr)} ✓</li>`;
-          }
-          return `<li>${esc(a.current_name || a.original_name || '?')}</li>`;
-        })
+  if (shifts.length === 0) {
+    html =
+      '<div class="schedule-empty">No shifts today.</div>';
+  } else {
+    if (nowBlocks.length > 0) {
+      html += '<div class="section-divider"><span>Right Now</span></div>';
+      html += nowBlocks.map((b) => renderBlockCard(b, 'now')).join('');
+    }
+
+    if (upcomingBlocks.length > 0) {
+      html += '<div class="section-divider"><span>Up Next</span></div>';
+      html += upcomingBlocks
+        .map((b) => renderBlockCard(b, 'upcoming'))
         .join('');
+    }
 
-      const nowBadge = isNow ? `<div class="now-badge">● NOW</div>` : '';
-      const nowClass = isNow ? ' now' : '';
+    if (pastBlocks.length > 0) {
+      html += '<div class="section-divider"><span>Done</span></div>';
+      html += pastBlocks.map((b) => renderBlockCard(b, 'past')).join('');
+    }
 
-      return `<div class="kitchen-block${nowClass}">
-        <div class="block-time">${esc(first.start)}–${esc(first.end)}</div>
-        <div class="block-label">${esc(first.block_label)}</div>
-        <ul class="block-people">${people}</ul>
-        ${nowBadge}
-      </div>`;
-    })
-    .join('');
+    const onShift = shifts.filter((s) => s.state !== 'open').length;
+    const openSlots = shifts.filter((s) => s.state === 'open').length;
+    const parts: string[] = [`${onShift} on shift`];
+    if (openSlots > 0)
+      parts.push(
+        `${openSlots} open slot${openSlots === 1 ? '' : 's'}`,
+      );
+    html += `<div class="kitchen-summary">${parts.join(' · ')}</div>`;
+  }
 
-  const summaryParts: string[] = [];
-  if (openCount > 0)
-    summaryParts.push(
-      `${openCount} shift${openCount === 1 ? '' : 's'} need${openCount === 1 ? 's' : ''} help`,
-    );
-  if (shifts.length - openCount > 0)
-    summaryParts.push(`${shifts.length - openCount} covered`);
-  const summary = summaryParts.join(' · ') || 'No shifts today';
+  const tomorrow = addDays(today, 1);
+  const tomorrowShifts = rotaGetByDate(tomorrow);
+  if (tomorrowShifts.length > 0) {
+    const tomorrowBlocks = groupShiftsByBlock(tomorrowShifts);
+    html += `<div class="section-divider"><span>Tomorrow · ${esc(formatDate(tomorrow))}</span></div>`;
+    html += tomorrowBlocks
+      .map((b) => renderBlockCard(b, 'upcoming'))
+      .join('');
+  }
 
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Kitchen — TREEWEEK III</title>
-  <style>${CSS}</style>
-</head>
-<body>
-  <div class="kitchen-page">
-    <div class="kitchen-header">
-      <h1>TREEWEEK III</h1>
-      <span class="meta">${esc(dayLabel)} · ↻ auto 60s</span>
-    </div>
-    <div class="kitchen-grid">
-      ${blockCards || '<div class="schedule-empty">No shifts today.</div>'}
-    </div>
-    <div class="kitchen-summary">${summary}</div>
-  </div>
-  <script>setTimeout(function(){ location.reload(); }, 60000);</script>
-</body>
-</html>`;
+  const body = `
+    ${header(today)}
+    ${html}
+    <div class="refresh-note">↻ auto-refreshes every 60s</div>
+    <script>setTimeout(function(){ location.reload(); }, 60000);</script>
+  `;
+  return shell('Kitchen', body, 'kitchen', openCount);
 }
 
 export function renderCrushes(): string {

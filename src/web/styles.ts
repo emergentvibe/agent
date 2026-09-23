@@ -440,101 +440,118 @@ body {
   padding: 0 4px;
 }
 
-/* ── Kitchen display ── */
+/* ── Kitchen tab ── */
 
-.kitchen-page {
-  background: var(--ground);
-  min-height: 100dvh;
-  padding: 24px;
+.kitchen-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: 0 6px 6px 0;
+  padding: 10px 12px;
+  margin-bottom: 8px;
 }
 
-.kitchen-header {
+.kitchen-card.kitchen-now {
+  border-left-color: var(--fire);
+  box-shadow: 0 0 8px rgba(45, 90, 39, 0.18);
+}
+
+.kitchen-card.kitchen-past {
+  opacity: 0.4;
+}
+
+.kitchen-card-header {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin-bottom: 24px;
+  margin-bottom: 6px;
 }
 
-.kitchen-header h1 {
-  font-size: 20px;
+.kitchen-card-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.kitchen-card-label {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.kitchen-card-time {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--fire-glow);
+  flex-shrink: 0;
+}
+
+.kitchen-now-badge {
+  font-size: 10px;
   font-weight: 700;
   color: var(--fire);
-  text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 
-.kitchen-header .meta {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  color: var(--ink-muted);
-}
-
-.kitchen-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 16px;
-}
-
-.kitchen-block {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 16px;
-  min-height: 160px;
-}
-
-.kitchen-block.now {
-  border-color: var(--fire);
-  box-shadow: 0 0 12px rgba(45, 90, 39, 0.2);
-}
-
-.kitchen-block .block-time {
-  font-family: var(--font-mono);
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--fire-glow);
-}
-
-.kitchen-block .block-label {
-  font-size: 18px;
-  font-weight: 700;
-  text-transform: uppercase;
-  margin-top: 4px;
-  letter-spacing: 0.04em;
-}
-
-.kitchen-block .block-people {
-  margin-top: 12px;
+.kitchen-people {
   list-style: none;
 }
 
-.kitchen-block .block-people li {
-  font-size: 16px;
+.kp {
   padding: 3px 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
 }
 
-.kitchen-block .block-people .open {
+.kp-name {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.kp-handle {
+  font-size: 12px;
+  color: var(--ink-muted);
+  text-decoration: none;
+  font-family: var(--font-mono);
+}
+
+.kp-handle:hover {
+  color: var(--fire);
+}
+
+.kp-open .kp-name {
   color: var(--open-red);
   font-weight: 700;
 }
 
-.kitchen-block .block-people .covered {
+.kp-covered .kp-name {
   color: var(--covered-green);
 }
 
-.kitchen-block .now-badge {
-  display: inline-block;
+.kp-detail {
+  font-size: 12px;
+  color: var(--ink-muted);
+  width: 100%;
+  padding-left: 2px;
+}
+
+.kp-was {
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.btn-sm {
+  padding: 2px 8px;
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--fire);
-  margin-top: 8px;
+  margin-top: 0;
 }
 
 .kitchen-summary {
-  margin-top: 24px;
-  font-size: 15px;
+  margin-top: 12px;
+  font-size: 13px;
   color: var(--ink-muted);
   text-align: center;
 }
