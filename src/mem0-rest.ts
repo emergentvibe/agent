@@ -1,25 +1,74 @@
 /**
- * REST client for OpenMemory's /api/v1 endpoints.
+ * REST client for OpenMemory's /api/v1 endpoints + Qdrant direct access.
  *
  * Used for store operations where we need `infer: false` to bypass
  * OpenMemory's internal LLM extraction. The MCP interface doesn't
  * expose this param, so we hit the REST API directly.
  *
- * Search stays on MCP (semantic search with scores works well there).
+ * Also provides a Qdrant scroll path for bulk memory retrieval —
+ * the MCP search_memory tool is hardcoded to 10 results, so schedule
+ * refresh uses Qdrant directly to get ALL memories and filters on host.
  */
 import { logger } from './logger.js';
 
 const APP_NAME = 'nanoclaw';
 
 let baseUrl: string | null = null;
+let qdrantUrl: string | null = null;
 
 export function initMem0Rest(url: string): void {
   baseUrl = url;
-  logger.info({ baseUrl }, 'Mem0 REST client configured (infer=false)');
+  const parsed = new URL(url);
+  qdrantUrl = `${parsed.protocol}//${parsed.hostname}:6333`;
+  logger.info({ baseUrl, qdrantUrl }, 'Mem0 REST client configured');
 }
 
 export function isRestReady(): boolean {
   return baseUrl !== null;
+}
+
+export interface QdrantMemory {
+  id: string;
+  memory: string;
+  created_at?: string;
+}
+
+export async function qdrantDateScroll(
+  userId: string,
+  patterns: string[],
+): Promise<QdrantMemory[]> {
+  if (!qdrantUrl) return [];
+  const res = await fetch(
+    `${qdrantUrl}/collections/openmemory/points/scroll`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        filter: {
+          must: [{ key: 'user_id', match: { value: userId } }],
+          should: patterns.map((p) => ({ key: 'data', match: { text: p } })),
+        },
+        limit: 100,
+        with_payload: true,
+      }),
+    },
+  );
+  if (!res.ok) return [];
+  const d = (await res.json()) as {
+    result?: {
+      points?: {
+        id: string;
+        payload?: { data?: string; created_at?: string };
+      }[];
+    };
+  };
+  return (
+    d.result?.points?.map((p) => ({
+      id: p.id,
+      memory: p.payload?.data ?? '',
+      created_at: p.payload?.created_at,
+    })) ?? []
+  );
 }
 
 export async function restStoreMemory(

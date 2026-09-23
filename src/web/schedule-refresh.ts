@@ -1,6 +1,7 @@
 import { getToday } from '../config.js';
 import { logger } from '../logger.js';
 import { searchMemories, type Mem0Memory } from '../mem0-client.js';
+import { qdrantDateScroll } from '../mem0-rest.js';
 import { getFullWeekSchedule } from './schedule.js';
 import type { RegisteredGroup } from '../types.js';
 
@@ -61,6 +62,49 @@ export function buildScheduleQueries(dateStr: string): string[] {
   ];
 }
 
+const MONTH_NAMES_SHORT = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+const MONTH_NAMES_FULL = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+
+export function buildDatePatterns(dateStr: string, dayNumber: number): string[] {
+  const d = new Date(dateStr + 'T12:00:00');
+  const day = d.getDate();
+  const month = d.getMonth();
+  const patterns = [
+    `${day} ${MONTH_NAMES_SHORT[month]}`,
+    `${day} ${MONTH_NAMES_FULL[month]}`,
+  ];
+  if (dayNumber >= 1 && dayNumber <= 8) {
+    patterns.push(`Day ${dayNumber}`);
+  }
+  return patterns;
+}
+
 export interface ScheduleUpdate {
   memory: string;
   source?: string;
@@ -102,6 +146,7 @@ export interface ScheduleCacheDeps {
 async function refreshForDate(
   dateStr: string,
   targetDay: number,
+  dayNumber: number,
   userId: string,
 ): Promise<ScheduleUpdate[]> {
   const queries = buildScheduleQueries(dateStr);
@@ -134,6 +179,22 @@ async function refreshForDate(
     }
   }
 
+  const patterns = buildDatePatterns(dateStr, dayNumber);
+  const qdrantResults = await qdrantDateScroll(userId, patterns);
+  let qdrantAdded = 0;
+  for (const qm of qdrantResults) {
+    if (seen.has(qm.id)) continue;
+    if (!isDateRelevant(qm.memory, targetDay)) continue;
+    seen.add(qm.id);
+    selected.push({
+      id: qm.id,
+      memory: qm.memory,
+      user_id: userId,
+      created_at: qm.created_at,
+    });
+    qdrantAdded++;
+  }
+
   logger.info(
     {
       date: dateStr,
@@ -142,6 +203,7 @@ async function refreshForDate(
       dedupHits,
       belowFloor,
       wrongDate,
+      qdrantAdded,
       targetDay,
     },
     'SCHEDULE_CACHE: selection summary',
@@ -173,7 +235,12 @@ export async function refreshScheduleCache(
 
     for (const day of week) {
       const targetDay = getDayFromDate(day.date);
-      const updates = await refreshForDate(day.date, targetDay, userId);
+      const updates = await refreshForDate(
+        day.date,
+        targetDay,
+        day.dayNumber,
+        userId,
+      );
       cachedUpdatesByDate.set(day.date, updates);
     }
 
