@@ -57,6 +57,7 @@ export function buildScheduleQueries(dateStr: string): string[] {
     `meal times schedule changes ${label}`,
     `events cancelled or moved ${label}`,
     `what is happening ${label} activities events`,
+    `community workshops sessions proposals ${label}`,
   ];
 }
 
