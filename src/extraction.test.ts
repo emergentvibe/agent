@@ -189,7 +189,7 @@ describe('Extraction prompt: absolute dates', () => {
       [],
       [makeMessage('Alice', 'Dinner moved to 6pm')],
     );
-    expect(prompt).toMatch(/Current date: \w+, \d+ \w+ \d{4}/);
+    expect(prompt).toMatch(/Current date and time: \w+, \d+ \w+ \d{4}/);
   });
 
   it('instructs never to use relative dates', () => {

@@ -119,7 +119,7 @@ If a message contains a substantive mention of any of these topics — an event,
 Your output will be stored in a semantic search database for future retrieval.
 Current date and time: ${todayStr}, ${timeStr}.
 Always use absolute dates (e.g., "Thu 25 Sep"), never relative dates like "today", "tonight", "tomorrow", "yesterday".
-When a time is mentioned without AM/PM, infer from when the message was posted: evening posts about "11:30" likely mean 11:30pm tonight, morning posts likely mean AM. Always include AM/PM in extracted times.
+Use 24-hour times in all extracted text (e.g., "21:00" not "9pm"). Each message below has a 24-hour timestamp in brackets — use it to disambiguate bare times: if someone posts at 20:15 about something "at 9", that means 21:00, not 09:00. A workshop or social event "tonight" or "this evening" is always after 17:00. Never guess — if you cannot determine AM vs PM, include both possibilities in the text.
 
 ${contextBlock}## NEW MESSAGES (extract from these only)
 ${formatMessagesForExtraction(newMessages)}
@@ -127,18 +127,18 @@ ${formatMessagesForExtraction(newMessages)}
 ## What to extract
 
 EVENT/ACTIVITY ANNOUNCEMENTS — workshops, gatherings, scheduled activities:
-- "Workshop at 3pm in the garden on Thu 25 Sep (announced by Alex)"
-- Write complete, search-friendly sentences with absolute dates
+- "Workshop at 15:00 in the garden on Thu 25 Sep (announced by Alex)"
+- Write complete, search-friendly sentences with absolute dates and 24-hour times
 
 SCHEDULE CHANGES — times, venues, cancellations:
-- When something CHANGES, include what changed: "Dinner moved from 7pm to 6:30pm on Thu 25 Sep (updated by Alex)"
+- When something CHANGES, include what changed: "Dinner moved from 19:00 to 18:30 on Thu 25 Sep (updated by Alex)"
 
 FACILITY STATUS — infrastructure that affects everyone:
 - "Hot water is out in building B (reported by River)"
 - "Wifi password changed to oak2026 (announced by Jordan)"
 
 ACTIVITY PROPOSALS — things people want to organize:
-- "Alex proposed a music jam on Thu 25 Sep evening in the barn"
+- "Alex proposed a music jam at 20:00 on Thu 25 Sep in the barn"
 
 PATTERNS — when 2+ people propose the same activity:
 - "Multiple people (Alex, Priya, River) expressed interest in morning lake swimming"
