@@ -65,9 +65,14 @@ export function _setClient(mockClient: Anthropic | null): void {
   client = mockClient;
 }
 
+function formatTime(ts: string): string {
+  const d = new Date(ts);
+  return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
 function formatMessagesForExtraction(messages: NewMessage[]): string {
   return messages
-    .map((m) => `[${m.sender_name || m.sender}]: ${m.content}`)
+    .map((m) => `[${formatTime(m.timestamp)} ${m.sender_name || m.sender}]: ${m.content}`)
     .join('\n');
 }
 
@@ -97,11 +102,17 @@ If a message contains a substantive mention of any of these topics — an event,
     month: 'long',
     year: 'numeric',
   });
+  const timeStr = now.toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
 
   return `You extract event and activity information from group chat messages for "${groupName}".
 Your output will be stored in a semantic search database for future retrieval.
-Current date: ${todayStr}.
+Current date and time: ${todayStr}, ${timeStr}.
 Always use absolute dates (e.g., "Thu 25 Sep"), never relative dates like "today", "tonight", "tomorrow", "yesterday".
+When a time is mentioned without AM/PM, infer from when the message was posted: evening posts about "11:30" likely mean 11:30pm tonight, morning posts likely mean AM. Always include AM/PM in extracted times.
 
 ${contextBlock}## NEW MESSAGES (extract from these only)
 ${formatMessagesForExtraction(newMessages)}
