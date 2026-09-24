@@ -77,6 +77,22 @@ export function crushStore(
   }
 }
 
+export function crushRemove(
+  crusherTelegramId: string,
+): { removed: boolean; crusheeName: string | null } {
+  const db = _getDb();
+  const existing = db
+    .prepare(
+      'SELECT crushee_name FROM crushes WHERE crusher_telegram_id = ? ORDER BY id DESC LIMIT 1',
+    )
+    .get(crusherTelegramId) as { crushee_name: string } | undefined;
+  if (!existing) return { removed: false, crusheeName: null };
+  db.prepare(
+    'DELETE FROM crushes WHERE crusher_telegram_id = ?',
+  ).run(crusherTelegramId);
+  return { removed: true, crusheeName: existing.crushee_name };
+}
+
 export function crushCheckMutual(
   crusherTelegramId: string,
   crusheeAttendeeId: number,
@@ -95,9 +111,7 @@ export function crushCheckMutual(
     .prepare(
       'SELECT id FROM crushes WHERE crusher_telegram_id = ? AND crushee_attendee_id = ?',
     )
-    .get(crushee.telegram_id, crusherAttendee.id) as
-    | { id: number }
-    | undefined;
+    .get(crushee.telegram_id, crusherAttendee.id) as { id: number } | undefined;
 
   return reverse
     ? { mutual: true, otherTelegramId: crushee.telegram_id }
@@ -146,9 +160,7 @@ export interface CrushCommandOpts {
   sendDm: (userId: string, text: string) => Promise<void>;
 }
 
-function isSocialEnabled(
-  groups: Record<string, RegisteredGroup>,
-): boolean {
+function isSocialEnabled(groups: Record<string, RegisteredGroup>): boolean {
   const mainGroup = Object.values(groups).find((g) => g.isMain);
   if (!mainGroup) return false;
   return loadFeatureConfig(mainGroup.folder).commands.social;
@@ -180,9 +192,19 @@ export function registerCrushCommands(
     if (!isSocialEnabled(opts.registeredGroups())) return;
 
     if (ctx.chat.type !== 'private') {
-      await ctx.reply(
-        "This one's a DM thing — send /crush to me privately 😏",
-      );
+      await ctx.reply("This one's a DM thing — send /crush to me privately 😏");
+      return;
+    }
+
+    const arg = (ctx.match?.toString() || '').trim().toLowerCase();
+    if (arg === 'undo') {
+      const telegramId = ctx.from?.id?.toString() || '';
+      const result = crushRemove(telegramId);
+      if (result.removed) {
+        await ctx.reply(`Crush on ${result.crusheeName} removed.`);
+      } else {
+        await ctx.reply("You don't have any crushes to undo.");
+      }
       return;
     }
 
@@ -233,9 +255,9 @@ async function handleCrushConfirm(
   }
 
   const db = _getDb();
-  const crushee = db.prepare('SELECT name FROM attendees WHERE id = ?').get(attendeeId) as
-    | { name: string }
-    | undefined;
+  const crushee = db
+    .prepare('SELECT name FROM attendees WHERE id = ?')
+    .get(attendeeId) as { name: string } | undefined;
 
   if (!crushee) {
     await ctx.answerCallbackQuery({
@@ -279,12 +301,17 @@ async function handleCrushConfirm(
         `It's mutual! You and *${crusherName}* both crushed on each other. 💫`,
       );
     } catch (err) {
-      logger.warn({ err, userId: mutual.otherTelegramId }, 'Failed to DM mutual crush');
+      logger.warn(
+        { err, userId: mutual.otherTelegramId },
+        'Failed to DM mutual crush',
+      );
     }
   } else {
     await ctx.answerCallbackQuery({ text: 'Got it!' });
     try {
-      await ctx.editMessageText("Got it — I'll keep it between us.");
+      await ctx.editMessageText(
+        "Got it — I'll keep it between us.\n\nChanged your mind? /crush undo",
+      );
     } catch {}
   }
 
@@ -313,7 +340,11 @@ export async function handleCrushNameInput(
     (m) => !selfAttendee || m.id !== selfAttendee.id,
   );
 
-  if (filtered.length === 0 && matches.length > 0 && matches[0].id === selfAttendee?.id) {
+  if (
+    filtered.length === 0 &&
+    matches.length > 0 &&
+    matches[0].id === selfAttendee?.id
+  ) {
     await ctx.reply(
       "You're great, but that's not how this works. Try /crush again with someone else.",
     );
@@ -321,9 +352,7 @@ export async function handleCrushNameInput(
   }
 
   if (filtered.length === 0) {
-    await ctx.reply(
-      "I don't know anyone by that name. Try /crush again?",
-    );
+    await ctx.reply("I don't know anyone by that name. Try /crush again?");
     return;
   }
 

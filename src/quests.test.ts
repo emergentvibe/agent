@@ -3,7 +3,13 @@ import { _initTestDatabase } from './db.js';
 
 vi.mock('./feature-config.js', () => ({
   loadFeatureConfig: () => ({
-    commands: { purchase: false, subscribe: false, rota: false, governance: false, social: true },
+    commands: {
+      purchase: false,
+      subscribe: false,
+      rota: false,
+      governance: false,
+      social: true,
+    },
     behaviors: { daily_digest: false, crew_digest: false, web: false },
   }),
 }));

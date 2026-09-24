@@ -171,7 +171,12 @@ describe.skipIf(!HAS_API_KEY)('extraction quality (real Haiku)', () => {
   }, 30_000);
 });
 
-function msgAt(sender: string, content: string, hour: number, minute = 0): NewMessage {
+function msgAt(
+  sender: string,
+  content: string,
+  hour: number,
+  minute = 0,
+): NewMessage {
   const ts = new Date();
   ts.setHours(hour, minute, 0, 0);
   return {
@@ -185,119 +190,122 @@ function msgAt(sender: string, content: string, hour: number, minute = 0): NewMe
   };
 }
 
-describe.skipIf(!HAS_API_KEY)('extraction: time disambiguation (real Haiku)', () => {
-  afterAll(() => _setClient(null));
+describe.skipIf(!HAS_API_KEY)(
+  'extraction: time disambiguation (real Haiku)',
+  () => {
+    afterAll(() => _setClient(null));
 
-  it('evening post about "at 9" → 21:00 (the Meisner bug)', async () => {
-    const result = await extractMemories(
-      [msgAt('Val', 'Meisner workshop at 9', 12, 55)],
-      [],
-      'eq-time',
-      'Treeweek III',
-    );
-    expect(result.memories.length).toBeGreaterThanOrEqual(1);
-    const texts = result.memories.map((m) => m.text).join(' ');
-    expect(texts).toMatch(/21:00|21\.00/);
-    expect(texts).not.toMatch(/\b09:00\b/);
-  }, 30_000);
+    it('evening post about "at 9" → 21:00 (the Meisner bug)', async () => {
+      const result = await extractMemories(
+        [msgAt('Val', 'Meisner workshop at 9', 12, 55)],
+        [],
+        'eq-time',
+        'Treeweek III',
+      );
+      expect(result.memories.length).toBeGreaterThanOrEqual(1);
+      const texts = result.memories.map((m) => m.text).join(' ');
+      expect(texts).toMatch(/21:00|21\.00/);
+      expect(texts).not.toMatch(/\b09:00\b/);
+    }, 30_000);
 
-  it('night post about "at 9" → 21:00', async () => {
-    const result = await extractMemories(
-      [msgAt('Leo', 'jam session at 9 in the barn', 20, 30)],
-      [],
-      'eq-time',
-      'Treeweek III',
-    );
-    expect(result.memories.length).toBeGreaterThanOrEqual(1);
-    const texts = result.memories.map((m) => m.text).join(' ');
-    expect(texts).toMatch(/21:00|21\.00/);
-  }, 30_000);
+    it('night post about "at 9" → 21:00', async () => {
+      const result = await extractMemories(
+        [msgAt('Leo', 'jam session at 9 in the barn', 20, 30)],
+        [],
+        'eq-time',
+        'Treeweek III',
+      );
+      expect(result.memories.length).toBeGreaterThanOrEqual(1);
+      const texts = result.memories.map((m) => m.text).join(' ');
+      expect(texts).toMatch(/21:00|21\.00/);
+    }, 30_000);
 
-  it('morning post about "at 9" → 09:00', async () => {
-    const result = await extractMemories(
-      [msgAt('Jordan', 'yoga starts at 9 on the meadow', 7, 30)],
-      [],
-      'eq-time',
-      'Treeweek III',
-    );
-    expect(result.memories.length).toBeGreaterThanOrEqual(1);
-    const texts = result.memories.map((m) => m.text).join(' ');
-    expect(texts).toMatch(/09:00|9:00/);
-    expect(texts).not.toMatch(/21:00/);
-  }, 30_000);
+    it('morning post about "at 9" → 09:00', async () => {
+      const result = await extractMemories(
+        [msgAt('Jordan', 'yoga starts at 9 on the meadow', 7, 30)],
+        [],
+        'eq-time',
+        'Treeweek III',
+      );
+      expect(result.memories.length).toBeGreaterThanOrEqual(1);
+      const texts = result.memories.map((m) => m.text).join(' ');
+      expect(texts).toMatch(/09:00|9:00/);
+      expect(texts).not.toMatch(/21:00/);
+    }, 30_000);
 
-  it('"tomorrow at 9" from evening post → 09:00', async () => {
-    const result = await extractMemories(
-      [msgAt('Alex', 'forest walk tomorrow at 9, meet at the foyer', 21, 0)],
-      [],
-      'eq-time',
-      'Treeweek III',
-    );
-    expect(result.memories.length).toBeGreaterThanOrEqual(1);
-    const texts = result.memories.map((m) => m.text).join(' ');
-    expect(texts).toMatch(/09:00|9:00/);
-    expect(texts).not.toMatch(/21:00/);
-  }, 30_000);
+    it('"tomorrow at 9" from evening post → 09:00', async () => {
+      const result = await extractMemories(
+        [msgAt('Alex', 'forest walk tomorrow at 9, meet at the foyer', 21, 0)],
+        [],
+        'eq-time',
+        'Treeweek III',
+      );
+      expect(result.memories.length).toBeGreaterThanOrEqual(1);
+      const texts = result.memories.map((m) => m.text).join(' ');
+      expect(texts).toMatch(/09:00|9:00/);
+      expect(texts).not.toMatch(/21:00/);
+    }, 30_000);
 
-  it('"tomorrow evening at 9" → 21:00', async () => {
-    const result = await extractMemories(
-      [msgAt('Maya', 'bonfire tomorrow evening at 9 by the lake', 14, 0)],
-      [],
-      'eq-time',
-      'Treeweek III',
-    );
-    expect(result.memories.length).toBeGreaterThanOrEqual(1);
-    const texts = result.memories.map((m) => m.text).join(' ');
-    expect(texts).toMatch(/21:00|21\.00/);
-  }, 30_000);
+    it('"tomorrow evening at 9" → 21:00', async () => {
+      const result = await extractMemories(
+        [msgAt('Maya', 'bonfire tomorrow evening at 9 by the lake', 14, 0)],
+        [],
+        'eq-time',
+        'Treeweek III',
+      );
+      expect(result.memories.length).toBeGreaterThanOrEqual(1);
+      const texts = result.memories.map((m) => m.text).join(' ');
+      expect(texts).toMatch(/21:00|21\.00/);
+    }, 30_000);
 
-  it('"tonight at 9" from afternoon post → 21:00', async () => {
-    const result = await extractMemories(
-      [msgAt('River', 'movie night tonight at 9 in the barn', 15, 0)],
-      [],
-      'eq-time',
-      'Treeweek III',
-    );
-    expect(result.memories.length).toBeGreaterThanOrEqual(1);
-    const texts = result.memories.map((m) => m.text).join(' ');
-    expect(texts).toMatch(/21:00|21\.00/);
-  }, 30_000);
+    it('"tonight at 9" from afternoon post → 21:00', async () => {
+      const result = await extractMemories(
+        [msgAt('River', 'movie night tonight at 9 in the barn', 15, 0)],
+        [],
+        'eq-time',
+        'Treeweek III',
+      );
+      expect(result.memories.length).toBeGreaterThanOrEqual(1);
+      const texts = result.memories.map((m) => m.text).join(' ');
+      expect(texts).toMatch(/21:00|21\.00/);
+    }, 30_000);
 
-  it('explicit "9pm" → 21:00 regardless of post time', async () => {
-    const result = await extractMemories(
-      [msgAt('Jordan', 'community dinner at 9pm in the main house', 10, 0)],
-      [],
-      'eq-time',
-      'Treeweek III',
-    );
-    expect(result.memories.length).toBeGreaterThanOrEqual(1);
-    const texts = result.memories.map((m) => m.text).join(' ');
-    expect(texts).toMatch(/21:00|21\.00/);
-  }, 30_000);
+    it('explicit "9pm" → 21:00 regardless of post time', async () => {
+      const result = await extractMemories(
+        [msgAt('Jordan', 'community dinner at 9pm in the main house', 10, 0)],
+        [],
+        'eq-time',
+        'Treeweek III',
+      );
+      expect(result.memories.length).toBeGreaterThanOrEqual(1);
+      const texts = result.memories.map((m) => m.text).join(' ');
+      expect(texts).toMatch(/21:00|21\.00/);
+    }, 30_000);
 
-  it('explicit "9am" → 09:00 regardless of post time', async () => {
-    const result = await extractMemories(
-      [msgAt('Maya', 'breakfast buffet opens at 9am', 22, 0)],
-      [],
-      'eq-time',
-      'Treeweek III',
-    );
-    expect(result.memories.length).toBeGreaterThanOrEqual(1);
-    const texts = result.memories.map((m) => m.text).join(' ');
-    expect(texts).toMatch(/09:00|9:00/);
-    expect(texts).not.toMatch(/21:00/);
-  }, 30_000);
+    it('explicit "9am" → 09:00 regardless of post time', async () => {
+      const result = await extractMemories(
+        [msgAt('Maya', 'breakfast buffet opens at 9am', 22, 0)],
+        [],
+        'eq-time',
+        'Treeweek III',
+      );
+      expect(result.memories.length).toBeGreaterThanOrEqual(1);
+      const texts = result.memories.map((m) => m.text).join(' ');
+      expect(texts).toMatch(/09:00|9:00/);
+      expect(texts).not.toMatch(/21:00/);
+    }, 30_000);
 
-  it('uses 24-hour format in output (not AM/PM)', async () => {
-    const result = await extractMemories(
-      [msgAt('Jordan', 'workshop at 3 in the garden', 11, 0)],
-      [],
-      'eq-time',
-      'Treeweek III',
-    );
-    expect(result.memories.length).toBeGreaterThanOrEqual(1);
-    const texts = result.memories.map((m) => m.text).join(' ');
-    expect(texts).toMatch(/15:00|03:00/);
-    expect(texts).not.toMatch(/\bam\b|\bpm\b/i);
-  }, 30_000);
-});
+    it('uses 24-hour format in output (not AM/PM)', async () => {
+      const result = await extractMemories(
+        [msgAt('Jordan', 'workshop at 3 in the garden', 11, 0)],
+        [],
+        'eq-time',
+        'Treeweek III',
+      );
+      expect(result.memories.length).toBeGreaterThanOrEqual(1);
+      const texts = result.memories.map((m) => m.text).join(' ');
+      expect(texts).toMatch(/15:00|03:00/);
+      expect(texts).not.toMatch(/\bam\b|\bpm\b/i);
+    }, 30_000);
+  },
+);

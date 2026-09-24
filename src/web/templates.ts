@@ -70,7 +70,6 @@ function nav(active: string, openCount: number): string {
     { href: '/my-shifts', label: 'My Stuff', key: 'my-shifts' },
     { href: '/help', label: 'Lend a Hand', key: 'help' },
     { href: '/kitchen', label: 'Kitchen', key: 'kitchen' },
-    { href: '/crushes', label: 'Crushes', key: 'crushes' },
   ];
   const links = tabs
     .map((t) => {
@@ -845,9 +844,7 @@ function renderBlockCard(
         ? ' kitchen-past'
         : '';
   const badge =
-    status === 'now'
-      ? '<span class="kitchen-now-badge">● NOW</span>'
-      : '';
+    status === 'now' ? '<span class="kitchen-now-badge">● NOW</span>' : '';
 
   const people = block.assignments.map(renderPersonLine).join('');
 
@@ -885,8 +882,7 @@ export function renderKitchen(): string {
   let html = '';
 
   if (shifts.length === 0) {
-    html =
-      '<div class="schedule-empty">No shifts today.</div>';
+    html = '<div class="schedule-empty">No shifts today.</div>';
   } else {
     if (nowBlocks.length > 0) {
       html += '<div class="section-divider"><span>Right Now</span></div>';
@@ -909,9 +905,7 @@ export function renderKitchen(): string {
     const openSlots = shifts.filter((s) => s.state === 'open').length;
     const parts: string[] = [`${onShift} on shift`];
     if (openSlots > 0)
-      parts.push(
-        `${openSlots} open slot${openSlots === 1 ? '' : 's'}`,
-      );
+      parts.push(`${openSlots} open slot${openSlots === 1 ? '' : 's'}`);
     html += `<div class="kitchen-summary">${parts.join(' · ')}</div>`;
   }
 
@@ -920,9 +914,7 @@ export function renderKitchen(): string {
   if (tomorrowShifts.length > 0) {
     const tomorrowBlocks = groupShiftsByBlock(tomorrowShifts);
     html += `<div class="section-divider"><span>Tomorrow · ${esc(formatDate(tomorrow))}</span></div>`;
-    html += tomorrowBlocks
-      .map((b) => renderBlockCard(b, 'upcoming'))
-      .join('');
+    html += tomorrowBlocks.map((b) => renderBlockCard(b, 'upcoming')).join('');
   }
 
   const body = `

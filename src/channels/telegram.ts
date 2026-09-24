@@ -66,7 +66,6 @@ import {
   questOptIn,
   questIsOptedIn,
 } from '../quests.js';
-import { storeMemory, searchMemories } from '../mem0-client.js';
 import { registerChannel, ChannelOpts } from './registry.js';
 import {
   Channel,
@@ -245,13 +244,7 @@ export class TelegramChannel implements Channel {
       },
       ...rotaCommandEntries(),
       ...crushCommandEntries(),
-      ...questCommandEntries(),
-      {
-        command: 'looking_for',
-        description: 'Find people or things',
-        local: true,
-        featureGate: 'social',
-      },
+      // questCommandEntries() — disabled for now
     ];
 
     // Filter commands by feature flags, then register visible ones for Telegram autocomplete.
@@ -889,80 +882,7 @@ export class TelegramChannel implements Channel {
     };
     registerCrushCommands(this.bot, crushOpts, InlineKeyboard);
 
-    registerQuestCommands(this.bot, {
-      registeredGroups: this.opts.registeredGroups,
-    });
-
-    // /looking_for — store intent in Mem0 + search for matches
-    this.bot.command('looking_for', async (ctx) => {
-      const mainFolder = getMainGroupFolder();
-      if (!mainFolder) return;
-      const features = loadFeatureConfig(mainFolder);
-      if (!features.commands.social) return;
-
-      const arg = (ctx.match?.toString() || '').trim();
-      if (!arg) {
-        await ctx.reply(
-          'What are you looking for? Usage: /looking_for climbing partner',
-        );
-        return;
-      }
-
-      if (ctx.chat.type !== 'private') {
-        await ctx.reply(
-          "I'll search for you — send /looking_for to me in a DM for results.",
-        );
-        return;
-      }
-
-      const senderName =
-        ctx.from?.first_name || ctx.from?.username || 'Someone';
-      const userId = `community:${mainFolder}`;
-
-      try {
-        await storeMemory(
-          `${senderName} is looking for ${arg}`,
-          userId,
-          { type: 'intent', source: senderName, source_context: 'dm' },
-        );
-      } catch (err) {
-        logger.warn({ err }, 'Failed to store looking-for intent');
-      }
-
-      try {
-        const results = await searchMemories(arg, userId);
-        const filtered = results.filter(
-          (r) =>
-            !r.memory.toLowerCase().startsWith(`${senderName.toLowerCase()} is looking for`),
-        );
-
-        if (filtered.length > 0) {
-          const lines = filtered
-            .slice(0, 5)
-            .map((r) => {
-              const source =
-                r.metadata?.source && typeof r.metadata.source === 'string'
-                  ? r.metadata.source
-                  : null;
-              return source
-                ? `• ${source} — ${r.memory}`
-                : `• ${r.memory}`;
-            });
-          await ctx.reply(
-            `Here's what I found:\n${lines.join('\n')}`,
-          );
-        } else {
-          await ctx.reply(
-            "Nobody's mentioned anything like that yet — I'll remember you're looking though.",
-          );
-        }
-      } catch (err) {
-        logger.warn({ err }, 'Failed to search for looking-for matches');
-        await ctx.reply(
-          "I've noted what you're looking for. I'll keep an eye out.",
-        );
-      }
-    });
+    // registerQuestCommands — disabled for now
 
     // /start deep link handler (NFC stickers, DM entry points)
     this.bot.command('start', async (ctx) => {

@@ -4,6 +4,7 @@ import { attendeeImport } from './attendee-db.js';
 import { attendeeFuzzySearch } from './attendee-db.js';
 import {
   crushStore,
+  crushRemove,
   crushCheckMutual,
   crushGetLeaderboard,
   setCrushPending,
@@ -159,6 +160,22 @@ describe('Crush: store and mutual detection', () => {
     crushStore('100', 'Alice', 2, 'Bob');
     const mutual = crushCheckMutual('100', 2);
     expect(mutual.mutual).toBe(false);
+  });
+
+  it('removes all crushes for a user', () => {
+    crushStore('100', 'Alice', 2, 'Bob');
+    crushStore('100', 'Alice', 3, 'Alexander');
+    const result = crushRemove('100');
+    expect(result.removed).toBe(true);
+    expect(result.crusheeName).toBe('Alexander');
+    const lb = crushGetLeaderboard();
+    expect(lb.totalCrushes).toBe(0);
+  });
+
+  it('crushRemove returns false when no crushes', () => {
+    const result = crushRemove('999');
+    expect(result.removed).toBe(false);
+    expect(result.crusheeName).toBeNull();
   });
 
   it('no mutual when crushee has no telegram_id', () => {

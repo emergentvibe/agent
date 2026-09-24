@@ -59,7 +59,13 @@ describe('loadFeatureConfig', () => {
 
 describe('stripDisabledFeatures', () => {
   const allEnabled: typeof DEFAULT_FEATURES = {
-    commands: { purchase: true, subscribe: true, rota: true, governance: true, social: true },
+    commands: {
+      purchase: true,
+      subscribe: true,
+      rota: true,
+      governance: true,
+      social: true,
+    },
     behaviors: { daily_digest: true, crew_digest: true, web: true },
   };
 

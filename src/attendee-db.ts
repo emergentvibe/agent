@@ -358,7 +358,9 @@ export function attendeeFuzzySearch(query: string): AttendeeRecord[] {
 
   const all = db
     .prepare('SELECT * FROM attendees ORDER BY name')
-    .all() as Array<Omit<AttendeeRecord, 'checked_in'> & { checked_in: number }>;
+    .all() as Array<
+    Omit<AttendeeRecord, 'checked_in'> & { checked_in: number }
+  >;
 
   // Pass 1: exact name match (case-insensitive)
   for (const r of all) {

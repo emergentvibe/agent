@@ -83,9 +83,7 @@ export function startWebServer(port: number): Promise<Server> {
           case '/kitchen':
             html(res, 200, renderKitchen());
             break;
-          case '/crushes':
-            html(res, 200, renderCrushes());
-            break;
+          // /crushes leaderboard hidden for now
           default:
             html(
               res,
