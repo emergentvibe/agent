@@ -340,17 +340,17 @@ function renderSynthesizedTimeline(synthesis: SynthesizedSchedule): string {
         ? `<span class="synth-badge ${badge[0]}">${badge[1]}</span>`
         : '';
 
-      const noteInline =
-        e.note && e.status === 'on'
-          ? ` <span style="font-size:12px;color:var(--ink-muted);font-style:italic">(${esc(e.note)})</span>`
-          : '';
-
       const mealHtml = renderMealDetails(
         e.name,
         synthesis.date,
         true,
         currentTime,
       );
+
+      const noteInline =
+        e.note && e.status === 'on' && !mealHtml
+          ? ` <span style="font-size:12px;color:var(--ink-muted);font-style:italic">(${esc(e.note)})</span>`
+          : '';
 
       return `<li class="synth-card${statusCls}${timeCls}">
         <div class="card-row">
