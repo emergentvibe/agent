@@ -1125,6 +1125,21 @@ export async function main(): Promise<void> {
     ) => storeChatMetadata(chatJid, timestamp, name, channel, isGroup),
     onTopicDiscovered: (chatJid: string, threadId: number, name: string) =>
       upsertTopic(chatJid, threadId, name),
+    onEnsureIdentity: (telegramId: string, name?: string, handle?: string) => {
+      const attendee = resolveAttendee(telegramId, name, handle);
+      if (attendee && !attendee.checked_in) {
+        attendeeCheckIn(attendee.id, telegramId);
+        const roleSuffix =
+          attendee.role !== 'attendee' ? ` [${attendee.role}]` : '';
+        notifyAdminSummary(
+          `Check-in: ${attendee.name} (${attendee.telegram_handle || 'no handle'})${roleSuffix}`,
+        ).catch(() => {});
+        logger.info(
+          { attendee: attendee.name, role: attendee.role, sender: telegramId },
+          'Attendee checked in via /start deep link',
+        );
+      }
+    },
     registeredGroups: () => registeredGroups,
   };
 

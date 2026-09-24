@@ -99,9 +99,7 @@ export function crushRemove(crusherTelegramId: string): {
     .prepare(
       'SELECT id, crushee_name FROM crushes WHERE crusher_telegram_id = ? ORDER BY id DESC LIMIT 1',
     )
-    .get(crusherTelegramId) as
-    | { id: number; crushee_name: string }
-    | undefined;
+    .get(crusherTelegramId) as { id: number; crushee_name: string } | undefined;
   if (!existing) return { removed: false, crusheeName: null };
   db.prepare('DELETE FROM crushes WHERE id = ?').run(existing.id);
   return { removed: true, crusheeName: existing.crushee_name };
