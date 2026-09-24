@@ -36,6 +36,8 @@ export interface CrushRecord {
   created_at: string;
 }
 
+const MAX_CRUSHES = 3;
+
 const crushPending = new Map<string, boolean>();
 
 export function setCrushPending(chatJid: string): void {
@@ -48,6 +50,17 @@ export function hasCrushPending(chatJid: string): boolean {
 
 export function clearCrushPending(chatJid: string): void {
   crushPending.delete(chatJid);
+}
+
+export function crushCount(crusherTelegramId: string): number {
+  const db = _getDb();
+  return (
+    db
+      .prepare(
+        'SELECT COUNT(*) as c FROM crushes WHERE crusher_telegram_id = ?',
+      )
+      .get(crusherTelegramId) as { c: number }
+  ).c;
 }
 
 export function crushStore(
@@ -84,13 +97,13 @@ export function crushRemove(crusherTelegramId: string): {
   const db = _getDb();
   const existing = db
     .prepare(
-      'SELECT crushee_name FROM crushes WHERE crusher_telegram_id = ? ORDER BY id DESC LIMIT 1',
+      'SELECT id, crushee_name FROM crushes WHERE crusher_telegram_id = ? ORDER BY id DESC LIMIT 1',
     )
-    .get(crusherTelegramId) as { crushee_name: string } | undefined;
+    .get(crusherTelegramId) as
+    | { id: number; crushee_name: string }
+    | undefined;
   if (!existing) return { removed: false, crusheeName: null };
-  db.prepare('DELETE FROM crushes WHERE crusher_telegram_id = ?').run(
-    crusherTelegramId,
-  );
+  db.prepare('DELETE FROM crushes WHERE id = ?').run(existing.id);
   return { removed: true, crusheeName: existing.crushee_name };
 }
 
@@ -209,9 +222,21 @@ export function registerCrushCommands(
       return;
     }
 
+    const telegramIdForCount = ctx.from?.id?.toString() || '';
+    const count = crushCount(telegramIdForCount);
+    if (count >= MAX_CRUSHES) {
+      await ctx.reply(
+        `You've used all ${MAX_CRUSHES} crushes! Choose wisely — or /crush undo to free one up.`,
+      );
+      return;
+    }
+
     const chatJid = `tg:${ctx.chat.id}`;
     setCrushPending(chatJid);
-    await ctx.reply("Who's caught your eye? Send me their name.");
+    const remaining = MAX_CRUSHES - count;
+    await ctx.reply(
+      `Who's caught your eye? Send me their name.\n(${remaining} crush${remaining === 1 ? '' : 'es'} remaining)`,
+    );
   });
 
   bot.callbackQuery(/^crush:confirm:(\d+)$/, async (ctx) => {
@@ -243,6 +268,17 @@ async function handleCrushConfirm(
   const crusherTelegramId = ctx.from.id.toString();
   const crusherName =
     ctx.from.first_name || ctx.from.username || crusherTelegramId;
+
+  const count = crushCount(crusherTelegramId);
+  if (count >= MAX_CRUSHES) {
+    await ctx.answerCallbackQuery({ text: 'No crushes left!' });
+    try {
+      await ctx.editMessageText(
+        `You've used all ${MAX_CRUSHES} crushes! /crush undo to free one up.`,
+      );
+    } catch {}
+    return;
+  }
 
   const selfAttendee = attendeeLookupByTelegramId(crusherTelegramId);
   if (selfAttendee && selfAttendee.id === attendeeId) {
@@ -309,9 +345,14 @@ async function handleCrushConfirm(
     }
   } else {
     await ctx.answerCallbackQuery({ text: 'Got it!' });
+    const remaining = MAX_CRUSHES - crushCount(crusherTelegramId);
+    const remainingNote =
+      remaining > 0
+        ? `\n${remaining} crush${remaining === 1 ? '' : 'es'} remaining.`
+        : '\nNo crushes remaining.';
     try {
       await ctx.editMessageText(
-        "Got it — I'll keep it between us.\n\nChanged your mind? /crush undo",
+        `Got it — I'll keep it between us.${remainingNote}\n\nChanged your mind? /crush undo`,
       );
     } catch {}
   }

@@ -162,14 +162,15 @@ describe('Crush: store and mutual detection', () => {
     expect(mutual.mutual).toBe(false);
   });
 
-  it('removes all crushes for a user', () => {
+  it('removes most recent crush only', () => {
     crushStore('100', 'Alice', 2, 'Bob');
     crushStore('100', 'Alice', 3, 'Alexander');
     const result = crushRemove('100');
     expect(result.removed).toBe(true);
     expect(result.crusheeName).toBe('Alexander');
     const lb = crushGetLeaderboard();
-    expect(lb.totalCrushes).toBe(0);
+    expect(lb.totalCrushes).toBe(1);
+    expect(lb.leaderboard[0].name).toBe('Bob');
   });
 
   it('crushRemove returns false when no crushes', () => {
