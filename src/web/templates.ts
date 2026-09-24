@@ -796,19 +796,10 @@ function groupShiftsByBlock(shifts: RotaAssignment[]): KitchenBlock[] {
   return order.map((k) => map.get(k)!);
 }
 
-function kitchenPersonName(
-  name: string,
-  handle: string | null,
-  telegramId: string | null,
-): string {
-  if (handle) {
-    const bare = handle.replace(/^@/, '');
-    return `<span class="kp-name">${esc(name)}</span> <a href="https://t.me/${esc(bare)}" class="kp-handle">@${esc(bare)}</a>`;
-  }
-  if (telegramId) {
-    return `<a href="tg://user?id=${esc(telegramId)}" class="kp-name kp-link">${esc(name)}</a>`;
-  }
-  return `<span class="kp-name">${esc(name)}</span>`;
+function kitchenHandle(handle: string | null): string {
+  if (!handle) return '';
+  const bare = handle.replace(/^@/, '');
+  return ` <a href="https://t.me/${esc(bare)}" class="kp-handle">@${esc(bare)}</a>`;
 }
 
 function renderPersonLine(a: RotaAssignment): string {
@@ -829,7 +820,7 @@ function renderPersonLine(a: RotaAssignment): string {
     const covererHandle = a.current_telegram;
     const origName = a.original_name || '?';
     return `<li class="kp kp-covered">
-      ${kitchenPersonName(covererName, covererHandle, null)}
+      <span class="kp-name">${esc(covererName)}</span>${kitchenHandle(covererHandle)}
       <span class="synth-badge badge-covered">covering</span>
       <span class="kp-detail">for ${esc(origName)}</span>
     </li>`;
@@ -838,7 +829,7 @@ function renderPersonLine(a: RotaAssignment): string {
   const name = a.current_name || a.original_name || '?';
   const handle = a.original_telegram;
   return `<li class="kp">
-    ${kitchenPersonName(name, handle, a.original_telegram_id)}
+    <span class="kp-name">${esc(name)}</span>${kitchenHandle(handle)}
   </li>`;
 }
 

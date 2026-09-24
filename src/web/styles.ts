@@ -522,16 +522,6 @@ body {
   color: var(--fire);
 }
 
-a.kp-link {
-  color: inherit;
-  text-decoration: underline;
-  text-decoration-color: var(--ink-muted);
-  text-underline-offset: 2px;
-}
-
-a.kp-link:hover {
-  text-decoration-color: var(--fire);
-}
 
 .kp-open .kp-name {
   color: var(--open-red);
