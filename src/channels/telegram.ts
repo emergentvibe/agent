@@ -78,7 +78,11 @@ export interface TelegramChannelOpts {
   onMessage: OnInboundMessage;
   onChatMetadata: OnChatMetadata;
   onTopicDiscovered?: (chatJid: string, threadId: number, name: string) => void;
-  onEnsureIdentity?: (telegramId: string, name?: string, handle?: string) => void;
+  onEnsureIdentity?: (
+    telegramId: string,
+    name?: string,
+    handle?: string,
+  ) => void;
   registeredGroups: () => Record<string, RegisteredGroup>;
 }
 
@@ -435,7 +439,9 @@ export class TelegramChannel implements Channel {
     });
 
     this.bot.callbackQuery(/^tip:(\d+)$/, async (ctx) => {
-      const amount = parseInt(ctx.callbackQuery.data.match(/^tip:(\d+)$/)![1]);
+      const tipMatch = ctx.callbackQuery.data.match(/^tip:(\d+)$/);
+      if (!tipMatch) return;
+      const amount = parseInt(tipMatch[1]);
       const userId = ctx.from.id.toString();
       const userName = ctx.from.first_name || ctx.from.username || userId;
       const chatJid = `tg:${ctx.callbackQuery.message?.chat.id || ''}`;
@@ -585,7 +591,9 @@ export class TelegramChannel implements Channel {
     });
 
     this.bot.callbackQuery(/^laundry:cancel:(.+)$/, async (ctx) => {
-      const loadId = ctx.callbackQuery.data.match(/^laundry:cancel:(.+)$/)![1];
+      const cancelMatch = ctx.callbackQuery.data.match(/^laundry:cancel:(.+)$/);
+      if (!cancelMatch) return;
+      const loadId = cancelMatch[1];
       const userId = ctx.from.id.toString();
 
       const result = leaveLoad(loadId, userId);
@@ -607,7 +615,9 @@ export class TelegramChannel implements Channel {
     });
 
     this.bot.callbackQuery(/^laundry:leave:(.+)$/, async (ctx) => {
-      const loadId = ctx.callbackQuery.data.match(/^laundry:leave:(.+)$/)![1];
+      const leaveMatch = ctx.callbackQuery.data.match(/^laundry:leave:(.+)$/);
+      if (!leaveMatch) return;
+      const loadId = leaveMatch[1];
       const userId = ctx.from.id.toString();
 
       const result = leaveLoad(loadId, userId);
@@ -893,12 +903,9 @@ export class TelegramChannel implements Channel {
       if (ctx.chat.type === 'private' && ctx.from?.id) {
         const tgId = ctx.from.id.toString();
         const name =
-          [ctx.from.first_name, ctx.from.last_name]
-            .filter(Boolean)
-            .join(' ') || undefined;
-        const handle = ctx.from.username
-          ? `@${ctx.from.username}`
-          : undefined;
+          [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(' ') ||
+          undefined;
+        const handle = ctx.from.username ? `@${ctx.from.username}` : undefined;
         this.opts.onEnsureIdentity?.(tgId, name, handle);
       }
 

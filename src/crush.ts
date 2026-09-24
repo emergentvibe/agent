@@ -357,9 +357,8 @@ async function handleCrushConfirm(
 
   logger.info(
     {
-      crusher: crusherTelegramId,
-      crushee: crushee.name,
       mutual: mutual.mutual,
+      totalCrushes: crushCount(crusherTelegramId),
     },
     'Crush stored',
   );

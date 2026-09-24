@@ -288,7 +288,7 @@ function buildContainerArgs(
   if (mem0SseUrl) {
     args.push('-e', `MEM0_SSE_URL=${rewriteUrlForContainer(mem0SseUrl)}`);
   }
-  if (mem0ApiKey) {
+  if (mem0ApiKey && !mem0SseUrl) {
     args.push('-e', `MEM0_API_KEY=${mem0ApiKey}`);
   }
 
