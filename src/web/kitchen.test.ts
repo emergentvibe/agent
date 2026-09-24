@@ -11,6 +11,10 @@ vi.mock('../db.js', () => ({
   getUserTotal: vi.fn().mockReturnValue(0),
 }));
 
+vi.mock('../attendee-db.js', () => ({
+  attendeeLookupByTelegramId: vi.fn().mockReturnValue(null),
+}));
+
 vi.mock('../config.js', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
