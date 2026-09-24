@@ -204,7 +204,9 @@ function randomInterval(): number {
 }
 
 export function startQuestLoop(opts: QuestLoopOpts): void {
-  logger.info('Quest delivery loop started (random 1-4hr intervals, 13:00-21:00)');
+  logger.info(
+    'Quest delivery loop started (random 1-4hr intervals, 13:00-21:00)',
+  );
 
   const scheduleNext = () => {
     const delay = randomInterval();

@@ -77,9 +77,10 @@ export function crushStore(
   }
 }
 
-export function crushRemove(
-  crusherTelegramId: string,
-): { removed: boolean; crusheeName: string | null } {
+export function crushRemove(crusherTelegramId: string): {
+  removed: boolean;
+  crusheeName: string | null;
+} {
   const db = _getDb();
   const existing = db
     .prepare(
@@ -87,9 +88,9 @@ export function crushRemove(
     )
     .get(crusherTelegramId) as { crushee_name: string } | undefined;
   if (!existing) return { removed: false, crusheeName: null };
-  db.prepare(
-    'DELETE FROM crushes WHERE crusher_telegram_id = ?',
-  ).run(crusherTelegramId);
+  db.prepare('DELETE FROM crushes WHERE crusher_telegram_id = ?').run(
+    crusherTelegramId,
+  );
   return { removed: true, crusheeName: existing.crushee_name };
 }
 

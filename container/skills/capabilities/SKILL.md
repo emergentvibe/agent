@@ -7,13 +7,7 @@ description: Show what this NanoClaw instance can do — installed skills, avail
 
 Generate a structured read-only report of what this NanoClaw instance can do.
 
-**Main-channel check:** Only the main channel has `/workspace/project` mounted. Run:
-
-```bash
-test -d /workspace/project && echo "MAIN" || echo "NOT_MAIN"
-```
-
-If `NOT_MAIN`, respond with:
+**Main-channel check:** Check the CLAUDE.md in /workspace/group for a main-channel marker. If the file does not contain "is_main: true" or similar, respond with:
 > This command is available in your main chat only. Send `/capabilities` there to see what I can do.
 
 Then stop — do not generate the report.

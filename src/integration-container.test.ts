@@ -214,36 +214,33 @@ describe('Volume mount configuration', () => {
     expect(extra!.hostPath).toBe('/project/groups/telegram_edge');
   });
 
-  it('main group gets project root (ro) instead of global mount', () => {
-    // Main group gets different mounts — verify the key difference
-    // Main: /workspace/project (ro) + /workspace/group (rw) + no /workspace/global
-    // (Main IS the global scope, so it doesn't need global mounted separately)
-
-    // We just verify the contract: main should NOT have /workspace/global
-    // and SHOULD have /workspace/project
+  it('main group gets global mount (no project root)', () => {
+    // No container gets the project root — the host DB, source code,
+    // and secrets must never be reachable from inside a container.
+    // Both main and non-main get /workspace/global for shared knowledge.
     const mainMounts: VolumeMount[] = [
-      {
-        hostPath: '/project',
-        containerPath: '/workspace/project',
-        readonly: true,
-      },
       {
         hostPath: '/project/groups/main',
         containerPath: '/workspace/group',
         readonly: false,
+      },
+      {
+        hostPath: '/project/groups/global',
+        containerPath: '/workspace/global',
+        readonly: true,
       },
     ];
 
     const projectMount = mainMounts.find(
       (m) => m.containerPath === '/workspace/project',
     );
-    expect(projectMount).toBeDefined();
-    expect(projectMount!.readonly).toBe(true);
+    expect(projectMount).toBeUndefined();
 
     const globalMount = mainMounts.find(
       (m) => m.containerPath === '/workspace/global',
     );
-    expect(globalMount).toBeUndefined();
+    expect(globalMount).toBeDefined();
+    expect(globalMount!.readonly).toBe(true);
   });
 });
 
