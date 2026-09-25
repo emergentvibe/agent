@@ -424,6 +424,10 @@ export class TelegramChannel implements Channel {
     });
 
     this.bot.command('tip_the_chef', async (ctx) => {
+      if (ctx.chat.type !== 'private') {
+        await ctx.reply('Send /tip_the_chef to me in a DM.');
+        return;
+      }
       if (!isPurchaseEnabled()) {
         await ctx.reply(PURCHASE_DISABLED);
         return;
