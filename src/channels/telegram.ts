@@ -429,6 +429,7 @@ export class TelegramChannel implements Channel {
         return;
       }
       const kb = new InlineKeyboard()
+        .text('€5', 'tip:5')
         .text('€10', 'tip:10')
         .text('€25 ⭐', 'tip:25')
         .text('€50', 'tip:50');
