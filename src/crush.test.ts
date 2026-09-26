@@ -9,6 +9,7 @@ import {
   crushGetLeaderboard,
   crushesReceived,
   crushOnCooldown,
+  crushUndoCooldownRemaining,
   setCrushPending,
   hasCrushPending,
   clearCrushPending,
@@ -249,9 +250,10 @@ describe('Crush: received count', () => {
   });
 });
 
-describe('Crush: cooldown', () => {
+describe('Crush: undo cooldown', () => {
   it('is not on cooldown initially', () => {
     expect(crushOnCooldown('999')).toBe(false);
+    expect(crushUndoCooldownRemaining('999')).toBe(0);
   });
 });
 

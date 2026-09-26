@@ -37,19 +37,29 @@ export interface CrushRecord {
 }
 
 const MAX_CRUSHES = 3;
-const COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
+const COOLDOWN_BASE_MS = 30 * 60 * 1000; // 30 minutes
 
 const crushPending = new Map<string, boolean>();
-const lastCrushAction = new Map<string, number>();
+const lastUndoTime = new Map<string, number>();
+const undoCount = new Map<string, number>();
 
-export function crushOnCooldown(telegramId: string): boolean {
-  const last = lastCrushAction.get(telegramId);
-  if (!last) return false;
-  return Date.now() - last < COOLDOWN_MS;
+export function crushUndoCooldownRemaining(telegramId: string): number {
+  const last = lastUndoTime.get(telegramId);
+  if (!last) return 0;
+  const count = undoCount.get(telegramId) || 1;
+  const cooldown = COOLDOWN_BASE_MS * count;
+  const remaining = cooldown - (Date.now() - last);
+  return remaining > 0 ? remaining : 0;
 }
 
-function touchCooldown(telegramId: string): void {
-  lastCrushAction.set(telegramId, Date.now());
+export function crushOnCooldown(telegramId: string): boolean {
+  return crushUndoCooldownRemaining(telegramId) > 0;
+}
+
+function touchUndoCooldown(telegramId: string): void {
+  const count = (undoCount.get(telegramId) || 0) + 1;
+  undoCount.set(telegramId, count);
+  lastUndoTime.set(telegramId, Date.now());
 }
 
 export function crushesReceived(attendeeId: number): number {
@@ -234,13 +244,17 @@ export function registerCrushCommands(
     const arg = (ctx.match?.toString() || '').trim().toLowerCase();
     if (arg === 'undo') {
       const telegramId = ctx.from?.id?.toString() || '';
-      if (crushOnCooldown(telegramId)) {
-        await ctx.reply('Easy there — wait a bit before changing your crushes.');
+      const remaining = crushUndoCooldownRemaining(telegramId);
+      if (remaining > 0) {
+        const mins = Math.ceil(remaining / 60_000);
+        await ctx.reply(
+          `Nice try — crushes need time to marinate. Check back in ${mins} minute${mins === 1 ? '' : 's'} 😏`,
+        );
         return;
       }
       const result = crushRemove(telegramId);
       if (result.removed) {
-        touchCooldown(telegramId);
+        touchUndoCooldown(telegramId);
         await ctx.reply(`Crush on ${result.crusheeName} removed.`);
       } else {
         await ctx.reply("You don't have any crushes to undo.");
@@ -249,10 +263,6 @@ export function registerCrushCommands(
     }
 
     const telegramIdForCount = ctx.from?.id?.toString() || '';
-    if (crushOnCooldown(telegramIdForCount)) {
-      await ctx.reply('Easy there — wait a bit before adding another crush.');
-      return;
-    }
     const count = crushCount(telegramIdForCount);
     if (count >= MAX_CRUSHES) {
       await ctx.reply(
@@ -298,16 +308,6 @@ async function handleCrushConfirm(
   const crusherTelegramId = ctx.from.id.toString();
   const crusherName =
     ctx.from.first_name || ctx.from.username || crusherTelegramId;
-
-  if (crushOnCooldown(crusherTelegramId)) {
-    await ctx.answerCallbackQuery({ text: 'Wait a bit!' });
-    try {
-      await ctx.editMessageText(
-        'Easy there — wait a bit before adding another crush.',
-      );
-    } catch {}
-    return;
-  }
 
   const count = crushCount(crusherTelegramId);
   if (count >= MAX_CRUSHES) {
@@ -362,8 +362,6 @@ async function handleCrushConfirm(
   }
 
   const mutual = crushCheckMutual(crusherTelegramId, attendeeId);
-
-  touchCooldown(crusherTelegramId);
 
   if (mutual.mutual && mutual.otherTelegramId) {
     await ctx.answerCallbackQuery({ text: "It's mutual! 💫" });
