@@ -37,8 +37,31 @@ export interface CrushRecord {
 }
 
 const MAX_CRUSHES = 3;
+const COOLDOWN_MS = 30 * 60 * 1000; // 30 minutes
 
 const crushPending = new Map<string, boolean>();
+const lastCrushAction = new Map<string, number>();
+
+export function crushOnCooldown(telegramId: string): boolean {
+  const last = lastCrushAction.get(telegramId);
+  if (!last) return false;
+  return Date.now() - last < COOLDOWN_MS;
+}
+
+function touchCooldown(telegramId: string): void {
+  lastCrushAction.set(telegramId, Date.now());
+}
+
+export function crushesReceived(attendeeId: number): number {
+  const db = _getDb();
+  return (
+    db
+      .prepare(
+        'SELECT COUNT(*) as c FROM crushes WHERE crushee_attendee_id = ?',
+      )
+      .get(attendeeId) as { c: number }
+  ).c;
+}
 
 export function setCrushPending(chatJid: string): void {
   crushPending.set(chatJid, true);
@@ -211,8 +234,13 @@ export function registerCrushCommands(
     const arg = (ctx.match?.toString() || '').trim().toLowerCase();
     if (arg === 'undo') {
       const telegramId = ctx.from?.id?.toString() || '';
+      if (crushOnCooldown(telegramId)) {
+        await ctx.reply('Easy there — wait a bit before changing your crushes.');
+        return;
+      }
       const result = crushRemove(telegramId);
       if (result.removed) {
+        touchCooldown(telegramId);
         await ctx.reply(`Crush on ${result.crusheeName} removed.`);
       } else {
         await ctx.reply("You don't have any crushes to undo.");
@@ -221,6 +249,10 @@ export function registerCrushCommands(
     }
 
     const telegramIdForCount = ctx.from?.id?.toString() || '';
+    if (crushOnCooldown(telegramIdForCount)) {
+      await ctx.reply('Easy there — wait a bit before adding another crush.');
+      return;
+    }
     const count = crushCount(telegramIdForCount);
     if (count >= MAX_CRUSHES) {
       await ctx.reply(
@@ -266,6 +298,16 @@ async function handleCrushConfirm(
   const crusherTelegramId = ctx.from.id.toString();
   const crusherName =
     ctx.from.first_name || ctx.from.username || crusherTelegramId;
+
+  if (crushOnCooldown(crusherTelegramId)) {
+    await ctx.answerCallbackQuery({ text: 'Wait a bit!' });
+    try {
+      await ctx.editMessageText(
+        'Easy there — wait a bit before adding another crush.',
+      );
+    } catch {}
+    return;
+  }
 
   const count = crushCount(crusherTelegramId);
   if (count >= MAX_CRUSHES) {
@@ -321,6 +363,8 @@ async function handleCrushConfirm(
 
   const mutual = crushCheckMutual(crusherTelegramId, attendeeId);
 
+  touchCooldown(crusherTelegramId);
+
   if (mutual.mutual && mutual.otherTelegramId) {
     await ctx.answerCallbackQuery({ text: "It's mutual! 💫" });
     try {
@@ -353,6 +397,22 @@ async function handleCrushConfirm(
         `Got it — I'll keep it between us.${remainingNote}\n\nChanged your mind? /crush undo`,
       );
     } catch {}
+
+    // Notify crushee anonymously
+    const crusheeRecord = db
+      .prepare('SELECT telegram_id FROM attendees WHERE id = ?')
+      .get(attendeeId) as { telegram_id: string | null } | undefined;
+    if (crusheeRecord?.telegram_id) {
+      const total = crushesReceived(attendeeId);
+      try {
+        await opts.sendDm(
+          crusheeRecord.telegram_id,
+          `Someone has a crush on you! That's ${total} so far 👀`,
+        );
+      } catch {
+        // Crushee may not have DM'd the bot yet
+      }
+    }
   }
 
   logger.info(

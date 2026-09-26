@@ -7,6 +7,8 @@ import {
   crushRemove,
   crushCheckMutual,
   crushGetLeaderboard,
+  crushesReceived,
+  crushOnCooldown,
   setCrushPending,
   hasCrushPending,
   clearCrushPending,
@@ -228,6 +230,28 @@ describe('Crush: leaderboard', () => {
     crushStore('200', 'Bob', 1, 'Alice');
     const lb = crushGetLeaderboard();
     expect(lb.mutualMatches).toBe(1);
+  });
+});
+
+describe('Crush: received count', () => {
+  beforeEach(() => {
+    _initTestDatabase();
+    attendeeImport(SAMPLE_ATTENDEES);
+    bindTelegramIds();
+  });
+
+  it('counts crushes received by an attendee', () => {
+    expect(crushesReceived(2)).toBe(0);
+    crushStore('100', 'Alice', 2, 'Bob');
+    expect(crushesReceived(2)).toBe(1);
+    crushStore('300', 'Alexander', 2, 'Bob');
+    expect(crushesReceived(2)).toBe(2);
+  });
+});
+
+describe('Crush: cooldown', () => {
+  it('is not on cooldown initially', () => {
+    expect(crushOnCooldown('999')).toBe(false);
   });
 });
 
