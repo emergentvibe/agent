@@ -236,6 +236,18 @@ export class TelegramChannel implements Channel {
         featureGate: 'purchase',
       },
       {
+        command: 'pay_for_mushroom_walk',
+        description: 'Pay €20 for the mushroom walk',
+        local: true,
+        featureGate: 'purchase',
+      },
+      {
+        command: 'tip_the_dealer',
+        description: 'Tip the dealer',
+        local: true,
+        featureGate: 'purchase',
+      },
+      {
         command: 'chatid',
         description: 'Get this chat ID',
         local: true,
@@ -465,6 +477,72 @@ export class TelegramChannel implements Channel {
       } catch {
         // Message may be too old to edit
       }
+    });
+
+    // --- Mushroom walk (flat €20) ---
+
+    this.bot.command('pay_for_mushroom_walk', async (ctx) => {
+      if (ctx.chat.type !== 'private') {
+        await ctx.reply('Send /pay_for_mushroom_walk to me in a DM.');
+        return;
+      }
+      if (!isPurchaseEnabled()) {
+        await ctx.reply(PURCHASE_DISABLED);
+        return;
+      }
+      const userId = ctx.from?.id.toString() || '';
+      const userName = ctx.from?.first_name || ctx.from?.username || userId;
+      const chatJid = `tg:${ctx.chat.id}`;
+
+      storePurchase(chatJid, userId, userName, 'Mushroom walk', 20);
+      const total = getUserTotal(userId);
+      await ctx.reply(
+        `🍄 *Mushroom walk* — €20 added to your tab.\nYour tab: *€${total.toFixed(2)}*`,
+        { parse_mode: 'Markdown' },
+      );
+    });
+
+    // --- Tip the dealer ---
+
+    this.bot.command('tip_the_dealer', async (ctx) => {
+      if (ctx.chat.type !== 'private') {
+        await ctx.reply('Send /tip_the_dealer to me in a DM.');
+        return;
+      }
+      if (!isPurchaseEnabled()) {
+        await ctx.reply(PURCHASE_DISABLED);
+        return;
+      }
+      const kb = new InlineKeyboard()
+        .text('€3', 'dealer_tip:3')
+        .text('€7 ⭐', 'dealer_tip:7')
+        .text('€15', 'dealer_tip:15');
+      await ctx.reply('🎯 *Tip the dealer*\nAdded to your tab.', {
+        reply_markup: kb,
+        parse_mode: 'Markdown',
+      });
+    });
+
+    this.bot.callbackQuery(/^dealer_tip:(\d+)$/, async (ctx) => {
+      const match = ctx.callbackQuery.data.match(/^dealer_tip:(\d+)$/);
+      if (!match) return;
+      const amount = parseInt(match[1]);
+      const userId = ctx.from.id.toString();
+      const userName = ctx.from.first_name || ctx.from.username || userId;
+      const chatJid = `tg:${ctx.callbackQuery.message?.chat.id || ''}`;
+
+      storePurchase(chatJid, userId, userName, 'Dealer tip', amount);
+      const total = getUserTotal(userId);
+
+      await ctx.answerCallbackQuery({
+        text: `Thank you! €${amount} tip added.`,
+      });
+      try {
+        await ctx.editMessageText(
+          `🎯 Thank you! *€${amount}* tip for the dealer.\nYour tab: *€${total.toFixed(2)}*`,
+          { parse_mode: 'Markdown' },
+        );
+      } catch {}
     });
 
     // --- Laundry system (local, no containers) ---
