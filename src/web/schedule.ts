@@ -94,8 +94,8 @@ const DAY_OVERRIDES: DayOverride[] = [
   },
   {
     dayNumber: 7,
-    extra: [{ time: '14:00', name: 'WHIZBANG', note: 'full house clean' }],
-    highlights: ['WHIZBANG', "Simon's birthday"],
+    extra: [],
+    highlights: ["Simon's birthday"],
   },
   {
     dayNumber: 8,
