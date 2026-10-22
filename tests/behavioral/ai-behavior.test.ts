@@ -23,7 +23,7 @@ import fs from 'fs';
 import path from 'path';
 
 config();
-import { buildClaudeMd, type ConstitutionData } from '../../governance/sync/constitution-sync.js';
+import { buildClaudeMd, type ConstitutionData } from '../../governance/sync/claude-md.js';
 import type { GroupConfig } from '../../governance/sync/config.js';
 
 // ── Skip if no API key ───────────────────────────────────────
@@ -96,15 +96,15 @@ const GLOBAL_CLAUDE_MD = fs.readFileSync(
   'utf-8',
 );
 
-const COMMUNITY_TEMPLATE = fs.readFileSync(
-  path.resolve(TEST_DIR, '../../governance/templates/claude-md-template.md'),
-  'utf-8',
-);
+const COMMUNITY_TEMPLATE =
+  fs.readFileSync(path.resolve(TEST_DIR, '../../governance/templates/base-template.md'), 'utf-8') +
+  '\n\n' +
+  fs.readFileSync(path.resolve(TEST_DIR, '../../governance/templates/group-template.md'), 'utf-8');
 
-const DM_TEMPLATE = fs.readFileSync(
-  path.resolve(TEST_DIR, '../../governance/templates/dm-template.md'),
-  'utf-8',
-);
+const DM_TEMPLATE =
+  fs.readFileSync(path.resolve(TEST_DIR, '../../governance/templates/base-template.md'), 'utf-8') +
+  '\n\n' +
+  fs.readFileSync(path.resolve(TEST_DIR, '../../governance/templates/dm-overlay-template.md'), 'utf-8');
 
 const CONSTITUTION = `
 # Heliotrope Community Constitution

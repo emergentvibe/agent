@@ -7,10 +7,7 @@ import {
   isSilenced,
 } from './admin-commands.js';
 import { startAdminHttp } from './admin-http.js';
-import {
-  initAdminNotify,
-  notifyError,
-} from './admin-notify.js';
+import { initAdminNotify, notifyError } from './admin-notify.js';
 import {
   ADMIN_HTTP_PORT,
   ADMIN_HTTP_TOKEN,
@@ -79,15 +76,13 @@ import {
   loadSenderAllowlist,
   shouldDropMessage,
 } from './sender-allowlist.js';
-import { syncAll } from '../governance/sync/constitution-sync.js';
 import { startSchedulerLoop } from './task-scheduler.js';
 import { Channel, NewMessage, RegisteredGroup } from './types.js';
 import { logger } from './logger.js';
 import { storeMemory } from './mem0-client.js';
 import { startExtractionLoop } from './extraction.js';
-import { startScheduleCacheLoop } from './web/schedule-refresh.js';
-import { refreshSynthesis } from './web/schedule-synthesis.js';
-import { startWebServer } from './web/server.js';
+// Web server imports — loaded dynamically when web feature is enabled
+// import { startWebServer } from './web/server.js';
 
 let lastTimestamp = '';
 let sessions: Record<string, string> = {};
@@ -106,7 +101,9 @@ function buildPersonalContext(
   const parts: string[] = [];
 
   if (senderName) {
-    const handleSuffix = senderHandle ? ` (@${senderHandle.replace(/^@/, '')})` : '';
+    const handleSuffix = senderHandle
+      ? ` (@${senderHandle.replace(/^@/, '')})`
+      : '';
     parts.push(`This is ${senderName}${handleSuffix}.`);
   }
 
@@ -681,19 +678,6 @@ export async function main(): Promise<void> {
     }
   }
 
-  // Sync constitutions from emergentvibe.com API (only when GROUPS_CONFIG is set)
-  const groupsConfig = process.env.GROUPS_CONFIG;
-  if (groupsConfig && groupsConfig !== '[]') {
-    try {
-      await syncAll();
-      logger.info('Constitution sync complete');
-    } catch (err) {
-      logger.warn(
-        { err },
-        'Constitution sync failed, using cached CLAUDE.md files',
-      );
-    }
-  }
 
   // Ensure scheduled tasks for existing groups (e.g. digest after feature flag change)
   for (const [jid, group] of Object.entries(registeredGroups)) {
@@ -716,13 +700,8 @@ export async function main(): Promise<void> {
     logger.warn('ADMIN_HTTP_TOKEN not set — admin HTTP endpoint disabled');
   }
 
-  // Start companion website
+  // Web server — placeholder for deployment-specific web layer
   let webServer: import('http').Server | undefined;
-  try {
-    webServer = await startWebServer(WEB_PORT);
-  } catch (err) {
-    logger.warn({ err, port: WEB_PORT }, 'Web server failed to start');
-  }
 
   // Graceful shutdown handlers
   const shutdown = async (signal: string) => {
@@ -1019,12 +998,6 @@ export async function main(): Promise<void> {
     registeredGroups: () => registeredGroups,
     assistantName: ASSISTANT_NAME,
   });
-
-  // Schedule cache: periodic agent query for live schedule updates
-  startScheduleCacheLoop(
-    { registeredGroups: () => registeredGroups },
-    refreshSynthesis,
-  );
 
   recoverPendingMessages();
   startMessageLoop().catch((err) => {

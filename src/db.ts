@@ -168,7 +168,6 @@ function createSchema(database: Database.Database): void {
     );
     CREATE INDEX IF NOT EXISTS idx_web_tokens_telegram ON web_tokens(telegram_id);
   `);
-
 }
 
 export function initDatabase(): void {

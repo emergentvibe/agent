@@ -2,10 +2,7 @@ import https from 'https';
 import { autoRetry } from '@grammyjs/auto-retry';
 import { Api, Bot, InputFile } from 'grammy';
 
-import {
-  ASSISTANT_NAME,
-  TRIGGER_PATTERN,
-} from '../config.js';
+import { ASSISTANT_NAME, TRIGGER_PATTERN } from '../config.js';
 import {
   addSubscription,
   removeSubscription,
@@ -343,9 +340,7 @@ export class TelegramChannel implements Channel {
           'Unknown';
         const linked = linkWebToken(token, telegramId, name);
         if (linked) {
-          await ctx.reply(
-            'Connected! Head back to the website.',
-          );
+          await ctx.reply('Connected! Head back to the website.');
         } else {
           await ctx.reply(
             'Link expired or already used. Visit the website to get a new one.',
@@ -359,11 +354,8 @@ export class TelegramChannel implements Channel {
         id: ctx.message!.message_id.toString(),
         chat_jid: `tg:${ctx.chat.id}`,
         sender: ctx.from?.id?.toString() || '',
-        sender_name:
-          ctx.from?.first_name || ctx.from?.username || 'Unknown',
-        sender_handle: ctx.from?.username
-          ? `@${ctx.from.username}`
-          : undefined,
+        sender_name: ctx.from?.first_name || ctx.from?.username || 'Unknown',
+        sender_handle: ctx.from?.username ? `@${ctx.from.username}` : undefined,
         content: `@${ASSISTANT_NAME} /${payload}`,
         timestamp: new Date(ctx.message!.date * 1000).toISOString(),
         is_from_me: false,

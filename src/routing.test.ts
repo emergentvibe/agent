@@ -2,17 +2,12 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import {
   _initTestDatabase,
-  cancelLastPurchase,
   getAllChats,
-  getAllPurchaseTotals,
-  getUserPurchases,
-  getUserTotal,
   getTopics,
   isExtractionEnabled,
   setTopicExtraction,
   storeChatMetadata,
   storeMessage,
-  storePurchase,
   upsertTopic,
   getMessagesSince,
 } from './db.js';
@@ -369,57 +364,6 @@ describe('topic registry', () => {
 
     setTopicExtraction('tg:123', 2, false);
     expect(isExtractionEnabled('tg:123', 2)).toBe(false);
-  });
-});
-
-// --- Purchase tracking ---
-
-describe('purchase tracking', () => {
-  it('stores and retrieves purchases', () => {
-    storePurchase('tg:123', 'user1', 'Alice', 'beer', 3);
-    storePurchase('tg:123', 'user1', 'Alice', 'wine', 5);
-
-    const purchases = getUserPurchases('user1');
-    expect(purchases).toHaveLength(2);
-    expect(purchases[0].item).toBe('beer');
-    expect(purchases[1].item).toBe('wine');
-  });
-
-  it('calculates user total', () => {
-    storePurchase('tg:123', 'user1', 'Alice', 'beer', 3);
-    storePurchase('tg:123', 'user1', 'Alice', 'wine', 5);
-
-    expect(getUserTotal('user1')).toBe(8);
-  });
-
-  it('calculates all totals', () => {
-    storePurchase('tg:123', 'user1', 'Alice', 'beer', 3);
-    storePurchase('tg:123', 'user2', 'Bob', 'burger', 5);
-
-    const totals = getAllPurchaseTotals();
-    expect(totals).toHaveLength(2);
-    expect(totals[0].user_name).toBe('Bob');
-    expect(totals[0].total).toBe(5);
-    expect(totals[1].user_name).toBe('Alice');
-    expect(totals[1].total).toBe(3);
-  });
-
-  it('cancels last purchase', () => {
-    storePurchase('tg:123', 'user1', 'Alice', 'beer', 3);
-    storePurchase('tg:123', 'user1', 'Alice', 'wine', 5);
-
-    const cancelled = cancelLastPurchase('user1');
-    expect(cancelled?.item).toBe('wine');
-    expect(getUserTotal('user1')).toBe(3);
-    expect(getUserPurchases('user1')).toHaveLength(1);
-  });
-
-  it('returns null when nothing to cancel', () => {
-    expect(cancelLastPurchase('nonexistent')).toBeNull();
-  });
-
-  it('returns zero total for unknown user', () => {
-    expect(getUserTotal('unknown')).toBe(0);
   });
 });
 

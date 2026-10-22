@@ -192,7 +192,11 @@ export function parseMarkdown(
     }
 
     // Schedule-style lines ("Monday: ...", "Tuesday: ...") — each is its own chunk
-    if (/^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s*:/i.test(trimmed)) {
+    if (
+      /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s*:/i.test(
+        trimmed,
+      )
+    ) {
       flush();
       currentParagraph.push(trimmed);
       flush();
@@ -251,7 +255,7 @@ async function listMemories(
     throw new Error(`Mem0 list failed (${res.status}): ${body}`);
   }
 
-  const data = await res.json();
+  const data = await res.json() as any;
   return (data.results || data || []).map((r: any) => ({
     id: r.id,
     memory: r.memory,
@@ -292,7 +296,7 @@ async function searchMemories(
     throw new Error(`Mem0 search failed (${res.status}): ${body}`);
   }
 
-  const data = await res.json();
+  const data = await res.json() as any;
   return (data.results || data || []).map((r: any) => ({
     id: r.id,
     memory: r.memory,

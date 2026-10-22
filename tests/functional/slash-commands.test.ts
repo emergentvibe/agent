@@ -22,7 +22,7 @@ import fs from 'fs';
 import path from 'path';
 
 config();
-import { buildClaudeMd, type ConstitutionData } from '../../governance/sync/constitution-sync.js';
+import { buildClaudeMd, type ConstitutionData } from '../../governance/sync/claude-md.js';
 import type { GroupConfig } from '../../governance/sync/config.js';
 
 // ── Skip if missing keys ────────────────────────────────────

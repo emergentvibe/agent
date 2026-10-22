@@ -30,8 +30,8 @@ describe('loadFeatureConfig', () => {
   it('returns a copy, not a reference to defaults', () => {
     const a = loadFeatureConfig('test-group');
     const b = loadFeatureConfig('test-group');
-    a.commands.purchase = true;
-    expect(b.commands.purchase).toBe(false);
+    a.commands.subscribe = false;
+    expect(b.commands.subscribe).toBe(true);
   });
 
   it('merges partial overrides with defaults', () => {
@@ -46,7 +46,7 @@ describe('loadFeatureConfig', () => {
     const config = loadFeatureConfig('test-group');
     expect(config.commands.subscribe).toBe(false);
     expect(config.behaviors.daily_digest).toBe(true);
-    expect(config.commands.purchase).toBe(false);
+    expect(config.commands.governance).toBe(false);
     expect(config.behaviors.crew_digest).toBe(false);
   });
 
@@ -60,23 +60,17 @@ describe('loadFeatureConfig', () => {
 describe('stripDisabledFeatures', () => {
   const allEnabled: typeof DEFAULT_FEATURES = {
     commands: {
-      purchase: true,
       subscribe: true,
-      rota: true,
       governance: true,
-      social: true,
     },
     behaviors: { daily_digest: true, crew_digest: true, web: true },
   };
 
   const template = [
     'Header',
-    '<!-- feature:purchase -->',
-    'Buy stuff here',
-    '<!-- /feature:purchase -->',
-    '<!-- feature:rota -->',
-    'Shifts here',
-    '<!-- /feature:rota -->',
+    '<!-- feature:governance -->',
+    'Governance stuff here',
+    '<!-- /feature:governance -->',
     '<!-- feature:subscribe -->',
     'Subscribe info',
     '<!-- /feature:subscribe -->',
@@ -85,38 +79,32 @@ describe('stripDisabledFeatures', () => {
 
   it('keeps all sections when all features enabled', () => {
     const result = stripDisabledFeatures(template, allEnabled);
-    expect(result).toContain('Buy stuff here');
-    expect(result).toContain('Shifts here');
+    expect(result).toContain('Governance stuff here');
     expect(result).toContain('Subscribe info');
     expect(result).toContain('Footer');
   });
 
-  it('strips purchase section when purchase disabled', () => {
+  it('strips governance section when governance disabled', () => {
     const features = {
       ...allEnabled,
-      commands: { ...allEnabled.commands, purchase: false },
+      commands: { ...allEnabled.commands, governance: false },
     };
     const result = stripDisabledFeatures(template, features);
-    expect(result).not.toContain('Buy stuff here');
-    expect(result).toContain('Shifts here');
+    expect(result).not.toContain('Governance stuff here');
     expect(result).toContain('Subscribe info');
   });
 
   it('strips multiple sections when multiple features disabled', () => {
     const features: typeof DEFAULT_FEATURES = {
       commands: {
-        purchase: false,
         subscribe: false,
-        rota: true,
         governance: true,
-        social: true,
       },
       behaviors: { daily_digest: true, crew_digest: true, web: false },
     };
     const result = stripDisabledFeatures(template, features);
-    expect(result).not.toContain('Buy stuff here');
     expect(result).not.toContain('Subscribe info');
-    expect(result).toContain('Shifts here');
+    expect(result).toContain('Governance stuff here');
     expect(result).toContain('Header');
     expect(result).toContain('Footer');
   });

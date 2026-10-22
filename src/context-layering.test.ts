@@ -8,7 +8,7 @@ import path from 'path';
 import {
   buildClaudeMd,
   type ConstitutionData,
-} from '../governance/sync/constitution-sync.js';
+} from '../governance/sync/claude-md.js';
 import type { GroupConfig } from '../governance/sync/config.js';
 import { buildDmClaudeMd } from './dm-registration.js';
 
@@ -44,8 +44,6 @@ const MOCK_GROUP: GroupConfig = {
   community_name: 'Test Community',
   admin_id: 'tg:admin1',
   admin_name: 'TestAdmin',
-  crew_list: 'TestAdmin (tg:admin1)',
-  assistant_name: 'Andy',
   community_start_date: '2026-03-15',
 };
 
@@ -86,9 +84,9 @@ describe('Global CLAUDE.md (Layer 1)', () => {
 
   it('contains memory metadata type tags', () => {
     expect(GLOBAL_CLAUDE_MD).toContain('`fact`');
-    expect(GLOBAL_CLAUDE_MD).toContain('`proposal`');
-    expect(GLOBAL_CLAUDE_MD).toContain('`introduction`');
-    expect(GLOBAL_CLAUDE_MD).toContain('`pattern`');
+    expect(GLOBAL_CLAUDE_MD).toContain('`norm`');
+    expect(GLOBAL_CLAUDE_MD).toContain('`wish`');
+    expect(GLOBAL_CLAUDE_MD).toContain('`concern`');
     expect(GLOBAL_CLAUDE_MD).toContain('`connection`');
   });
 
@@ -153,7 +151,7 @@ describe('Community template (Layer 2)', () => {
 
   it('contains crew section with crew list', () => {
     expect(rendered).toContain('Crew');
-    expect(rendered).toContain('TestAdmin (tg:admin1)');
+    expect(rendered).toContain('the crew');
   });
 
   it('contains epistemic markers', () => {

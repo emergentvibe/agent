@@ -240,4 +240,3 @@ function toggleTopicExtraction(target: string, enabled: boolean): string {
   }
   return `Topic "${target}" not found. Use /admin-topics to see available topics.`;
 }
-

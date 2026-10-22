@@ -102,5 +102,5 @@ const outputPath = path.join(groupDir, 'CLAUDE.md');
 fs.writeFileSync(outputPath, output, 'utf-8');
 console.log(`Generated ${outputPath}`);
 console.log(
-  `  Features: purchase=${features.commands.purchase}, rota=${features.commands.rota}, subscribe=${features.commands.subscribe}`,
+  `  Features: subscribe=${features.commands.subscribe}, governance=${features.commands.governance}`,
 );
