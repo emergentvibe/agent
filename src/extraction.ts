@@ -24,6 +24,7 @@ import {
 } from './db.js';
 import { readEnvFile } from './env.js';
 import { logger } from './logger.js';
+import { loadExtractionConfig, type ExtractionConfig } from './extraction-config.js';
 import { loadFeatureConfig } from './feature-config.js';
 import { resolveGroupIpcPath } from './group-folder.js';
 import { storeMemory } from './mem0-client.js';
@@ -89,6 +90,7 @@ export function buildExtractionPrompt(
   contextMessages: NewMessage[],
   newMessages: NewMessage[],
   subscriptionTopics: string[] = [],
+  extractionConfig?: ExtractionConfig,
 ): string {
   const contextBlock =
     contextMessages.length > 0
@@ -115,18 +117,14 @@ If a message contains a substantive mention of any of these topics — an event,
     hour12: false,
   });
 
-  return `You extract event and activity information from group chat messages for "${groupName}".
-Your output will be stored in a semantic search database for future retrieval.
-Current date and time: ${todayStr}, ${timeStr}.
-Always use absolute dates (e.g., "Thu 25 Sep"), never relative dates like "today", "tonight", "tomorrow", "yesterday".
-Use 24-hour times in all extracted text (e.g., "21:00" not "9pm"). Each message below has a 24-hour timestamp in brackets — use it to disambiguate bare times, but ONLY for same-day events: if someone posts at 20:15 about something "at 9" today, that means 21:00. But "tomorrow at 9" or any future date with a bare time defaults to morning (09:00) unless context says otherwise (e.g., "tomorrow evening at 9" = 21:00). A "tonight" or "this evening" event is always after 17:00. Social and cultural events (workshops, jam sessions, movie nights, performances, bonfires, group dinners) with a bare single-digit time like "at 9" are almost always evening (21:00) — these rarely happen at 9am. If you truly cannot determine the time, include both possibilities.
-
-${contextBlock}## NEW MESSAGES (extract from these only)
-${formatMessagesForExtraction(newMessages)}
-
-## What to extract
-
-EVENT/ACTIVITY ANNOUNCEMENTS — workshops, gatherings, scheduled activities:
+  const categoriesBlock = extractionConfig
+    ? extractionConfig.categories
+        .map((cat) => {
+          const examples = cat.examples.map((ex) => `- ${ex}`).join('\n');
+          return `${cat.name} — ${cat.description}:\n${examples}`;
+        })
+        .join('\n\n')
+    : `EVENT/ACTIVITY ANNOUNCEMENTS — workshops, gatherings, scheduled activities:
 - "Workshop at 15:00 in the garden on Thu 25 Sep (announced by Alex)"
 - Write complete, search-friendly sentences with absolute dates and 24-hour times
 
@@ -141,19 +139,37 @@ ACTIVITY PROPOSALS — things people want to organize:
 - "Alex proposed a music jam at 20:00 on Thu 25 Sep in the barn"
 
 PATTERNS — when 2+ people propose the same activity:
-- "Multiple people (Alex, Priya, River) expressed interest in morning lake swimming"
+- "Multiple people (Alex, Priya, River) expressed interest in morning lake swimming"`;
 
-## What NOT to extract
-- Introductions, skills, interests, personal identity (handled by /hello)
+  const exclusionsBlock = extractionConfig
+    ? extractionConfig.exclusions.map((ex) => `- ${ex}`).join('\n')
+    : `- Introductions, skills, interests, personal identity (handled by /hello)
 - Diet, pronouns, health, emotional state, relationships
-- Rota/shift assignments, cover swaps (managed by separate system)
-- Purchase/tab activity
 - Greetings, banter, jokes, thanks, emoji reactions
 - Questions without answers
 - Social coordination between individuals
 - Opinions, arguments, complaints about people
 - Third-party claims about anyone
-- Anything from the CONTEXT section (already processed)
+- Anything from the CONTEXT section (already processed)`;
+
+  const timeContext = extractionConfig?.time_context
+    ?? 'Social and cultural events (workshops, jam sessions, movie nights, performances, bonfires, group dinners) with a bare single-digit time like "at 9" are almost always evening (21:00) — these rarely happen at 9am.';
+
+  return `You extract event and activity information from group chat messages for "${groupName}".
+Your output will be stored in a semantic search database for future retrieval.
+Current date and time: ${todayStr}, ${timeStr}.
+Always use absolute dates (e.g., "Thu 25 Sep"), never relative dates like "today", "tonight", "tomorrow", "yesterday".
+Use 24-hour times in all extracted text (e.g., "21:00" not "9pm"). Each message below has a 24-hour timestamp in brackets — use it to disambiguate bare times, but ONLY for same-day events: if someone posts at 20:15 about something "at 9" today, that means 21:00. But "tomorrow at 9" or any future date with a bare time defaults to morning (09:00) unless context says otherwise (e.g., "tomorrow evening at 9" = 21:00). A "tonight" or "this evening" event is always after 17:00. ${timeContext} If you truly cannot determine the time, include both possibilities.
+
+${contextBlock}## NEW MESSAGES (extract from these only)
+${formatMessagesForExtraction(newMessages)}
+
+## What to extract
+
+${categoriesBlock}
+
+## What NOT to extract
+${exclusionsBlock}
 ${subscriptionBlock}
 ## Output format
 JSON array: [{"text": "...", "user_id": "community:${communitySlug}", "metadata": {"type": "fact|proposal|pattern", "topic": "...", "tier": "operational", "source": "[name]", "source_context": "group"}}]
@@ -166,6 +182,7 @@ export async function extractMemories(
   communitySlug: string,
   groupName: string,
   subscriptionTopics: string[] = [],
+  extractionConfig?: ExtractionConfig,
 ): Promise<ExtractionResult> {
   if (newMessages.length === 0) return { memories: [] };
 
@@ -184,6 +201,7 @@ export async function extractMemories(
             contextMessages,
             newMessages,
             subscriptionTopics,
+            extractionConfig,
           ),
         },
       ],
@@ -313,6 +331,7 @@ async function runExtractionCycle(deps: ExtractionLoopDeps): Promise<void> {
 
     const subs = getSubscriptions(group.folder);
     const topics = [...new Set(subs.map((s) => s.topic))];
+    const extractionCfg = loadExtractionConfig(group.folder);
 
     logger.info(
       {
@@ -330,6 +349,7 @@ async function runExtractionCycle(deps: ExtractionLoopDeps): Promise<void> {
       communitySlug,
       group.name,
       topics,
+      extractionCfg,
     );
 
     for (const mem of result.memories) {
