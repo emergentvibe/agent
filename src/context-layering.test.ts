@@ -19,21 +19,24 @@ const GLOBAL_CLAUDE_MD = fs.readFileSync(
   'utf-8',
 );
 
-const COMMUNITY_TEMPLATE = fs.readFileSync(
-  path.resolve(
-    import.meta.dirname ?? '.',
-    '../governance/templates/claude-md-template.md',
-  ),
+const TEMPLATES_DIR = path.resolve(
+  import.meta.dirname ?? '.',
+  '../governance/templates',
+);
+const BASE_TEMPLATE = fs.readFileSync(
+  path.join(TEMPLATES_DIR, 'base-template.md'),
   'utf-8',
 );
 
-const DM_TEMPLATE = fs.readFileSync(
-  path.resolve(
-    import.meta.dirname ?? '.',
-    '../governance/templates/dm-template.md',
-  ),
-  'utf-8',
-);
+const COMMUNITY_TEMPLATE =
+  BASE_TEMPLATE +
+  '\n\n' +
+  fs.readFileSync(path.join(TEMPLATES_DIR, 'group-template.md'), 'utf-8');
+
+const DM_TEMPLATE =
+  BASE_TEMPLATE +
+  '\n\n' +
+  fs.readFileSync(path.join(TEMPLATES_DIR, 'dm-overlay-template.md'), 'utf-8');
 
 const MOCK_GROUP: GroupConfig = {
   folder: 'telegram_test',
@@ -41,6 +44,8 @@ const MOCK_GROUP: GroupConfig = {
   community_name: 'Test Community',
   admin_id: 'tg:admin1',
   admin_name: 'TestAdmin',
+  crew_list: 'TestAdmin (tg:admin1)',
+  assistant_name: 'Andy',
   community_start_date: '2026-03-15',
 };
 
@@ -79,17 +84,17 @@ describe('Global CLAUDE.md (Layer 1)', () => {
     expect(GLOBAL_CLAUDE_MD).toContain('Community memories are shared');
   });
 
-  it('contains memory metadata type tags including norm', () => {
-    expect(GLOBAL_CLAUDE_MD).toContain('"type": "wish"');
-    expect(GLOBAL_CLAUDE_MD).toContain('"type": "concern"');
-    expect(GLOBAL_CLAUDE_MD).toContain('"type": "fact"');
-    expect(GLOBAL_CLAUDE_MD).toContain('"type": "connection"');
-    expect(GLOBAL_CLAUDE_MD).toContain('"type": "norm"');
+  it('contains memory metadata type tags', () => {
+    expect(GLOBAL_CLAUDE_MD).toContain('`fact`');
+    expect(GLOBAL_CLAUDE_MD).toContain('`proposal`');
+    expect(GLOBAL_CLAUDE_MD).toContain('`introduction`');
+    expect(GLOBAL_CLAUDE_MD).toContain('`pattern`');
+    expect(GLOBAL_CLAUDE_MD).toContain('`connection`');
   });
 
   it('contains tier metadata and conflict resolution', () => {
-    expect(GLOBAL_CLAUDE_MD).toContain('"tier": "operational"');
-    expect(GLOBAL_CLAUDE_MD).toContain('"tier": "social"');
+    expect(GLOBAL_CLAUDE_MD).toContain('`operational`');
+    expect(GLOBAL_CLAUDE_MD).toContain('`social`');
     expect(GLOBAL_CLAUDE_MD).toContain('Conflict Resolution by Tier');
     expect(GLOBAL_CLAUDE_MD).toContain('Last-writer-wins');
     expect(GLOBAL_CLAUDE_MD).toContain('Hold both sides');
@@ -97,7 +102,8 @@ describe('Global CLAUDE.md (Layer 1)', () => {
   });
 
   it('contains source_context metadata', () => {
-    expect(GLOBAL_CLAUDE_MD).toContain('"source_context": "group"');
+    expect(GLOBAL_CLAUDE_MD).toContain('`source_context`');
+    expect(GLOBAL_CLAUDE_MD).toContain('`group`');
   });
 
   it('does NOT contain community-specific content', () => {
@@ -125,66 +131,42 @@ describe('Community template (Layer 2)', () => {
     'https://emergentvibe.com',
   );
 
-  it('renders with constitution content', () => {
-    expect(rendered).toContain('1. Do no harm');
-    expect(rendered).toContain('2. Be excellent to each other');
-  });
-
-  it('frames constitution as reference principles', () => {
-    expect(rendered).toContain('These principles guide your values');
-    expect(rendered).toContain('written by the community');
-  });
-
-  it('contains listening mode', () => {
-    expect(rendered).toContain('Listening Mode');
+  it('contains tag-only response model', () => {
+    expect(rendered).toContain('Group Behavior');
     expect(rendered).toContain('silence');
   });
 
   it('contains pattern sensing', () => {
     expect(rendered).toContain('Pattern Sensing');
-    expect(rendered).toContain('3+ people');
-  });
-
-  it('contains connection protocol', () => {
-    expect(rendered).toContain('Connection');
-    expect(rendered).toContain('consent from both parties');
+    expect(rendered).toContain('2+ people');
   });
 
   it('contains "What You Never Do" section', () => {
     expect(rendered).toContain('What You Never Do');
-    expect(rendered).toContain("Don't respond to every message");
+    expect(rendered).toContain("Don't respond unless addressed");
   });
 
-  it('contains onboarding section with operational categories', () => {
+  it('contains onboarding section', () => {
     expect(rendered).toContain('Onboarding');
-    expect(rendered).toContain('spaces');
-    expect(rendered).toContain('meals');
-    expect(rendered).toContain('events');
-    expect(rendered).toContain('contacts');
+    expect(rendered).toContain('provenance');
   });
 
-  it('contains bootstrapper phases instead of admin roles', () => {
-    expect(rendered).toContain('Bootstrapper and Phases');
-    expect(rendered).toContain('TestAdmin');
-    expect(rendered).toContain('tg:admin1');
-    expect(rendered).toContain('2026-03-15');
-    // No permanent admin/organizer hierarchy
-    expect(rendered).not.toContain('## Roles');
-    expect(rendered).not.toMatch(/Organizers.*Delegated/);
+  it('contains crew section with crew list', () => {
+    expect(rendered).toContain('Crew');
+    expect(rendered).toContain('TestAdmin (tg:admin1)');
   });
 
   it('contains epistemic markers', () => {
-    expect(rendered).toContain('How You Speak About What You Know');
+    expect(rendered).toContain('How You Speak');
     expect(rendered).toContain('Established fact');
-    expect(rendered).toContain("I've heard that");
+    expect(rendered).toContain('mentioned');
     expect(rendered).toContain('A few people have mentioned');
   });
 
   it('contains knowledge tiers', () => {
-    expect(rendered).toContain('Knowledge Tiers and Conflict Resolution');
-    expect(rendered).toContain('operational');
-    expect(rendered).toContain('social');
-    expect(rendered).toContain('constitutional');
+    expect(rendered).toContain('Knowledge Tiers');
+    expect(rendered).toContain('Operational');
+    expect(rendered).toContain('Social');
   });
 
   it('contains first-person authority', () => {
@@ -214,11 +196,9 @@ describe('Community template (Layer 2)', () => {
     expect(rendered).not.toContain('community-knowledge/');
   });
 
-  it('contains auto-registration instructions', () => {
-    expect(rendered).toContain(
-      'POST https://emergentvibe.com/api/members/telegram',
-    );
-    expect(rendered).toContain('constitution_slug: "test-community"');
+  it('does not contain auto-registration (removed for treeweek)', () => {
+    expect(rendered).not.toContain('POST');
+    expect(rendered).not.toContain('Auto-Registration');
   });
 
   it('does NOT contain memory protocol (that is in global)', () => {
@@ -251,33 +231,27 @@ describe('DM template (Layer 3)', () => {
   );
 
   it('identifies as private conversation', () => {
-    expect(rendered).toContain('Private Conversation');
+    expect(rendered).toContain('private conversation');
     expect(rendered).toContain('Alice');
   });
 
-  it('says always respond', () => {
-    expect(rendered).toContain('Always respond');
+  it('says always reply', () => {
+    expect(rendered).toContain('Always reply');
   });
 
-  it('includes personal + community memory search', () => {
-    expect(rendered).toContain('tg:123');
+  it('includes community memory search', () => {
     expect(rendered).toContain('community:test-village');
   });
 
-  it('uses tier-based authority instead of role-based', () => {
-    expect(rendered).toContain('Knowledge Authority');
+  it('uses tier-based authority', () => {
+    expect(rendered).toContain('Knowledge Tiers');
     expect(rendered.toLowerCase()).toContain('operational');
     expect(rendered.toLowerCase()).toContain('social');
-    expect(rendered.toLowerCase()).toContain('constitutional');
-    // No old role-based hierarchy
-    expect(rendered).not.toContain('Organizers');
-    expect(rendered).not.toContain('regular member');
   });
 
-  it('includes bootstrapper phase awareness', () => {
-    expect(rendered).toContain('Bootstrapper Phase');
+  it('includes crew info', () => {
+    expect(rendered).toContain('Crew');
     expect(rendered).toContain('tg:admin1');
-    expect(rendered).toContain('2026-03-15');
   });
 
   it('includes first-person authority', () => {
@@ -285,10 +259,9 @@ describe('DM template (Layer 3)', () => {
     expect(rendered).toContain('absolute authority');
   });
 
-  it('includes onboarding for bootstrapper only', () => {
-    expect(rendered).toContain('Onboarding');
-    expect(rendered).toContain('Bootstrapper Only');
-    expect(rendered).toContain('operational categories');
+  it('includes onboarding for crew only', () => {
+    expect(rendered).toContain('Crew Onboarding');
+    expect(rendered).toContain('seed knowledge');
   });
 
   it('includes privacy rules', () => {
@@ -299,8 +272,8 @@ describe('DM template (Layer 3)', () => {
     expect(rendered).not.toContain('Listening Mode');
   });
 
-  it('does NOT contain pattern sensing (group-only)', () => {
-    expect(rendered).not.toContain('Pattern Sensing');
+  it('does NOT contain pattern sensing instructions (group-only)', () => {
+    expect(rendered).not.toContain('## Pattern Sensing');
   });
 
   it('leaves no unreplaced placeholders', () => {
@@ -326,9 +299,9 @@ describe('Cross-layer separation', () => {
     expect(DM_TEMPLATE).not.toContain('NEVER use markdown');
   });
 
-  it('listening mode only in community template', () => {
-    expect(COMMUNITY_TEMPLATE).toContain('Listening Mode');
-    expect(GLOBAL_CLAUDE_MD).not.toContain('Listening Mode');
-    expect(DM_TEMPLATE).not.toContain('Listening Mode');
+  it('response model only in community template', () => {
+    expect(COMMUNITY_TEMPLATE).toContain('Group Behavior');
+    expect(GLOBAL_CLAUDE_MD).not.toContain('Group Behavior');
+    expect(DM_TEMPLATE).not.toContain('Group Behavior');
   });
 });

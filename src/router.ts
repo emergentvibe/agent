@@ -16,13 +16,21 @@ export function formatMessages(
 ): string {
   const lines = messages.map((m) => {
     const displayTime = formatLocalTime(m.timestamp, timezone);
-    return `<message sender="${escapeXml(m.sender_name)}" sender_id="${escapeXml(m.sender)}" time="${escapeXml(displayTime)}">${escapeXml(m.content)}</message>`;
+    const threadAttr = m.thread_id ? ` thread_id="${m.thread_id}"` : '';
+    return `<message sender="${escapeXml(m.sender_name)}" sender_id="${escapeXml(m.sender)}" time="${escapeXml(displayTime)}"${threadAttr}>${escapeXml(m.content)}</message>`;
   });
 
-  // Compute current date/day in the community's timezone
-  const now = new Date();
-  const currentDate = now.toLocaleDateString('en-CA', { timeZone: timezone }); // YYYY-MM-DD
-  const currentDay = now.toLocaleDateString('en-US', { timeZone: timezone, weekday: 'long' });
+  // Derive date from the latest message (not wall clock) so the context
+  // header is consistent with message timestamps.
+  const latest = messages[messages.length - 1];
+  const refDate = latest ? new Date(latest.timestamp) : new Date();
+  const currentDate = refDate.toLocaleDateString('en-CA', {
+    timeZone: timezone,
+  }); // YYYY-MM-DD
+  const currentDay = refDate.toLocaleDateString('en-US', {
+    timeZone: timezone,
+    weekday: 'long',
+  });
 
   const header = `<context timezone="${escapeXml(timezone)}" current_date="${escapeXml(currentDate)}" current_day="${escapeXml(currentDay)}" />\n`;
 
@@ -43,10 +51,11 @@ export function routeOutbound(
   channels: Channel[],
   jid: string,
   text: string,
+  opts?: { thread_id?: number },
 ): Promise<void> {
   const channel = channels.find((c) => c.ownsJid(jid) && c.isConnected());
   if (!channel) throw new Error(`No channel for JID: ${jid}`);
-  return channel.sendMessage(jid, text);
+  return channel.sendMessage(jid, text, opts);
 }
 
 export function findChannel(

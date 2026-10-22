@@ -23,10 +23,12 @@ import {
   CONTAINER_RUNTIME_BIN,
   hostGatewayArgs,
   readonlyMountArgs,
+  rewriteUrlForContainer,
   stopContainer,
 } from './container-runtime.js';
 import { detectAuthMode } from './credential-proxy.js';
 import { readEnvFile } from './env.js';
+import { loadFeatureConfig } from './feature-config.js';
 import { validateAdditionalMounts } from './mount-security.js';
 import { RegisteredGroup } from './types.js';
 
@@ -40,8 +42,11 @@ export interface ContainerInput {
   groupFolder: string;
   chatJid: string;
   isMain: boolean;
+  isDm?: boolean;
   isScheduledTask?: boolean;
   assistantName?: string;
+  model?: string;
+  maxTurns?: number;
   mcpServers?: Record<string, import('./types.js').McpServerConfig>;
 }
 
@@ -50,6 +55,27 @@ export interface ContainerOutput {
   result: string | null;
   newSessionId?: string;
   error?: string;
+}
+
+// Container runs as node (uid 1000) but host creates dirs as root.
+// SDK needs to write projects/ for session persistence.
+const CONTAINER_UID = 1000;
+const CONTAINER_GID = 1000;
+
+function chownRecursive(dir: string, uid: number, gid: number): void {
+  try {
+    fs.chownSync(dir, uid, gid);
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        chownRecursive(full, uid, gid);
+      } else {
+        fs.chownSync(full, uid, gid);
+      }
+    }
+  } catch {
+    // chown requires root — skip on dev machines / in tests
+  }
 }
 
 interface VolumeMount {
@@ -66,53 +92,36 @@ function buildVolumeMounts(
   const projectRoot = process.cwd();
   const groupDir = resolveGroupFolderPath(group.folder);
 
-  if (isMain) {
-    // Main gets the project root read-only. Writable paths the agent needs
-    // (group folder, IPC, .claude/) are mounted separately below.
-    // Read-only prevents the agent from modifying host application code
-    // (src/, dist/, package.json, etc.) which would bypass the sandbox
-    // entirely on next restart.
+  // Every container gets its own group folder as the working directory.
+  // No container gets the project root — the host DB, source code, and
+  // secrets must never be reachable from inside a container.
+  mounts.push({
+    hostPath: groupDir,
+    containerPath: '/workspace/group',
+    readonly: false,
+  });
+
+  // Protect CLAUDE.md from agent modification (non-main only;
+  // main agent is trusted to update its own instructions)
+  if (!isMain) {
+    const claudeMdPath = path.join(groupDir, 'CLAUDE.md');
+    if (fs.existsSync(claudeMdPath)) {
+      mounts.push({
+        hostPath: claudeMdPath,
+        containerPath: '/workspace/group/CLAUDE.md',
+        readonly: true,
+      });
+    }
+  }
+
+  // Global memory directory (read-only for all containers)
+  const globalDir = path.join(GROUPS_DIR, 'global');
+  if (fs.existsSync(globalDir)) {
     mounts.push({
-      hostPath: projectRoot,
-      containerPath: '/workspace/project',
+      hostPath: globalDir,
+      containerPath: '/workspace/global',
       readonly: true,
     });
-
-    // Shadow .env so the agent cannot read secrets from the mounted project root.
-    // Credentials are injected by the credential proxy, never exposed to containers.
-    const envFile = path.join(projectRoot, '.env');
-    if (fs.existsSync(envFile)) {
-      mounts.push({
-        hostPath: '/dev/null',
-        containerPath: '/workspace/project/.env',
-        readonly: true,
-      });
-    }
-
-    // Main also gets its group folder as the working directory
-    mounts.push({
-      hostPath: groupDir,
-      containerPath: '/workspace/group',
-      readonly: false,
-    });
-  } else {
-    // Other groups only get their own folder
-    mounts.push({
-      hostPath: groupDir,
-      containerPath: '/workspace/group',
-      readonly: false,
-    });
-
-    // Global memory directory (read-only for non-main)
-    // Only directory mounts are supported, not file mounts
-    const globalDir = path.join(GROUPS_DIR, 'global');
-    if (fs.existsSync(globalDir)) {
-      mounts.push({
-        hostPath: globalDir,
-        containerPath: '/workspace/global',
-        readonly: true,
-      });
-    }
   }
 
   // Per-group Claude sessions directory (isolated from other groups)
@@ -139,7 +148,7 @@ function buildVolumeMounts(
             CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD: '1',
             // Enable Claude's memory feature (persists user preferences between sessions)
             // https://code.claude.com/docs/en/memory#manage-auto-memory
-            CLAUDE_CODE_DISABLE_AUTO_MEMORY: '0',
+            CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1',
           },
         },
         null,
@@ -148,12 +157,14 @@ function buildVolumeMounts(
     );
   }
 
-  // Sync skills from container/skills/ and governance/skills/ into each group's .claude/skills/
+  // Sync skills into each group's .claude/skills/
+  // Governance skills only sync when governance feature is enabled
+  const features = loadFeatureConfig(group.folder);
   const skillsDst = path.join(groupSessionsDir, 'skills');
-  const skillSources = [
-    path.join(process.cwd(), 'container', 'skills'),
-    path.join(process.cwd(), 'governance', 'skills'),
-  ];
+  const skillSources = [path.join(process.cwd(), 'container', 'skills')];
+  if (features.commands.governance) {
+    skillSources.push(path.join(process.cwd(), 'governance', 'skills'));
+  }
   for (const skillsSrc of skillSources) {
     if (fs.existsSync(skillsSrc)) {
       for (const skillDir of fs.readdirSync(skillsSrc)) {
@@ -164,6 +175,8 @@ function buildVolumeMounts(
       }
     }
   }
+  chownRecursive(groupSessionsDir, CONTAINER_UID, CONTAINER_GID);
+
   mounts.push({
     hostPath: groupSessionsDir,
     containerPath: '/home/node/.claude',
@@ -203,7 +216,7 @@ function buildVolumeMounts(
   mounts.push({
     hostPath: groupAgentRunnerDir,
     containerPath: '/app/src',
-    readonly: false,
+    readonly: true,
   });
 
   // Additional mounts validated against external allowlist (tamper-proof from containers)
@@ -222,8 +235,25 @@ function buildVolumeMounts(
 function buildContainerArgs(
   mounts: VolumeMount[],
   containerName: string,
+  model?: string,
 ): string[] {
-  const args: string[] = ['run', '-i', '--rm', '--name', containerName];
+  const args: string[] = [
+    'run',
+    '-i',
+    '--rm',
+    '--init',
+    '--name',
+    containerName,
+  ];
+
+  // Security hardening: drop all capabilities, limit resources
+  args.push('--cap-drop=ALL');
+  args.push('--security-opt=no-new-privileges');
+  const memLimit = process.env.CONTAINER_MEMORY_LIMIT || '2g';
+  args.push(`--memory=${memLimit}`);
+  args.push('--cpus=1');
+  args.push('--pids-limit=256');
+  args.push('--tmpfs', '/tmp:size=512m,exec');
 
   // Pass host timezone so container's local time matches the user's
   args.push('-e', `TZ=${TIMEZONE}`);
@@ -245,9 +275,10 @@ function buildContainerArgs(
     args.push('-e', 'CLAUDE_CODE_OAUTH_TOKEN=placeholder');
   }
 
-  // Pass model override if configured (e.g., CLAUDE_MODEL=claude-haiku-4-5-20251001 for cost savings)
-  if (process.env.CLAUDE_MODEL) {
-    args.push('-e', `CLAUDE_MODEL=${process.env.CLAUDE_MODEL}`);
+  // Pass model override: per-container model takes priority, then global CLAUDE_MODEL env
+  const effectiveModel = model || process.env.CLAUDE_MODEL;
+  if (effectiveModel) {
+    args.push('-e', `CLAUDE_MODEL=${effectiveModel}`);
   }
 
   // Pass Mem0 config if set (check both process.env and .env file)
@@ -255,10 +286,18 @@ function buildContainerArgs(
   const mem0SseUrl = process.env.MEM0_SSE_URL || mem0Env.MEM0_SSE_URL;
   const mem0ApiKey = process.env.MEM0_API_KEY || mem0Env.MEM0_API_KEY;
   if (mem0SseUrl) {
-    args.push('-e', `MEM0_SSE_URL=${mem0SseUrl}`);
+    args.push('-e', `MEM0_SSE_URL=${rewriteUrlForContainer(mem0SseUrl)}`);
   }
-  if (mem0ApiKey) {
+  if (mem0ApiKey && !mem0SseUrl) {
     args.push('-e', `MEM0_API_KEY=${mem0ApiKey}`);
+  }
+
+  // Pass compaction override if set (for testing early compaction triggers)
+  if (process.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE) {
+    args.push(
+      '-e',
+      `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=${process.env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE}`,
+    );
   }
 
   // Runtime-specific args for host gateway resolution
@@ -301,7 +340,7 @@ export async function runContainerAgent(
   const mounts = buildVolumeMounts(group, input.isMain);
   const safeName = group.folder.replace(/[^a-zA-Z0-9-]/g, '-');
   const containerName = `nanoclaw-${safeName}-${Date.now()}`;
-  const containerArgs = buildContainerArgs(mounts, containerName);
+  const containerArgs = buildContainerArgs(mounts, containerName, input.model);
 
   logger.debug(
     {
@@ -405,7 +444,11 @@ export async function runContainerAgent(
       const chunk = data.toString();
       const lines = chunk.trim().split('\n');
       for (const line of lines) {
-        if (line) logger.debug({ container: group.folder }, line);
+        if (line)
+          logger.debug(
+            { source: 'container', group: group.folder, containerName },
+            line,
+          );
       }
       // Don't reset timeout on stderr — SDK writes debug logs continuously.
       // Timeout only resets on actual output (OUTPUT_MARKER in stdout).

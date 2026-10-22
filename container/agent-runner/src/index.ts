@@ -39,8 +39,11 @@ interface ContainerInput {
   groupFolder: string;
   chatJid: string;
   isMain: boolean;
+  isDm?: boolean;
   isScheduledTask?: boolean;
   assistantName?: string;
+  model?: string;
+  maxTurns?: number;
   mcpServers?: Record<string, McpServerConfig>; // Per-group MCP servers
 }
 
@@ -182,6 +185,14 @@ function createPreCompactHook(assistantName?: string): HookCallback {
 
       const conversationsDir = '/workspace/group/conversations';
       fs.mkdirSync(conversationsDir, { recursive: true });
+
+      const MAX_ARCHIVES = 100;
+      const existing = fs.readdirSync(conversationsDir).filter(f => f.endsWith('.md')).sort();
+      if (existing.length >= MAX_ARCHIVES) {
+        for (const old of existing.slice(0, existing.length - MAX_ARCHIVES + 1)) {
+          try { fs.unlinkSync(path.join(conversationsDir, old)); } catch {}
+        }
+      }
 
       const date = new Date().toISOString().split('T')[0];
       const filename = `${date}-${name}.md`;
@@ -382,10 +393,16 @@ async function runQuery(
   let resultCount = 0;
 
   // Load global CLAUDE.md as additional system context (shared across all groups)
-  const globalClaudeMdPath = '/workspace/global/CLAUDE.md';
+  const globalClaudeMdCandidates = [
+    '/workspace/global/CLAUDE.md',
+    '/workspace/project/groups/global/CLAUDE.md',
+  ];
   let globalClaudeMd: string | undefined;
-  if (!containerInput.isMain && fs.existsSync(globalClaudeMdPath)) {
-    globalClaudeMd = fs.readFileSync(globalClaudeMdPath, 'utf-8');
+  for (const candidate of globalClaudeMdCandidates) {
+    if (fs.existsSync(candidate)) {
+      globalClaudeMd = fs.readFileSync(candidate, 'utf-8');
+      break;
+    }
   }
 
   // Discover additional directories mounted at /workspace/extra/*
@@ -404,6 +421,10 @@ async function runQuery(
     log(`Additional directories: ${extraDirs.join(', ')}`);
   }
 
+  const maxTurns = containerInput.maxTurns
+    || parseInt(process.env.AGENT_MAX_TURNS || '', 10)
+    || undefined;
+
   for await (const message of query({
     prompt: stream,
     options: {
@@ -411,19 +432,22 @@ async function runQuery(
       additionalDirectories: extraDirs.length > 0 ? extraDirs : undefined,
       resume: sessionId,
       resumeSessionAt: resumeAt,
+      ...(maxTurns ? { maxTurns } : {}),
       systemPrompt: globalClaudeMd
         ? { type: 'preset' as const, preset: 'claude_code' as const, append: globalClaudeMd }
         : undefined,
       allowedTools: [
-        'Bash',
         'Read', 'Write', 'Edit', 'Glob', 'Grep',
-        'WebSearch', 'WebFetch',
-        'Task', 'TaskOutput', 'TaskStop',
-        'TeamCreate', 'TeamDelete', 'SendMessage',
         'TodoWrite', 'ToolSearch', 'Skill',
-        'NotebookEdit',
         'mcp__nanoclaw__*',
-        'mcp__mem0__*'
+        // DM containers: search + delete only (privacy wall — nothing in DMs enters shared memory)
+        // Both cloud (search_memories, delete_memory) and OpenMemory (search_memory, delete_all_memories, list_memories) names
+        ...(containerInput.isDm
+          ? [
+              'mcp__mem0__search_memories', 'mcp__mem0__delete_memory',
+              'mcp__mem0__search_memory', 'mcp__mem0__delete_all_memories', 'mcp__mem0__list_memories',
+            ]
+          : ['mcp__mem0__*']),
       ],
       env: sdkEnv,
       permissionMode: 'bypassPermissions',
@@ -441,12 +465,21 @@ async function runQuery(
         },
         // Mem0 MCP server for personal + community memory
         // SSE (self-hosted OpenMemory) takes priority over hosted API
-        ...(process.env.MEM0_SSE_URL ? {
-          mem0: {
-            type: 'sse' as const,
-            url: process.env.MEM0_SSE_URL,
-          },
-        } : process.env.MEM0_API_KEY ? {
+        // OpenMemory SSE URL format: {base}/mcp/{client}/sse/{user_id}
+        ...(process.env.MEM0_SSE_URL ? (() => {
+          const rawUrl = new URL(process.env.MEM0_SSE_URL);
+          const baseUrl = `${rawUrl.protocol}//${rawUrl.host}`;
+          const mem0Group = containerInput.groupFolder.replace(/-dm-\d+$/, '');
+          const mem0UserId = `community:${mem0Group}`;
+          const sseUrl = `${baseUrl}/mcp/nanoclaw/sse/${encodeURIComponent(mem0UserId)}`;
+          log(`Mem0 SSE: group=${containerInput.groupFolder} mem0Group=${mem0Group} userId=${mem0UserId} url=${sseUrl}`);
+          return {
+            mem0: {
+              type: 'sse' as const,
+              url: sseUrl,
+            },
+          };
+        })() : process.env.MEM0_API_KEY ? {
           mem0: {
             command: '/home/node/.local/bin/mem0-mcp-server',
             args: [],

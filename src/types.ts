@@ -62,10 +62,12 @@ export interface NewMessage {
   chat_jid: string;
   sender: string;
   sender_name: string;
+  sender_handle?: string;
   content: string;
   timestamp: string;
   is_from_me?: boolean;
   is_bot_message?: boolean;
+  thread_id?: number;
 }
 
 export interface ScheduledTask {
@@ -97,10 +99,16 @@ export interface TaskRunLog {
 export interface Channel {
   name: string;
   connect(): Promise<void>;
-  sendMessage(jid: string, text: string): Promise<void>;
+  sendMessage(
+    jid: string,
+    text: string,
+    opts?: { thread_id?: number },
+  ): Promise<void>;
   isConnected(): boolean;
   ownsJid(jid: string): boolean;
   disconnect(): Promise<void>;
+  // Optional: send a file (PDF, image, etc.)
+  sendFile?(jid: string, buffer: Buffer, filename: string): Promise<void>;
   // Optional: typing indicator. Channels that support it implement it.
   setTyping?(jid: string, isTyping: boolean): Promise<void>;
   // Optional: sync group/chat names from the platform.

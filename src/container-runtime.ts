@@ -20,8 +20,16 @@ export const CONTAINER_HOST_GATEWAY = 'host.docker.internal';
  * Docker (Linux): bind to the docker0 bridge IP so only containers can reach it,
  *   falling back to 0.0.0.0 if the interface isn't found.
  */
-export const PROXY_BIND_HOST =
-  process.env.CREDENTIAL_PROXY_HOST || detectProxyBindHost();
+export const PROXY_BIND_HOST = (() => {
+  const override = process.env.CREDENTIAL_PROXY_HOST;
+  if (override === '0.0.0.0') {
+    logger.warn(
+      'CREDENTIAL_PROXY_HOST=0.0.0.0 exposes API keys to the network — using 127.0.0.1',
+    );
+    return '127.0.0.1';
+  }
+  return override || detectProxyBindHost();
+})();
 
 function detectProxyBindHost(): string {
   if (os.platform() === 'darwin') return '127.0.0.1';
@@ -30,14 +38,21 @@ function detectProxyBindHost(): string {
   // Check /proc filesystem, not env vars — WSL_DISTRO_NAME isn't set under systemd.
   if (fs.existsSync('/proc/sys/fs/binfmt_misc/WSLInterop')) return '127.0.0.1';
 
-  // Bare-metal Linux: bind to the docker0 bridge IP instead of 0.0.0.0
+  // Bare-metal Linux: bind to the docker0 bridge IP so containers can reach it.
+  // NEVER fall back to 0.0.0.0 — that exposes real API credentials to the network.
   const ifaces = os.networkInterfaces();
   const docker0 = ifaces['docker0'];
   if (docker0) {
     const ipv4 = docker0.find((a) => a.family === 'IPv4');
     if (ipv4) return ipv4.address;
   }
-  return '0.0.0.0';
+  logger.warn(
+    'docker0 interface not found — credential proxy binding to 127.0.0.1. ' +
+      'Containers will not be able to reach the proxy. ' +
+      'Fix: set CREDENTIAL_PROXY_HOST to the docker bridge IP (run: ip addr show docker0), ' +
+      'or ensure Docker is installed with default networking.',
+  );
+  return '127.0.0.1';
 }
 
 /** CLI args needed for the container to resolve the host gateway. */
@@ -47,6 +62,22 @@ export function hostGatewayArgs(): string[] {
     return ['--add-host=host.docker.internal:host-gateway'];
   }
   return [];
+}
+
+/** Rewrite localhost/127.0.0.1 in a URL so it resolves inside a container. */
+export function rewriteUrlForContainer(url: string): string {
+  return url.replace(/\blocalhost\b|127\.0\.0\.1/, CONTAINER_HOST_GATEWAY);
+}
+
+/**
+ * Build the OpenMemory MCP SSE URL for a container.
+ * OpenMemory expects: {base}/mcp/{client}/sse/{user_id}
+ */
+export function buildMem0SseUrl(baseUrl: string, groupFolder: string): string {
+  const parsed = new URL(baseUrl);
+  const base = `${parsed.protocol}//${parsed.host}`;
+  const userId = `community:${groupFolder}`;
+  return `${base}/mcp/nanoclaw/sse/${encodeURIComponent(userId)}`;
 }
 
 /** Returns CLI args for a readonly bind mount. */
@@ -107,7 +138,13 @@ export function cleanupOrphans(): void {
       `${CONTAINER_RUNTIME_BIN} ps --filter name=nanoclaw- --format '{{.Names}}'`,
       { stdio: ['pipe', 'pipe', 'pipe'], encoding: 'utf-8' },
     );
-    const orphans = output.trim().split('\n').filter(Boolean);
+    const COMPOSE_CONTAINERS = ['nanoclaw-openmemory-', 'nanoclaw-mem0_store-'];
+    const orphans = output
+      .trim()
+      .split('\n')
+      .filter(
+        (n) => n && !COMPOSE_CONTAINERS.some((prefix) => n.startsWith(prefix)),
+      );
     for (const name of orphans) {
       try {
         execSync(stopContainer(name), { stdio: 'pipe' });

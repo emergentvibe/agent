@@ -214,36 +214,33 @@ describe('Volume mount configuration', () => {
     expect(extra!.hostPath).toBe('/project/groups/telegram_edge');
   });
 
-  it('main group gets project root (ro) instead of global mount', () => {
-    // Main group gets different mounts — verify the key difference
-    // Main: /workspace/project (ro) + /workspace/group (rw) + no /workspace/global
-    // (Main IS the global scope, so it doesn't need global mounted separately)
-
-    // We just verify the contract: main should NOT have /workspace/global
-    // and SHOULD have /workspace/project
+  it('main group gets global mount (no project root)', () => {
+    // No container gets the project root — the host DB, source code,
+    // and secrets must never be reachable from inside a container.
+    // Both main and non-main get /workspace/global for shared knowledge.
     const mainMounts: VolumeMount[] = [
-      {
-        hostPath: '/project',
-        containerPath: '/workspace/project',
-        readonly: true,
-      },
       {
         hostPath: '/project/groups/main',
         containerPath: '/workspace/group',
         readonly: false,
+      },
+      {
+        hostPath: '/project/groups/global',
+        containerPath: '/workspace/global',
+        readonly: true,
       },
     ];
 
     const projectMount = mainMounts.find(
       (m) => m.containerPath === '/workspace/project',
     );
-    expect(projectMount).toBeDefined();
-    expect(projectMount!.readonly).toBe(true);
+    expect(projectMount).toBeUndefined();
 
     const globalMount = mainMounts.find(
       (m) => m.containerPath === '/workspace/global',
     );
-    expect(globalMount).toBeUndefined();
+    expect(globalMount).toBeDefined();
+    expect(globalMount!.readonly).toBe(true);
   });
 });
 
@@ -265,16 +262,19 @@ describe('Context file verification', () => {
     expect(content).toContain('<internal>');
   });
 
-  it('governance/templates/claude-md-template.md exists and renders correctly', () => {
-    const templatePath = path.join(
-      baseDir,
-      'governance',
-      'templates',
-      'claude-md-template.md',
+  it('governance/templates/base+group templates exist and render correctly', () => {
+    const templatesDir = path.join(baseDir, 'governance', 'templates');
+    expect(fs.existsSync(path.join(templatesDir, 'base-template.md'))).toBe(
+      true,
     );
-    expect(fs.existsSync(templatePath)).toBe(true);
+    expect(fs.existsSync(path.join(templatesDir, 'group-template.md'))).toBe(
+      true,
+    );
 
-    const template = fs.readFileSync(templatePath, 'utf-8');
+    const template =
+      fs.readFileSync(path.join(templatesDir, 'base-template.md'), 'utf-8') +
+      '\n\n' +
+      fs.readFileSync(path.join(templatesDir, 'group-template.md'), 'utf-8');
     const rendered = buildClaudeMd(
       template,
       MOCK_GROUP_CONFIG,
@@ -286,29 +286,22 @@ describe('Context file verification', () => {
     const unreplaced = rendered.match(/\{\{[^}]+\}\}/g);
     expect(unreplaced).toBeNull();
 
-    // Constitution content injected
-    expect(rendered).toContain('Respect shared spaces');
-    expect(rendered).toContain('Consent before recording');
-
     // Community name injected
     expect(rendered).toContain('Edge Esmeralda');
 
-    // Version/hash injected
-    expect(rendered).toContain('2.1.0');
-    expect(rendered).toContain('sha256-abc123def');
-
-    // API URL injected
-    expect(rendered).toContain(API_URL);
+    // Core behavioral sections present
+    expect(rendered).toContain('default state is silence');
+    expect(rendered).toContain('Pattern Sensing');
   });
 
-  it('governance/templates/dm-template.md exists and renders correctly', () => {
-    const templatePath = path.join(
-      baseDir,
-      'governance',
-      'templates',
-      'dm-template.md',
+  it('governance/templates/base+dm-overlay templates exist and render correctly', () => {
+    const templatesDir = path.join(baseDir, 'governance', 'templates');
+    expect(fs.existsSync(path.join(templatesDir, 'base-template.md'))).toBe(
+      true,
     );
-    expect(fs.existsSync(templatePath)).toBe(true);
+    expect(
+      fs.existsSync(path.join(templatesDir, 'dm-overlay-template.md')),
+    ).toBe(true);
 
     const rendered = buildDmClaudeMd(
       'Edge Esmeralda',
@@ -323,7 +316,6 @@ describe('Context file verification', () => {
 
     // User-specific content
     expect(rendered).toContain('Alice');
-    expect(rendered).toContain('tg:12345');
 
     // Community reference
     expect(rendered).toContain('Edge Esmeralda');
@@ -334,13 +326,11 @@ describe('Context file verification', () => {
     const globalPath = path.join(baseDir, 'groups', 'global', 'CLAUDE.md');
     const globalContent = fs.readFileSync(globalPath, 'utf-8');
 
-    const templatePath = path.join(
-      baseDir,
-      'governance',
-      'templates',
-      'claude-md-template.md',
-    );
-    const template = fs.readFileSync(templatePath, 'utf-8');
+    const templatePath = path.join(baseDir, 'governance', 'templates');
+    const template =
+      fs.readFileSync(path.join(templatePath, 'base-template.md'), 'utf-8') +
+      '\n\n' +
+      fs.readFileSync(path.join(templatePath, 'group-template.md'), 'utf-8');
     const communityContent = buildClaudeMd(
       template,
       MOCK_GROUP_CONFIG,
@@ -363,20 +353,14 @@ describe('Context file verification', () => {
     expect(combined).toContain('send_message');
     expect(combined).toContain('<internal>');
 
-    // Constitution content (from community)
-    expect(combined).toContain('Respect shared spaces');
-
-    // Listening mode (from community)
-    expect(combined).toContain('Listening Mode');
+    // Silence contract (from community)
+    expect(combined).toContain('default state is silence');
 
     // Pattern sensing (from community)
     expect(combined).toContain('Pattern Sensing');
 
-    // Connection protocol (from community)
-    expect(combined).toContain('consent from both parties');
-
-    // Auto-registration (from community)
-    expect(combined).toContain('/api/members/telegram');
+    // Crew section (from community)
+    expect(combined).toContain('Crew');
   });
 
   it('rendered DM CLAUDE.md has correct community memory namespace', () => {
@@ -389,8 +373,8 @@ describe('Context file verification', () => {
 
     // DM template references community memory via Mem0 namespace
     expect(rendered).toContain('community:edge-esmeralda');
-    // Has personal memory namespace
-    expect(rendered).toContain('tg:tg:67890');
+    // No personal namespace — DMs use community namespace only
+    expect(rendered).toContain('NEVER call add_memory from a DM');
     // No unreplaced placeholders
     expect(rendered.match(/\{\{[^}]+\}\}/g)).toBeNull();
   });
@@ -400,19 +384,26 @@ describe('Context file verification', () => {
 
 describe('Mem0 MCP config construction', () => {
   /**
-   * Replicates the Mem0 config logic from container/agent-runner/src/index.ts
-   * (lines ~444-457). We can't import the agent-runner directly because it
-   * has side effects (reads stdin, calls main()), so we replicate the logic
-   * and verify it matches.
+   * Replicates the Mem0 config logic from container/agent-runner/src/index.ts.
+   * We can't import the agent-runner directly because it has side effects
+   * (reads stdin, calls main()), so we replicate the logic and verify it matches.
+   *
+   * The SSE path constructs the full OpenMemory MCP URL:
+   *   {base}/mcp/nanoclaw/sse/{encoded_user_id}
    */
   function buildMem0Config(
     env: Record<string, string | undefined>,
+    groupFolder = 'test-group',
   ): Record<string, McpServerConfig> {
     if (env.MEM0_SSE_URL) {
+      const rawUrl = new URL(env.MEM0_SSE_URL);
+      const baseUrl = `${rawUrl.protocol}//${rawUrl.host}`;
+      const mem0UserId = `community:${groupFolder}`;
+      const sseUrl = `${baseUrl}/mcp/nanoclaw/sse/${encodeURIComponent(mem0UserId)}`;
       return {
         mem0: {
           type: 'sse' as const,
-          url: env.MEM0_SSE_URL,
+          url: sseUrl,
         },
       };
     }
@@ -420,8 +411,8 @@ describe('Mem0 MCP config construction', () => {
     if (env.MEM0_API_KEY) {
       return {
         mem0: {
-          command: 'uvx',
-          args: ['mem0-mcp-server'],
+          command: '/home/node/.local/bin/mem0-mcp-server',
+          args: [],
           env: {
             MEM0_API_KEY: env.MEM0_API_KEY,
           },
@@ -433,13 +424,18 @@ describe('Mem0 MCP config construction', () => {
   }
 
   it('SSE config when MEM0_SSE_URL is set', () => {
-    const config = buildMem0Config({
-      MEM0_SSE_URL: 'http://localhost:8080/sse',
-    });
+    const config = buildMem0Config(
+      {
+        MEM0_SSE_URL: 'http://localhost:8080/sse',
+      },
+      'treeweek',
+    );
 
     expect(config.mem0).toBeDefined();
     expect((config.mem0 as any).type).toBe('sse');
-    expect((config.mem0 as any).url).toBe('http://localhost:8080/sse');
+    expect((config.mem0 as any).url).toBe(
+      'http://localhost:8080/mcp/nanoclaw/sse/community%3Atreeweek',
+    );
   });
 
   it('stdio config when MEM0_API_KEY is set (no SSE)', () => {
@@ -448,22 +444,29 @@ describe('Mem0 MCP config construction', () => {
     });
 
     expect(config.mem0).toBeDefined();
-    expect((config.mem0 as any).command).toBe('uvx');
-    expect((config.mem0 as any).args).toEqual(['mem0-mcp-server']);
+    expect((config.mem0 as any).command).toBe(
+      '/home/node/.local/bin/mem0-mcp-server',
+    );
+    expect((config.mem0 as any).args).toEqual([]);
     expect((config.mem0 as any).env).toEqual({
       MEM0_API_KEY: 'mem0-key-abc123',
     });
   });
 
   it('SSE takes priority when both are set', () => {
-    const config = buildMem0Config({
-      MEM0_SSE_URL: 'http://localhost:8080/sse',
-      MEM0_API_KEY: 'mem0-key-abc123',
-    });
+    const config = buildMem0Config(
+      {
+        MEM0_SSE_URL: 'http://localhost:8080/sse',
+        MEM0_API_KEY: 'mem0-key-abc123',
+      },
+      'treeweek',
+    );
 
     expect(config.mem0).toBeDefined();
     expect((config.mem0 as any).type).toBe('sse');
-    expect((config.mem0 as any).url).toBe('http://localhost:8080/sse');
+    expect((config.mem0 as any).url).toBe(
+      'http://localhost:8080/mcp/nanoclaw/sse/community%3Atreeweek',
+    );
     // Should NOT have command/args from stdio config
     expect((config.mem0 as any).command).toBeUndefined();
   });
@@ -483,8 +486,6 @@ describe('Mem0 MCP config construction', () => {
   });
 
   it('matches the agent-runner source logic', () => {
-    // Read the actual agent-runner source and verify our replicated logic
-    // matches the conditional structure
     const agentRunnerPath = path.resolve(
       import.meta.dirname ?? '.',
       '../container/agent-runner/src/index.ts',
@@ -495,18 +496,26 @@ describe('Mem0 MCP config construction', () => {
     expect(source).toContain('process.env.MEM0_SSE_URL');
     expect(source).toContain('process.env.MEM0_API_KEY');
 
-    // Verify SSE uses type: 'sse' and url
+    // Verify SSE constructs MCP URL with user_id path (not raw env var)
     expect(source).toContain("type: 'sse'");
-    expect(source).toContain('url: process.env.MEM0_SSE_URL');
+    expect(source).toContain('/mcp/nanoclaw/sse/');
+    expect(source).toContain('containerInput.groupFolder');
 
-    // Verify stdio uses uvx
-    expect(source).toContain("command: 'uvx'");
-    expect(source).toContain("args: ['mem0-mcp-server']");
+    // Verify stdio uses mem0-mcp-server binary
+    expect(source).toContain(
+      "command: '/home/node/.local/bin/mem0-mcp-server'",
+    );
+    expect(source).toContain('args: []');
 
     // Verify priority: SSE check comes before API key check
     const sseIndex = source.indexOf('process.env.MEM0_SSE_URL');
     const apiKeyIndex = source.indexOf('process.env.MEM0_API_KEY');
     expect(sseIndex).toBeLessThan(apiKeyIndex);
+
+    // Verify DM allowedTools includes both cloud and OpenMemory tool names
+    expect(source).toContain('mcp__mem0__search_memories');
+    expect(source).toContain('mcp__mem0__search_memory');
+    expect(source).toContain('mcp__mem0__delete_all_memories');
   });
 });
 

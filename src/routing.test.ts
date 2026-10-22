@@ -1,6 +1,21 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-import { _initTestDatabase, getAllChats, storeChatMetadata } from './db.js';
+import {
+  _initTestDatabase,
+  cancelLastPurchase,
+  getAllChats,
+  getAllPurchaseTotals,
+  getUserPurchases,
+  getUserTotal,
+  getTopics,
+  isExtractionEnabled,
+  setTopicExtraction,
+  storeChatMetadata,
+  storeMessage,
+  storePurchase,
+  upsertTopic,
+  getMessagesSince,
+} from './db.js';
 import { getAvailableGroups, _setRegisteredGroups } from './index.js';
 
 beforeEach(() => {
@@ -169,9 +184,97 @@ describe('getAvailableGroups', () => {
   });
 });
 
+// --- thread_id storage and retrieval ---
+
+describe('thread_id in messages', () => {
+  it('stores and retrieves thread_id', () => {
+    storeChatMetadata(
+      'tg:group1',
+      '2026-01-01T00:00:00Z',
+      'Test',
+      'telegram',
+      true,
+    );
+    storeMessage({
+      id: 'msg1',
+      chat_jid: 'tg:group1',
+      sender: 'user1',
+      sender_name: 'Alice',
+      content: 'hello from topic',
+      timestamp: '2026-01-01T00:01:00Z',
+      is_from_me: false,
+      thread_id: 42,
+    });
+
+    const msgs = getMessagesSince('tg:group1', '2026-01-01T00:00:00Z', 'Bot');
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].thread_id).toBe(42);
+  });
+
+  it('returns null thread_id for messages without topics', () => {
+    storeChatMetadata(
+      'tg:group1',
+      '2026-01-01T00:00:00Z',
+      'Test',
+      'telegram',
+      true,
+    );
+    storeMessage({
+      id: 'msg2',
+      chat_jid: 'tg:group1',
+      sender: 'user1',
+      sender_name: 'Alice',
+      content: 'hello from general',
+      timestamp: '2026-01-01T00:01:00Z',
+      is_from_me: false,
+    });
+
+    const msgs = getMessagesSince('tg:group1', '2026-01-01T00:00:00Z', 'Bot');
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].thread_id).toBeNull();
+  });
+});
+
 // --- formatMessages date injection ---
 
 import { formatMessages } from './router.js';
+
+describe('formatMessages thread_id', () => {
+  it('includes thread_id attribute when present', () => {
+    const messages = [
+      {
+        id: '1',
+        chat_jid: 'tg:123',
+        sender: '456',
+        sender_name: 'Alice',
+        content: 'hello',
+        timestamp: '2026-03-29T10:00:00.000Z',
+        is_from_me: false,
+        thread_id: 42,
+      },
+    ];
+
+    const result = formatMessages(messages, 'UTC');
+    expect(result).toContain('thread_id="42"');
+  });
+
+  it('omits thread_id attribute when absent', () => {
+    const messages = [
+      {
+        id: '1',
+        chat_jid: 'tg:123',
+        sender: '456',
+        sender_name: 'Alice',
+        content: 'hello',
+        timestamp: '2026-03-29T10:00:00.000Z',
+        is_from_me: false,
+      },
+    ];
+
+    const result = formatMessages(messages, 'UTC');
+    expect(result).not.toContain('thread_id');
+  });
+});
 
 describe('formatMessages date injection', () => {
   it('includes current_date and current_day in context header', () => {
@@ -190,7 +293,9 @@ describe('formatMessages date injection', () => {
     const result = formatMessages(messages, 'Europe/Athens');
 
     expect(result).toMatch(/current_date="\d{4}-\d{2}-\d{2}"/);
-    expect(result).toMatch(/current_day="(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)"/);
+    expect(result).toMatch(
+      /current_day="(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)"/,
+    );
   });
 
   it('respects timezone for date calculation', () => {
@@ -221,5 +326,200 @@ describe('formatMessages date injection', () => {
     expect(laResult).toContain('current_day="Sunday"');
 
     vi.useRealTimers();
+  });
+});
+
+// --- Topic registry ---
+
+describe('topic registry', () => {
+  it('upserts and retrieves topics', () => {
+    upsertTopic('tg:123', 2, 'Kitchen');
+    upsertTopic('tg:123', 3, 'Events');
+
+    const topics = getTopics('tg:123');
+    expect(topics).toHaveLength(2);
+    expect(topics[0].name).toBe('Kitchen');
+    expect(topics[1].name).toBe('Events');
+  });
+
+  it('updates topic name on re-upsert', () => {
+    upsertTopic('tg:123', 2, 'Kitchen');
+    upsertTopic('tg:123', 2, 'Kitchen & Dining');
+
+    const topics = getTopics('tg:123');
+    expect(topics).toHaveLength(1);
+    expect(topics[0].name).toBe('Kitchen & Dining');
+  });
+
+  it('extraction defaults to off for non-General topics', () => {
+    upsertTopic('tg:123', 2, 'Pics');
+    expect(isExtractionEnabled('tg:123', 2)).toBe(false);
+  });
+
+  it('General topic (null/undefined/1) always enabled', () => {
+    expect(isExtractionEnabled('tg:123', null)).toBe(true);
+    expect(isExtractionEnabled('tg:123', undefined)).toBe(true);
+    expect(isExtractionEnabled('tg:123', 1)).toBe(true);
+  });
+
+  it('toggles extraction on/off', () => {
+    upsertTopic('tg:123', 2, 'Kitchen');
+    setTopicExtraction('tg:123', 2, true);
+    expect(isExtractionEnabled('tg:123', 2)).toBe(true);
+
+    setTopicExtraction('tg:123', 2, false);
+    expect(isExtractionEnabled('tg:123', 2)).toBe(false);
+  });
+});
+
+// --- Purchase tracking ---
+
+describe('purchase tracking', () => {
+  it('stores and retrieves purchases', () => {
+    storePurchase('tg:123', 'user1', 'Alice', 'beer', 3);
+    storePurchase('tg:123', 'user1', 'Alice', 'wine', 5);
+
+    const purchases = getUserPurchases('user1');
+    expect(purchases).toHaveLength(2);
+    expect(purchases[0].item).toBe('beer');
+    expect(purchases[1].item).toBe('wine');
+  });
+
+  it('calculates user total', () => {
+    storePurchase('tg:123', 'user1', 'Alice', 'beer', 3);
+    storePurchase('tg:123', 'user1', 'Alice', 'wine', 5);
+
+    expect(getUserTotal('user1')).toBe(8);
+  });
+
+  it('calculates all totals', () => {
+    storePurchase('tg:123', 'user1', 'Alice', 'beer', 3);
+    storePurchase('tg:123', 'user2', 'Bob', 'burger', 5);
+
+    const totals = getAllPurchaseTotals();
+    expect(totals).toHaveLength(2);
+    expect(totals[0].user_name).toBe('Bob');
+    expect(totals[0].total).toBe(5);
+    expect(totals[1].user_name).toBe('Alice');
+    expect(totals[1].total).toBe(3);
+  });
+
+  it('cancels last purchase', () => {
+    storePurchase('tg:123', 'user1', 'Alice', 'beer', 3);
+    storePurchase('tg:123', 'user1', 'Alice', 'wine', 5);
+
+    const cancelled = cancelLastPurchase('user1');
+    expect(cancelled?.item).toBe('wine');
+    expect(getUserTotal('user1')).toBe(3);
+    expect(getUserPurchases('user1')).toHaveLength(1);
+  });
+
+  it('returns null when nothing to cancel', () => {
+    expect(cancelLastPurchase('nonexistent')).toBeNull();
+  });
+
+  it('returns zero total for unknown user', () => {
+    expect(getUserTotal('unknown')).toBe(0);
+  });
+});
+
+// --- Outbound routing ---
+
+import {
+  routeOutbound,
+  findChannel,
+  formatOutbound,
+  stripInternalTags,
+} from './router.js';
+import type { Channel } from './types.js';
+
+function fakeChannel(prefix: string, connected = true): Channel {
+  return {
+    name: `${prefix}-channel`,
+    ownsJid: (jid: string) => jid.startsWith(prefix),
+    isConnected: () => connected,
+    sendMessage: vi.fn(async () => {}),
+    connect: vi.fn(async () => {}),
+    disconnect: vi.fn(async () => {}),
+  };
+}
+
+describe('routeOutbound', () => {
+  it('routes to the correct channel by JID prefix', async () => {
+    const tg = fakeChannel('tg:');
+    const wa = fakeChannel('wa:');
+
+    await routeOutbound([tg, wa], 'tg:-100123', 'hello');
+    expect(tg.sendMessage).toHaveBeenCalledWith(
+      'tg:-100123',
+      'hello',
+      undefined,
+    );
+    expect(wa.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('passes thread_id through to channel', async () => {
+    const tg = fakeChannel('tg:');
+
+    await routeOutbound([tg], 'tg:-100', 'reply', { thread_id: 42 });
+    expect(tg.sendMessage).toHaveBeenCalledWith('tg:-100', 'reply', {
+      thread_id: 42,
+    });
+  });
+
+  it('throws when no channel matches JID', () => {
+    const tg = fakeChannel('tg:');
+    expect(() => routeOutbound([tg], 'dc:999', 'oops')).toThrow(
+      'No channel for JID',
+    );
+  });
+
+  it('skips disconnected channels', () => {
+    const disconnected = fakeChannel('tg:', false);
+    const connected = fakeChannel('tg:', true);
+
+    routeOutbound([disconnected, connected], 'tg:-100', 'test');
+    expect(disconnected.sendMessage).not.toHaveBeenCalled();
+    expect(connected.sendMessage).toHaveBeenCalled();
+  });
+});
+
+describe('findChannel', () => {
+  it('returns the channel that owns the JID', () => {
+    const tg = fakeChannel('tg:');
+    const wa = fakeChannel('wa:');
+    expect(findChannel([tg, wa], 'wa:123')).toBe(wa);
+  });
+
+  it('returns undefined when no channel matches', () => {
+    const tg = fakeChannel('tg:');
+    expect(findChannel([tg], 'dc:123')).toBeUndefined();
+  });
+});
+
+describe('formatOutbound', () => {
+  it('strips internal tags', () => {
+    expect(formatOutbound('<internal>debug</internal>Hello!')).toBe('Hello!');
+  });
+
+  it('returns empty string when only internal tags', () => {
+    expect(formatOutbound('<internal>all hidden</internal>')).toBe('');
+  });
+
+  it('returns text unchanged without internal tags', () => {
+    expect(formatOutbound('Just a message')).toBe('Just a message');
+  });
+});
+
+describe('stripInternalTags', () => {
+  it('handles multiple internal blocks', () => {
+    const input =
+      'before<internal>hidden1</internal>mid<internal>hidden2</internal>after';
+    expect(stripInternalTags(input)).toBe('beforemidafter');
+  });
+
+  it('handles multiline internal content', () => {
+    const input = 'hello<internal>\nline1\nline2\n</internal>world';
+    expect(stripInternalTags(input)).toBe('helloworld');
   });
 });
