@@ -515,9 +515,13 @@ export class TelegramChannel implements Channel {
       }
       const kb = new InlineKeyboard()
         .text('€3', 'dealer_tip:3')
-        .text('€7 ⭐', 'dealer_tip:7')
-        .text('€15', 'dealer_tip:15');
-      await ctx.reply('🎯 *Tip the dealer*\nAdded to your tab.', {
+        .text('€5', 'dealer_tip:5')
+        .text('€8', 'dealer_tip:8')
+        .row()
+        .text('€13', 'dealer_tip:13')
+        .text('€21', 'dealer_tip:21')
+        .text('€34', 'dealer_tip:34');
+      await ctx.reply('🎯 *Tip the dealer*\nHow much?', {
         reply_markup: kb,
         parse_mode: 'Markdown',
       });
