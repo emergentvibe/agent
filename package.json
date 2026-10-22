@@ -26,6 +26,7 @@
     "@modelcontextprotocol/sdk": "^1.30.0",
     "better-sqlite3": "^11.8.1",
     "cron-parser": "^5.5.0",
+    "discord.js": "^14.27.0",
     "grammy": "^1.39.3",
     "pdfkit": "^0.20.2",
     "pino": "^9.6.0",
