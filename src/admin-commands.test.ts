@@ -7,11 +7,7 @@ import {
   setDegraded,
   setSilenced,
 } from './admin-commands.js';
-import {
-  _initTestDatabase,
-  setRegisteredGroup,
-  upsertTopic,
-} from './db.js';
+import { _initTestDatabase, setRegisteredGroup, upsertTopic } from './db.js';
 
 const ADMIN_ID = '123456';
 
@@ -180,5 +176,4 @@ describe('admin-commands', () => {
       expect(result.response).toContain('not found');
     });
   });
-
 });

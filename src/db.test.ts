@@ -625,4 +625,3 @@ describe('isExtractionEnabled', () => {
     expect(isExtractionEnabled(other, 70)).toBe(false);
   });
 });
-

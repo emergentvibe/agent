@@ -24,7 +24,10 @@ import {
 } from './db.js';
 import { readEnvFile } from './env.js';
 import { logger } from './logger.js';
-import { loadExtractionConfig, type ExtractionConfig } from './extraction-config.js';
+import {
+  loadExtractionConfig,
+  type ExtractionConfig,
+} from './extraction-config.js';
 import { loadFeatureConfig } from './feature-config.js';
 import { resolveGroupIpcPath } from './group-folder.js';
 import { storeMemory } from './mem0-client.js';
@@ -152,8 +155,9 @@ PATTERNS — when 2+ people propose the same activity:
 - Third-party claims about anyone
 - Anything from the CONTEXT section (already processed)`;
 
-  const timeContext = extractionConfig?.time_context
-    ?? 'Social and cultural events (workshops, jam sessions, movie nights, performances, bonfires, group dinners) with a bare single-digit time like "at 9" are almost always evening (21:00) — these rarely happen at 9am.';
+  const timeContext =
+    extractionConfig?.time_context ??
+    'Social and cultural events (workshops, jam sessions, movie nights, performances, bonfires, group dinners) with a bare single-digit time like "at 9" are almost always evening (21:00) — these rarely happen at 9am.';
 
   return `You extract event and activity information from group chat messages for "${groupName}".
 Your output will be stored in a semantic search database for future retrieval.
