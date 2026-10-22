@@ -6,14 +6,24 @@ import { readEnvFile } from './env.js';
 // Read config values from .env (falls back to process.env).
 // Secrets (API keys, tokens) are NOT read here — they are loaded only
 // by the credential proxy (credential-proxy.ts), never exposed to containers.
-const envConfig = readEnvFile(['ASSISTANT_NAME', 'ASSISTANT_HAS_OWN_NUMBER']);
+const envConfig = readEnvFile([
+  'ASSISTANT_NAME',
+  'ASSISTANT_HAS_OWN_NUMBER',
+  'ADMIN_TELEGRAM_ID',
+  'DATE_OVERRIDE',
+]);
+
+// Propagate DATE_OVERRIDE to process.env so all modules see it
+if (envConfig.DATE_OVERRIDE) {
+  process.env.DATE_OVERRIDE = envConfig.DATE_OVERRIDE;
+}
 
 export const ASSISTANT_NAME =
   process.env.ASSISTANT_NAME || envConfig.ASSISTANT_NAME || 'Andy';
 export const ASSISTANT_HAS_OWN_NUMBER =
   (process.env.ASSISTANT_HAS_OWN_NUMBER ||
     envConfig.ASSISTANT_HAS_OWN_NUMBER) === 'true';
-export const POLL_INTERVAL = 2000;
+export const POLL_INTERVAL = parseInt(process.env.POLL_INTERVAL || '30000', 10);
 export const SCHEDULER_POLL_INTERVAL = 60000;
 
 // Absolute paths needed for container mounts
@@ -51,8 +61,16 @@ export const CREDENTIAL_PROXY_PORT = parseInt(
   process.env.CREDENTIAL_PROXY_PORT || '3001',
   10,
 );
+export const ADMIN_HTTP_PORT = parseInt(
+  process.env.ADMIN_HTTP_PORT || '3002',
+  10,
+);
+export const ADMIN_HTTP_TOKEN = process.env.ADMIN_HTTP_TOKEN || '';
+export const WEB_PORT = parseInt(process.env.WEB_PORT || '8080', 10);
+export const TELEGRAM_BOT_USERNAME =
+  process.env.TELEGRAM_BOT_USERNAME || '';
 export const IPC_POLL_INTERVAL = 1000;
-export const IDLE_TIMEOUT = parseInt(process.env.IDLE_TIMEOUT || '1800000', 10); // 30min default — how long to keep container alive after last result
+export const IDLE_TIMEOUT = parseInt(process.env.IDLE_TIMEOUT || '7200000', 10); // 2hr default — how long to keep container alive after last result
 export const MAX_CONCURRENT_CONTAINERS = Math.max(
   1,
   parseInt(process.env.MAX_CONCURRENT_CONTAINERS || '10', 10) || 10,
@@ -62,12 +80,37 @@ function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+export const ADMIN_TELEGRAM_ID =
+  process.env.ADMIN_TELEGRAM_ID || envConfig.ADMIN_TELEGRAM_ID;
+
 export const TRIGGER_PATTERN = new RegExp(
   `^@${escapeRegex(ASSISTANT_NAME)}\\b`,
   'i',
+);
+
+// Background memory extraction timing
+export const EXTRACTION_INTERVAL = parseInt(
+  process.env.EXTRACTION_INTERVAL || '300000',
+  10,
+); // 5 min
+export const EXTRACTION_WINDOW = parseInt(
+  process.env.EXTRACTION_WINDOW || '3600000',
+  10,
+); // 60 min sliding context window
+export const MIN_CONTEXT_MESSAGES = parseInt(
+  process.env.MIN_CONTEXT_MESSAGES || '20',
+  10,
 );
 
 // Timezone for scheduled tasks (cron expressions, etc.)
 // Uses system timezone by default
 export const TIMEZONE =
   process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+// DATE_OVERRIDE: force the bot to think today is a different date (yyyy-MM-dd).
+// For testing rota commands outside the event window.
+export function getToday(): string {
+  if (process.env.DATE_OVERRIDE) return process.env.DATE_OVERRIDE;
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}

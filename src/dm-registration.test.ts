@@ -74,14 +74,14 @@ describe('buildDmClaudeMd', () => {
     expect(result).toContain('Test Village');
   });
 
-  it('includes correct personal memory namespace', () => {
+  it('includes no-add_memory DM privacy rule', () => {
     const result = buildDmClaudeMd(
       'Test Village',
       'Alice',
       'tg:123',
       'test-village',
     );
-    expect(result).toContain('tg:123');
+    expect(result).toContain('NEVER call add_memory from a DM');
   });
 
   it('includes correct community memory namespace', () => {
@@ -121,7 +121,7 @@ describe('buildDmClaudeMd', () => {
       'tg:123',
       'test-village',
     );
-    expect(result).toContain('Always respond');
+    expect(result).toContain('Always reply');
   });
 
   it('includes privacy rules', () => {
@@ -143,6 +143,31 @@ describe('buildDmClaudeMd', () => {
     );
     const unreplaced = result.match(/\{\{[^}]+\}\}/g);
     expect(unreplaced).toBeNull();
+  });
+
+  it('appends personal context when provided', () => {
+    const result = buildDmClaudeMd(
+      'Test Village',
+      'Alice',
+      'tg:123',
+      'test-village',
+      undefined,
+      undefined,
+      'You are crew. Arrival: Sep 22.\nUpcoming shifts:\n- Sep 23 Lunch 10:30–13:00',
+    );
+    expect(result).toContain('## Personal Context');
+    expect(result).toContain('You are crew');
+    expect(result).toContain('Sep 23 Lunch');
+  });
+
+  it('omits personal context section when not provided', () => {
+    const result = buildDmClaudeMd(
+      'Test Village',
+      'Alice',
+      'tg:123',
+      'test-village',
+    );
+    expect(result).not.toContain('## Personal Context');
   });
 });
 
@@ -172,7 +197,6 @@ describe('writeDmClaudeMd', () => {
     );
     expect(content).toContain('Bob');
     expect(content).toContain('My Community');
-    expect(content).toContain('tg:456');
     expect(content).toContain('community:my-community');
   });
 });
@@ -185,6 +209,7 @@ describe('findCommunityForUser', () => {
     folder: 'test-group',
     trigger: 'Andy',
     added_at: new Date().toISOString(),
+    isMain: true,
   };
 
   it('returns null for unknown users', () => {
@@ -209,7 +234,7 @@ describe('findCommunityForUser', () => {
     expect(result!.group).toBe(baseGroup);
   });
 
-  it('skips main group', () => {
+  it('checks all main groups and returns the one where sender has messages', () => {
     const groups: Record<string, RegisteredGroup> = {
       'tg:main': { ...baseGroup, isMain: true },
       'tg:community': { ...baseGroup, folder: 'community' },
@@ -220,13 +245,13 @@ describe('findCommunityForUser', () => {
 
     const result = findCommunityForUser('tg:user1', groups, findSender);
     expect(result!.jid).toBe('tg:community');
-    // Should not have checked main group
-    expect(findSender).not.toHaveBeenCalledWith('tg:main', 'tg:user1');
+    // Main group IS checked (it can also be a community)
+    expect(findSender).toHaveBeenCalledWith('tg:main', 'tg:user1');
   });
 
   it('skips existing DM folders', () => {
     const groups: Record<string, RegisteredGroup> = {
-      'tg:dm1': { ...baseGroup, folder: 'test-group-dm-tg-999' },
+      'tg:dm1': { ...baseGroup, folder: 'test-group-dm-tg-999', isMain: false },
       'tg:community': { ...baseGroup, folder: 'community' },
     };
     const findSender = vi.fn().mockImplementation((chatJid: string) => {

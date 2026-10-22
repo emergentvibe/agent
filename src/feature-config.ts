@@ -5,11 +5,8 @@ import { resolveGroupFolderPath } from './group-folder.js';
 
 export interface FeatureConfig {
   commands: {
-    purchase: boolean;
     subscribe: boolean;
-    rota: boolean;
     governance: boolean;
-    social: boolean;
   };
   behaviors: {
     daily_digest: boolean;
@@ -20,11 +17,8 @@ export interface FeatureConfig {
 
 export const DEFAULT_FEATURES: FeatureConfig = {
   commands: {
-    purchase: false,
     subscribe: true,
-    rota: false,
     governance: false,
-    social: false,
   },
   behaviors: {
     daily_digest: false,

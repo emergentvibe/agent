@@ -1,9 +1,19 @@
 import https from 'https';
-import { Api, Bot } from 'grammy';
+import { autoRetry } from '@grammyjs/auto-retry';
+import { Api, Bot, InputFile } from 'grammy';
 
-import { ASSISTANT_NAME, TRIGGER_PATTERN } from '../config.js';
+import {
+  ASSISTANT_NAME,
+  TRIGGER_PATTERN,
+} from '../config.js';
+import {
+  addSubscription,
+  removeSubscription,
+  getSubscriptions,
+} from '../subscriptions.js';
 import { readEnvFile } from '../env.js';
 import { logger } from '../logger.js';
+import { loadFeatureConfig } from '../feature-config.js';
 import { registerChannel, ChannelOpts } from './registry.js';
 import {
   Channel,
@@ -15,6 +25,12 @@ import {
 export interface TelegramChannelOpts {
   onMessage: OnInboundMessage;
   onChatMetadata: OnChatMetadata;
+  onTopicDiscovered?: (chatJid: string, threadId: number, name: string) => void;
+  onEnsureIdentity?: (
+    telegramId: string,
+    name?: string,
+    handle?: string,
+  ) => void;
   registeredGroups: () => Record<string, RegisteredGroup>;
 }
 
@@ -47,6 +63,9 @@ export class TelegramChannel implements Channel {
   private bot: Bot | null = null;
   private opts: TelegramChannelOpts;
   private botToken: string;
+  // Telegram's typing state only lasts ~5s; refresh just under that.
+  private typingIntervals = new Map<string, ReturnType<typeof setInterval>>();
+  private readonly TYPING_REFRESH_MS = 4000;
 
   constructor(botToken: string, opts: TelegramChannelOpts) {
     this.botToken = botToken;
@@ -60,17 +79,90 @@ export class TelegramChannel implements Channel {
       },
     });
 
-    // Register all commands for Telegram autocomplete menu
-    await this.bot.api.setMyCommands([
+    this.bot.api.config.use(
+      autoRetry({ maxRetryAttempts: 3, maxDelaySeconds: 60 }),
+    );
+
+    const getMainGroupFolder = (): string | null => {
+      const groups = this.opts.registeredGroups();
+      const main = Object.values(groups).find((g) => g.isMain);
+      return main?.folder ?? null;
+    };
+
+    const isSubscribeEnabled = (): boolean => {
+      const folder = getMainGroupFolder();
+      if (!folder) return true;
+      return loadFeatureConfig(folder).commands.subscribe;
+    };
+
+    // Single source of truth for all slash commands.
+    // local: handled inside TelegramChannel, NOT forwarded to the agent.
+    // agent (the default): forwarded to the agent and rewritten with the
+    // trigger prefix so they match TRIGGER_PATTERN in groups.
+    // featureGate: if set, command only appears in menu when that feature is enabled.
+    const COMMANDS: Array<{
+      command: string;
+      description: string;
+      local?: boolean;
+      visible?: boolean;
+      featureGate?: 'subscribe';
+    }> = [
       { command: 'today', description: "Today's events and schedule" },
-      { command: 'where', description: 'Find a place — /where kitchen' },
-      { command: 'recall', description: 'Search community memory — /recall yoga' },
       { command: 'hello', description: 'Introduce yourself to the community' },
       { command: 'connect', description: 'Find people with shared interests' },
-      { command: 'forget', description: 'Remove your introduction from memory' },
-      { command: 'chatid', description: 'Get this chat ID' },
-      { command: 'ping', description: 'Check if bot is online' },
-    ]);
+      {
+        command: 'subscribe',
+        description: 'Get notified about a topic',
+        local: true,
+        featureGate: 'subscribe',
+      },
+      {
+        command: 'unsubscribe',
+        description: 'Stop notifications for a topic',
+        local: true,
+        featureGate: 'subscribe',
+      },
+      {
+        command: 'subscriptions',
+        description: 'List your subscriptions',
+        local: true,
+        featureGate: 'subscribe',
+      },
+      {
+        command: 'chatid',
+        description: 'Get this chat ID',
+        local: true,
+        visible: false,
+      },
+      {
+        command: 'ping',
+        description: 'Check if bot is online',
+        local: true,
+        visible: false,
+      },
+    ];
+
+    // Filter commands by feature flags, then register visible ones for Telegram autocomplete.
+    const mainFolder = getMainGroupFolder();
+    const features = mainFolder ? loadFeatureConfig(mainFolder) : null;
+    const activeCommands = COMMANDS.filter((c) => {
+      if (!c.featureGate) return true;
+      if (!features) return true;
+      return features.commands[c.featureGate];
+    });
+
+    await this.bot.api.setMyCommands(
+      activeCommands
+        .filter((c) => c.visible !== false)
+        .map(({ command, description }) => ({ command, description })),
+    );
+
+    const LOCAL_COMMANDS = new Set(
+      COMMANDS.filter((c) => c.local).map((c) => c.command),
+    );
+    const AGENT_COMMANDS = new Set(
+      COMMANDS.filter((c) => !c.local).map((c) => c.command),
+    );
 
     // Command to get chat ID (useful for registration)
     this.bot.command('chatid', (ctx) => {
@@ -92,9 +184,203 @@ export class TelegramChannel implements Channel {
       ctx.reply(`${ASSISTANT_NAME} is online.`);
     });
 
-    // Telegram bot commands handled above — skip them in the general handler
-    // so they don't also get stored as messages. All other /commands flow through.
-    const TELEGRAM_BOT_COMMANDS = new Set(['chatid', 'ping']);
+    // --- Subscribe system (local, no containers) ---
+
+    const resolveGroupFolder = (chatJid: string): string | null => {
+      const group = this.opts.registeredGroups()[chatJid];
+      if (!group) return null;
+      return group.folder.replace(/-dm-\d+$/, '');
+    };
+
+    this.bot.command('subscribe', async (ctx) => {
+      if (!isSubscribeEnabled()) {
+        await ctx.reply('Subscriptions are not available.');
+        return;
+      }
+      const chatJid = `tg:${ctx.chat.id}`;
+      const groupFolder = resolveGroupFolder(chatJid);
+      if (!groupFolder) {
+        await ctx.reply('Subscriptions are not available in this chat.');
+        return;
+      }
+      const topic = (ctx.match?.toString() || '').trim();
+      if (!topic) {
+        await ctx.reply('What topic? Usage: /subscribe yoga');
+        return;
+      }
+      if (topic.length < 3) {
+        await ctx.reply('Topic must be at least 3 characters.');
+        return;
+      }
+      const userId = ctx.from?.id?.toString() || '';
+      const userName = ctx.from?.first_name || ctx.from?.username || userId;
+      const dmJid = `tg:${ctx.from?.id}`;
+      addSubscription(groupFolder, userId, userName, topic, dmJid);
+      await ctx.reply(
+        `Subscribed to "${topic}" — I'll DM you when it comes up.`,
+      );
+    });
+
+    this.bot.command('unsubscribe', async (ctx) => {
+      if (!isSubscribeEnabled()) {
+        await ctx.reply('Subscriptions are not available.');
+        return;
+      }
+      const chatJid = `tg:${ctx.chat.id}`;
+      const groupFolder = resolveGroupFolder(chatJid);
+      if (!groupFolder) {
+        await ctx.reply('Subscriptions are not available in this chat.');
+        return;
+      }
+      const topic = (ctx.match?.toString() || '').trim();
+      if (!topic) {
+        const subs = getSubscriptions(groupFolder, ctx.from?.id?.toString());
+        if (subs.length === 0) {
+          await ctx.reply("You don't have any subscriptions.");
+        } else {
+          const list = subs.map((s) => `• ${s.topic}`).join('\n');
+          await ctx.reply(
+            `Your subscriptions:\n${list}\n\nTo unsubscribe: /unsubscribe [topic]`,
+          );
+        }
+        return;
+      }
+      const userId = ctx.from?.id?.toString() || '';
+      const removed = removeSubscription(groupFolder, userId, topic);
+      if (removed) {
+        await ctx.reply(`Unsubscribed from "${topic}".`);
+      } else {
+        await ctx.reply(`You weren't subscribed to "${topic}".`);
+      }
+    });
+
+    this.bot.command('subscriptions', async (ctx) => {
+      if (!isSubscribeEnabled()) {
+        await ctx.reply('Subscriptions are not available.');
+        return;
+      }
+      const chatJid = `tg:${ctx.chat.id}`;
+      const groupFolder = resolveGroupFolder(chatJid);
+      if (!groupFolder) {
+        await ctx.reply('Subscriptions are not available in this chat.');
+        return;
+      }
+      const userId = ctx.from?.id?.toString() || '';
+      const subs = getSubscriptions(groupFolder, userId);
+      if (subs.length === 0) {
+        await ctx.reply(
+          "You don't have any subscriptions yet. Use /subscribe [topic] to get started.",
+        );
+        return;
+      }
+      const lines = subs.map((s) => `• ${s.topic}`);
+      await ctx.reply(
+        `Your subscriptions:\n${lines.join('\n')}\n\nI'll DM you when any of these come up in the group. Use /unsubscribe [topic] to remove one.`,
+      );
+    });
+
+    // /start deep link handler (NFC stickers, DM entry points)
+    this.bot.command('start', async (ctx) => {
+      const payload = ctx.match?.toString().trim();
+
+      // Bind identity on every /start variant (idempotent)
+      if (ctx.chat.type === 'private' && ctx.from?.id) {
+        const tgId = ctx.from.id.toString();
+        const name =
+          [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(' ') ||
+          undefined;
+        const handle = ctx.from.username ? `@${ctx.from.username}` : undefined;
+        this.opts.onEnsureIdentity?.(tgId, name, handle);
+      }
+
+      if (!payload) {
+        const chatJid = `tg:${ctx.chat.id}`;
+        const timestamp = new Date(ctx.message!.date * 1000).toISOString();
+        const chatName =
+          ctx.chat.type === 'private'
+            ? ctx.from?.first_name || ctx.from?.username || 'DM'
+            : (ctx.chat as any).title || chatJid;
+        const isGroup =
+          ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
+        this.opts.onChatMetadata(
+          chatJid,
+          timestamp,
+          chatName,
+          'telegram',
+          isGroup,
+        );
+        const displayName =
+          [ctx.from?.first_name, ctx.from?.last_name]
+            .filter(Boolean)
+            .join(' ') ||
+          ctx.from?.username ||
+          'Unknown';
+        this.opts.onMessage(chatJid, {
+          id: ctx.message!.message_id.toString(),
+          chat_jid: chatJid,
+          sender: ctx.from?.id?.toString() || '',
+          sender_name: displayName,
+          sender_handle: ctx.from?.username
+            ? `@${ctx.from.username}`
+            : undefined,
+          content: `@${ASSISTANT_NAME} introduce yourself — this is my first message`,
+          timestamp,
+          is_from_me: false,
+        });
+        return;
+      }
+
+      // Handle web auth link tokens
+      if (payload.startsWith('link_')) {
+        const { linkWebToken } = await import('../web/auth.js');
+        const token = payload.slice(5);
+        const telegramId = ctx.from?.id?.toString() || '';
+        const name =
+          [ctx.from?.first_name, ctx.from?.last_name]
+            .filter(Boolean)
+            .join(' ') ||
+          ctx.from?.username ||
+          'Unknown';
+        const linked = linkWebToken(token, telegramId, name);
+        if (linked) {
+          await ctx.reply(
+            'Connected! Head back to the website.',
+          );
+        } else {
+          await ctx.reply(
+            'Link expired or already used. Visit the website to get a new one.',
+          );
+        }
+        return;
+      }
+
+      // Other payloads (wifi, today, info, connect) → rewrite as agent command
+      this.opts.onMessage(`tg:${ctx.chat.id}`, {
+        id: ctx.message!.message_id.toString(),
+        chat_jid: `tg:${ctx.chat.id}`,
+        sender: ctx.from?.id?.toString() || '',
+        sender_name:
+          ctx.from?.first_name || ctx.from?.username || 'Unknown',
+        sender_handle: ctx.from?.username
+          ? `@${ctx.from.username}`
+          : undefined,
+        content: `@${ASSISTANT_NAME} /${payload}`,
+        timestamp: new Date(ctx.message!.date * 1000).toISOString(),
+        is_from_me: false,
+      });
+    });
+
+    // Auto-discover forum topics from service messages
+    this.bot.on('message:forum_topic_created', (ctx) => {
+      const chatJid = `tg:${ctx.chat.id}`;
+      const threadId = ctx.message.message_thread_id;
+      const name =
+        (ctx.message as any).forum_topic_created?.name || `Topic ${threadId}`;
+      if (threadId && this.opts.onTopicDiscovered) {
+        this.opts.onTopicDiscovered(chatJid, threadId, name);
+        logger.info({ chatJid, threadId, name }, 'Forum topic discovered');
+      }
+    });
 
     this.bot.on('message:text', async (ctx) => {
       logger.debug(
@@ -105,13 +391,20 @@ export class TelegramChannel implements Channel {
         },
         'Telegram message:text event received',
       );
+
+      // Parse /cmd or /cmd@botname — LOCAL commands are handled by
+      // bot.command() above, skip them here so they aren't also stored.
+      // AGENT commands fall through and are rewritten below with the
+      // trigger prefix so they match TRIGGER_PATTERN in non-main groups.
+      let parsedCmd: string | null = null;
       if (ctx.message.text.startsWith('/')) {
-        const cmd = ctx.message.text.slice(1).split(/[\s@]/)[0].toLowerCase();
-        if (TELEGRAM_BOT_COMMANDS.has(cmd)) return;
+        parsedCmd = ctx.message.text.slice(1).split(/[\s@]/)[0].toLowerCase();
+        if (LOCAL_COMMANDS.has(parsedCmd)) return;
       }
 
       const chatJid = `tg:${ctx.chat.id}`;
       let content = ctx.message.text;
+
       const timestamp = new Date(ctx.message.date * 1000).toISOString();
       const senderName =
         ctx.from?.first_name ||
@@ -147,6 +440,18 @@ export class TelegramChannel implements Channel {
         }
       }
 
+      // Rewrite registered agent slash commands so they match TRIGGER_PATTERN
+      // in groups where the agent requires an @mention / trigger prefix.
+      // Without this, /today etc. show up in Telegram autocomplete but
+      // silently fail the trigger check at index.ts:461-469.
+      if (
+        parsedCmd &&
+        AGENT_COMMANDS.has(parsedCmd) &&
+        !TRIGGER_PATTERN.test(content)
+      ) {
+        content = `@${ASSISTANT_NAME} ${content}`;
+      }
+
       // Store chat metadata for discovery
       const isGroup =
         ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
@@ -175,9 +480,11 @@ export class TelegramChannel implements Channel {
         chat_jid: chatJid,
         sender,
         sender_name: senderName,
+        sender_handle: ctx.from?.username ? `@${ctx.from.username}` : undefined,
         content,
         timestamp,
         is_from_me: false,
+        thread_id: ctx.message.message_thread_id,
       });
 
       logger.info(
@@ -217,6 +524,7 @@ export class TelegramChannel implements Channel {
         content: `${placeholder}${caption}`,
         timestamp,
         is_from_me: false,
+        thread_id: ctx.message.message_thread_id,
       });
     };
 
@@ -258,32 +566,42 @@ export class TelegramChannel implements Channel {
     });
   }
 
-  async sendMessage(jid: string, text: string): Promise<void> {
+  async sendMessage(
+    jid: string,
+    text: string,
+    opts?: { thread_id?: number },
+  ): Promise<void> {
     if (!this.bot) {
-      logger.warn('Telegram bot not initialized');
-      return;
+      throw new Error('Telegram bot not initialized');
     }
 
-    try {
-      const numericId = jid.replace(/^tg:/, '');
+    const numericId = jid.replace(/^tg:/, '');
 
-      // Telegram has a 4096 character limit per message — split if needed
-      const MAX_LENGTH = 4096;
-      if (text.length <= MAX_LENGTH) {
-        await sendTelegramMessage(this.bot.api, numericId, text);
-      } else {
-        for (let i = 0; i < text.length; i += MAX_LENGTH) {
-          await sendTelegramMessage(
-            this.bot.api,
-            numericId,
-            text.slice(i, i + MAX_LENGTH),
-          );
-        }
+    // Build thread options — General topic (thread_id=1) must be omitted
+    // because Telegram rejects sendMessage with message_thread_id=1.
+    const threadOpts: { message_thread_id?: number } = {};
+    if (opts?.thread_id && opts.thread_id !== 1) {
+      threadOpts.message_thread_id = opts.thread_id;
+    }
+
+    // Telegram has a 4096 character limit per message — split if needed
+    const MAX_LENGTH = 4096;
+    if (text.length <= MAX_LENGTH) {
+      await sendTelegramMessage(this.bot.api, numericId, text, threadOpts);
+    } else {
+      for (let i = 0; i < text.length; i += MAX_LENGTH) {
+        await sendTelegramMessage(
+          this.bot.api,
+          numericId,
+          text.slice(i, i + MAX_LENGTH),
+          threadOpts,
+        );
       }
-      logger.info({ jid, length: text.length }, 'Telegram message sent');
-    } catch (err) {
-      logger.error({ jid, err }, 'Failed to send Telegram message');
     }
+    logger.info(
+      { jid, thread_id: opts?.thread_id, length: text.length },
+      'Telegram message sent',
+    );
   }
 
   isConnected(): boolean {
@@ -294,7 +612,16 @@ export class TelegramChannel implements Channel {
     return jid.startsWith('tg:');
   }
 
+  async sendFile(jid: string, buffer: Buffer, filename: string): Promise<void> {
+    if (!this.bot) throw new Error('Telegram bot not initialized');
+    const numericId = jid.replace(/^tg:/, '');
+    await this.bot.api.sendDocument(numericId, new InputFile(buffer, filename));
+    logger.info({ jid, filename }, 'Telegram file sent');
+  }
+
   async disconnect(): Promise<void> {
+    for (const handle of this.typingIntervals.values()) clearInterval(handle);
+    this.typingIntervals.clear();
     if (this.bot) {
       this.bot.stop();
       this.bot = null;
@@ -303,17 +630,36 @@ export class TelegramChannel implements Channel {
   }
 
   async setTyping(jid: string, isTyping: boolean): Promise<void> {
-    if (!this.bot || !isTyping) return;
-    try {
-      const numericId = jid.replace(/^tg:/, '');
-      await this.bot.api.sendChatAction(numericId, 'typing');
-    } catch (err) {
-      logger.debug({ jid, err }, 'Failed to send Telegram typing indicator');
+    if (!this.bot) return;
+    const numericId = jid.replace(/^tg:/, '');
+
+    // Always clear any existing interval first — idempotent, prevents duplicates
+    const existing = this.typingIntervals.get(jid);
+    if (existing) {
+      clearInterval(existing);
+      this.typingIntervals.delete(jid);
     }
+    if (!isTyping) return;
+
+    const bot = this.bot;
+    const fire = async () => {
+      try {
+        await bot.api.sendChatAction(numericId, 'typing');
+      } catch (err) {
+        logger.debug({ jid, err }, 'Failed to send Telegram typing indicator');
+      }
+    };
+
+    // Fire once immediately, then refresh on interval
+    await fire();
+    const handle = setInterval(fire, this.TYPING_REFRESH_MS);
+    if (typeof handle.unref === 'function') handle.unref();
+    this.typingIntervals.set(jid, handle);
   }
 }
 
 registerChannel('telegram', (opts: ChannelOpts) => {
+  if (process.env.SIM_MODE === '1') return null;
   const envVars = readEnvFile(['TELEGRAM_BOT_TOKEN']);
   const token =
     process.env.TELEGRAM_BOT_TOKEN || envVars.TELEGRAM_BOT_TOKEN || '';

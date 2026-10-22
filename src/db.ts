@@ -119,6 +119,24 @@ function createSchema(database: Database.Database): void {
     /* column already exists */
   }
 
+  // Add thread_id column for forum topic support
+  try {
+    database.exec(`ALTER TABLE messages ADD COLUMN thread_id INTEGER`);
+  } catch {
+    /* column already exists */
+  }
+
+  // Topics table for per-topic extraction control
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS topics (
+      chat_jid TEXT,
+      thread_id INTEGER,
+      name TEXT,
+      extraction_enabled INTEGER DEFAULT 0,
+      PRIMARY KEY (chat_jid, thread_id)
+    )
+  `);
+
   // Add channel and is_group columns if they don't exist (migration for existing DBs)
   try {
     database.exec(`ALTER TABLE chats ADD COLUMN channel TEXT`);
@@ -139,6 +157,18 @@ function createSchema(database: Database.Database): void {
   } catch {
     /* columns already exist */
   }
+
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS web_tokens (
+      token TEXT PRIMARY KEY,
+      telegram_id TEXT,
+      telegram_name TEXT,
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_web_tokens_telegram ON web_tokens(telegram_id);
+  `);
+
 }
 
 export function initDatabase(): void {
@@ -146,6 +176,8 @@ export function initDatabase(): void {
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
   db = new Database(dbPath);
+  db.pragma('journal_mode = WAL');
+  db.pragma('foreign_keys = ON');
   createSchema(db);
 
   // Migrate from JSON files if they exist
@@ -155,7 +187,13 @@ export function initDatabase(): void {
 /** @internal - for tests only. Creates a fresh in-memory database. */
 export function _initTestDatabase(): void {
   db = new Database(':memory:');
+  db.pragma('foreign_keys = ON');
   createSchema(db);
+}
+
+/** @internal - allows other modules to access the singleton. */
+export function _getDb(): Database.Database {
+  return db;
 }
 
 /**
@@ -262,7 +300,7 @@ export function setLastGroupSync(): void {
  */
 export function storeMessage(msg: NewMessage): void {
   db.prepare(
-    `INSERT OR REPLACE INTO messages (id, chat_jid, sender, sender_name, content, timestamp, is_from_me, is_bot_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT OR REPLACE INTO messages (id, chat_jid, sender, sender_name, content, timestamp, is_from_me, is_bot_message, thread_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     msg.id,
     msg.chat_jid,
@@ -272,6 +310,7 @@ export function storeMessage(msg: NewMessage): void {
     msg.timestamp,
     msg.is_from_me ? 1 : 0,
     msg.is_bot_message ? 1 : 0,
+    msg.thread_id ?? null,
   );
 }
 
@@ -287,9 +326,10 @@ export function storeMessageDirect(msg: {
   timestamp: string;
   is_from_me: boolean;
   is_bot_message?: boolean;
+  thread_id?: number;
 }): void {
   db.prepare(
-    `INSERT OR REPLACE INTO messages (id, chat_jid, sender, sender_name, content, timestamp, is_from_me, is_bot_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT OR REPLACE INTO messages (id, chat_jid, sender, sender_name, content, timestamp, is_from_me, is_bot_message, thread_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     msg.id,
     msg.chat_jid,
@@ -299,6 +339,7 @@ export function storeMessageDirect(msg: {
     msg.timestamp,
     msg.is_from_me ? 1 : 0,
     msg.is_bot_message ? 1 : 0,
+    msg.thread_id ?? null,
   );
 }
 
@@ -316,7 +357,7 @@ export function getNewMessages(
   // Subquery takes the N most recent, outer query re-sorts chronologically.
   const sql = `
     SELECT * FROM (
-      SELECT id, chat_jid, sender, sender_name, content, timestamp, is_from_me
+      SELECT id, chat_jid, sender, sender_name, content, timestamp, is_from_me, thread_id
       FROM messages
       WHERE timestamp > ? AND chat_jid IN (${placeholders})
         AND is_bot_message = 0 AND content NOT LIKE ?
@@ -349,7 +390,7 @@ export function getMessagesSince(
   // Subquery takes the N most recent, outer query re-sorts chronologically.
   const sql = `
     SELECT * FROM (
-      SELECT id, chat_jid, sender, sender_name, content, timestamp, is_from_me
+      SELECT id, chat_jid, sender, sender_name, content, timestamp, is_from_me, thread_id
       FROM messages
       WHERE chat_jid = ? AND timestamp > ?
         AND is_bot_message = 0 AND content NOT LIKE ?
@@ -361,6 +402,57 @@ export function getMessagesSince(
   return db
     .prepare(sql)
     .all(chatJid, sinceTimestamp, `${botPrefix}:%`, limit) as NewMessage[];
+}
+
+export function getMessagesInTimeRange(
+  chatJid: string,
+  fromTimestamp: string,
+  toTimestamp: string,
+  botPrefix: string,
+  limit: number = 500,
+): NewMessage[] {
+  const sql = `
+    SELECT * FROM (
+      SELECT id, chat_jid, sender, sender_name, content, timestamp, is_from_me, thread_id
+      FROM messages
+      WHERE chat_jid = ? AND timestamp > ? AND timestamp <= ?
+        AND is_bot_message = 0 AND content NOT LIKE ?
+        AND content != '' AND content IS NOT NULL
+      ORDER BY timestamp DESC
+      LIMIT ?
+    ) ORDER BY timestamp
+  `;
+  return db
+    .prepare(sql)
+    .all(
+      chatJid,
+      fromTimestamp,
+      toTimestamp,
+      `${botPrefix}:%`,
+      limit,
+    ) as NewMessage[];
+}
+
+export function getMessagesBefore(
+  chatJid: string,
+  beforeTimestamp: string,
+  botPrefix: string,
+  limit: number = 20,
+): NewMessage[] {
+  const sql = `
+    SELECT * FROM (
+      SELECT id, chat_jid, sender, sender_name, content, timestamp, is_from_me, thread_id
+      FROM messages
+      WHERE chat_jid = ? AND timestamp <= ?
+        AND is_bot_message = 0 AND content NOT LIKE ?
+        AND content != '' AND content IS NOT NULL
+      ORDER BY timestamp DESC
+      LIMIT ?
+    ) ORDER BY timestamp
+  `;
+  return db
+    .prepare(sql)
+    .all(chatJid, beforeTimestamp, `${botPrefix}:%`, limit) as NewMessage[];
 }
 
 export function createTask(
@@ -548,6 +640,11 @@ export function setSession(groupFolder: string, sessionId: string): void {
   ).run(groupFolder, sessionId);
 }
 
+export function deleteAllSessions(): number {
+  const result = db.prepare('DELETE FROM sessions').run();
+  return result.changes;
+}
+
 export function getAllSessions(): Record<string, string> {
   const rows = db
     .prepare('SELECT group_folder, session_id FROM sessions')
@@ -716,4 +813,85 @@ function migrateJsonState(): void {
       }
     }
   }
+}
+
+// --- Topic registry ---
+
+export interface TopicInfo {
+  chat_jid: string;
+  thread_id: number;
+  name: string;
+  extraction_enabled: number;
+}
+
+export function upsertTopic(
+  chatJid: string,
+  threadId: number,
+  name: string,
+): void {
+  db.prepare(
+    `INSERT INTO topics (chat_jid, thread_id, name, extraction_enabled)
+     VALUES (?, ?, ?, 0)
+     ON CONFLICT(chat_jid, thread_id) DO UPDATE SET name = excluded.name`,
+  ).run(chatJid, threadId, name);
+}
+
+export function setTopicExtraction(
+  chatJid: string,
+  threadId: number,
+  enabled: boolean,
+): void {
+  db.prepare(
+    `UPDATE topics SET extraction_enabled = ? WHERE chat_jid = ? AND thread_id = ?`,
+  ).run(enabled ? 1 : 0, chatJid, threadId);
+}
+
+export function getTopics(chatJid: string): TopicInfo[] {
+  return db
+    .prepare(
+      `SELECT chat_jid, thread_id, name, extraction_enabled FROM topics WHERE chat_jid = ? ORDER BY thread_id`,
+    )
+    .all(chatJid) as TopicInfo[];
+}
+
+export function isExtractionEnabled(
+  chatJid: string,
+  threadId: number | null | undefined,
+): boolean {
+  // General topic (null/undefined/1) is always extracted
+  if (!threadId || threadId === 1) return true;
+  const row = db
+    .prepare(
+      `SELECT extraction_enabled FROM topics WHERE chat_jid = ? AND thread_id = ?`,
+    )
+    .get(chatJid, threadId) as { extraction_enabled: number } | undefined;
+  // Unknown topics default to off
+  return row ? row.extraction_enabled === 1 : false;
+}
+
+export function cleanupSimData(): void {
+  db.prepare("DELETE FROM messages WHERE chat_jid LIKE 'sim:%'").run();
+  db.prepare("DELETE FROM chats WHERE jid LIKE 'sim:%'").run();
+  db.prepare("DELETE FROM registered_groups WHERE jid LIKE 'sim:%'").run();
+  db.prepare("DELETE FROM sessions WHERE group_folder LIKE 'sim-%'").run();
+
+  for (const key of ['last_agent_timestamp', 'last_extraction_timestamp']) {
+    const raw = getRouterState(key);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Record<string, string>;
+      for (const k of Object.keys(parsed)) {
+        if (k.startsWith('sim:')) delete parsed[k];
+      }
+      setRouterState(key, JSON.stringify(parsed));
+    }
+  }
+
+  const maxTs = db
+    .prepare(
+      "SELECT MAX(timestamp) as ts FROM messages WHERE chat_jid NOT LIKE 'sim:%'",
+    )
+    .get() as { ts: string | null } | undefined;
+  setRouterState('last_timestamp', maxTs?.ts || '');
+
+  logger.info('Cleaned sim data from database');
 }

@@ -6,13 +6,27 @@ import {
   deleteTask,
   getAllChats,
   getAllRegisteredGroups,
+  getAllSessions,
+  getMessagesBefore,
   getMessagesSince,
   getNewMessages,
+  getRouterState,
+  getSession,
   getTaskById,
+  getTodayOrdersByItem,
+  isAnyPurchaseTopic,
+  isExtractionEnabled,
+  isPurchaseTopicForCategory,
   setRegisteredGroup,
+  setRouterState,
+  setSession,
+  setTopicExtraction,
   storeChatMetadata,
   storeMessage,
+  cancelLastPurchase,
+  storePurchase,
   updateTask,
+  upsertTopic,
 } from './db.js';
 
 beforeEach(() => {
@@ -447,6 +461,31 @@ describe('message query LIMIT', () => {
     );
     expect(messages).toHaveLength(10);
   });
+
+  it('getMessagesBefore returns N most recent messages before timestamp', () => {
+    const messages = getMessagesBefore(
+      'group@g.us',
+      '2024-01-01T00:00:06.000Z',
+      'Andy',
+      3,
+    );
+    expect(messages).toHaveLength(3);
+    expect(messages[0].content).toBe('message 4');
+    expect(messages[2].content).toBe('message 6');
+    expect(messages[0].timestamp < messages[1].timestamp).toBe(true);
+  });
+
+  it('getMessagesBefore returns all when fewer than limit exist', () => {
+    const messages = getMessagesBefore(
+      'group@g.us',
+      '2024-01-01T00:00:03.000Z',
+      'Andy',
+      10,
+    );
+    expect(messages).toHaveLength(3);
+    expect(messages[0].content).toBe('message 1');
+    expect(messages[2].content).toBe('message 3');
+  });
 });
 
 // --- RegisteredGroup isMain round-trip ---
@@ -480,5 +519,228 @@ describe('registered group isMain', () => {
     const group = groups['group@g.us'];
     expect(group).toBeDefined();
     expect(group.isMain).toBeUndefined();
+  });
+});
+
+describe('purchase topic matching', () => {
+  beforeEach(() => {
+    upsertTopic('tg:group1', 10, 'Bar');
+    upsertTopic('tg:group1', 11, '🍖 BBQ Corner');
+    upsertTopic('tg:group1', 12, 'Meat Station');
+    upsertTopic('tg:group1', 13, 'General');
+    upsertTopic('tg:group1', 14, 'Kitchen Shifts');
+  });
+
+  describe('isPurchaseTopicForCategory', () => {
+    it('matches "Bar" topic for bar category', () => {
+      expect(isPurchaseTopicForCategory(10, 'bar')).toBe(true);
+    });
+
+    it('does not match "Bar" topic for bbq category', () => {
+      expect(isPurchaseTopicForCategory(10, 'bbq')).toBe(false);
+    });
+
+    it('matches "BBQ Corner" topic for bbq category (case-insensitive, emoji)', () => {
+      expect(isPurchaseTopicForCategory(11, 'bbq')).toBe(true);
+    });
+
+    it('matches "Meat Station" topic for bbq category', () => {
+      expect(isPurchaseTopicForCategory(12, 'bbq')).toBe(true);
+    });
+
+    it('does not match "Meat Station" for bar category', () => {
+      expect(isPurchaseTopicForCategory(12, 'bar')).toBe(false);
+    });
+
+    it('does not match unrelated topics', () => {
+      expect(isPurchaseTopicForCategory(13, 'bar')).toBe(false);
+      expect(isPurchaseTopicForCategory(14, 'bbq')).toBe(false);
+    });
+
+    it('returns false for null/undefined thread_id', () => {
+      expect(isPurchaseTopicForCategory(null, 'bar')).toBe(false);
+      expect(isPurchaseTopicForCategory(undefined, 'bar')).toBe(false);
+    });
+
+    it('returns false for unknown thread_id', () => {
+      expect(isPurchaseTopicForCategory(999, 'bar')).toBe(false);
+    });
+  });
+
+  describe('isAnyPurchaseTopic', () => {
+    it('returns true for bar topic', () => {
+      expect(isAnyPurchaseTopic(10)).toBe(true);
+    });
+
+    it('returns true for bbq topic', () => {
+      expect(isAnyPurchaseTopic(11)).toBe(true);
+    });
+
+    it('returns true for meat topic', () => {
+      expect(isAnyPurchaseTopic(12)).toBe(true);
+    });
+
+    it('returns false for unrelated topic', () => {
+      expect(isAnyPurchaseTopic(13)).toBe(false);
+      expect(isAnyPurchaseTopic(14)).toBe(false);
+    });
+
+    it('returns false for null/undefined', () => {
+      expect(isAnyPurchaseTopic(null)).toBe(false);
+      expect(isAnyPurchaseTopic(undefined)).toBe(false);
+    });
+  });
+});
+
+// --- Router state round-trip ---
+
+describe('router state', () => {
+  it('round-trips a value', () => {
+    setRouterState('cursor', '2026-09-01T00:00:00Z');
+    expect(getRouterState('cursor')).toBe('2026-09-01T00:00:00Z');
+  });
+
+  it('overwrites an existing key', () => {
+    setRouterState('cursor', 'old');
+    setRouterState('cursor', 'new');
+    expect(getRouterState('cursor')).toBe('new');
+  });
+
+  it('returns undefined for missing key', () => {
+    expect(getRouterState('nonexistent')).toBeUndefined();
+  });
+
+  it('handles JSON values', () => {
+    const timestamps = { 'tg:-100': '2026-09-01', 'tg:-200': '2026-09-02' };
+    setRouterState('extraction_ts', JSON.stringify(timestamps));
+    const retrieved = JSON.parse(getRouterState('extraction_ts')!);
+    expect(retrieved).toEqual(timestamps);
+  });
+});
+
+// --- Session round-trip ---
+
+describe('sessions', () => {
+  it('round-trips a session ID', () => {
+    setSession('telegram_topic-test', 'sess-abc123');
+    expect(getSession('telegram_topic-test')).toBe('sess-abc123');
+  });
+
+  it('overwrites session on re-set', () => {
+    setSession('telegram_topic-test', 'old-sess');
+    setSession('telegram_topic-test', 'new-sess');
+    expect(getSession('telegram_topic-test')).toBe('new-sess');
+  });
+
+  it('returns undefined for unknown group', () => {
+    expect(getSession('nonexistent-group')).toBeUndefined();
+  });
+
+  it('getAllSessions returns all stored sessions', () => {
+    setSession('group-a', 'sess-1');
+    setSession('group-b', 'sess-2');
+    setSession('group-c', 'sess-3');
+    const all = getAllSessions();
+    expect(all).toEqual({
+      'group-a': 'sess-1',
+      'group-b': 'sess-2',
+      'group-c': 'sess-3',
+    });
+  });
+
+  it('getAllSessions returns empty object when no sessions', () => {
+    expect(getAllSessions()).toEqual({});
+  });
+});
+
+// --- Extraction per-topic gating ---
+
+describe('isExtractionEnabled', () => {
+  const chatJid = 'tg:-1001234';
+
+  it('General topic (null thread) is always enabled', () => {
+    expect(isExtractionEnabled(chatJid, null)).toBe(true);
+    expect(isExtractionEnabled(chatJid, undefined)).toBe(true);
+  });
+
+  it('General topic (thread_id 1) is always enabled', () => {
+    expect(isExtractionEnabled(chatJid, 1)).toBe(true);
+  });
+
+  it('unknown topic defaults to OFF', () => {
+    expect(isExtractionEnabled(chatJid, 999)).toBe(false);
+  });
+
+  it('new topic defaults to extraction OFF', () => {
+    upsertTopic(chatJid, 42, 'Kitchen Chat');
+    expect(isExtractionEnabled(chatJid, 42)).toBe(false);
+  });
+
+  it('returns true after extraction is toggled ON', () => {
+    upsertTopic(chatJid, 50, 'Events');
+    expect(isExtractionEnabled(chatJid, 50)).toBe(false);
+    setTopicExtraction(chatJid, 50, true);
+    expect(isExtractionEnabled(chatJid, 50)).toBe(true);
+  });
+
+  it('can toggle extraction back OFF', () => {
+    upsertTopic(chatJid, 60, 'Logistics');
+    setTopicExtraction(chatJid, 60, true);
+    expect(isExtractionEnabled(chatJid, 60)).toBe(true);
+    setTopicExtraction(chatJid, 60, false);
+    expect(isExtractionEnabled(chatJid, 60)).toBe(false);
+  });
+
+  it('different chats have independent gating', () => {
+    const other = 'tg:-1005678';
+    upsertTopic(chatJid, 70, 'Music');
+    upsertTopic(other, 70, 'Music');
+    setTopicExtraction(chatJid, 70, true);
+    expect(isExtractionEnabled(chatJid, 70)).toBe(true);
+    expect(isExtractionEnabled(other, 70)).toBe(false);
+  });
+});
+
+describe('getTodayOrdersByItem', () => {
+  const jid = 'tg:-100test';
+
+  it('returns counts grouped by item for today', () => {
+    storePurchase(jid, 'u1', 'Alice', 'Burger', 4);
+    storePurchase(jid, 'u2', 'Bob', 'Burger', 4);
+    storePurchase(jid, 'u3', 'Charlie', 'Chicken', 5);
+
+    const result = getTodayOrdersByItem(['Burger', 'Chicken']);
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual({ item: 'Burger', count: 2, total: 8 });
+    expect(result[1]).toEqual({ item: 'Chicken', count: 1, total: 5 });
+  });
+
+  it('ignores items not in the filter list', () => {
+    storePurchase(jid, 'u1', 'Alice', 'Beer', 1.5);
+    storePurchase(jid, 'u1', 'Alice', 'Burger', 4);
+
+    const result = getTodayOrdersByItem(['Burger']);
+    expect(result).toHaveLength(1);
+    expect(result[0].item).toBe('Burger');
+  });
+
+  it('returns empty for no matching orders', () => {
+    storePurchase(jid, 'u1', 'Alice', 'Beer', 1.5);
+    expect(getTodayOrdersByItem(['Burger'])).toEqual([]);
+  });
+
+  it('returns empty for empty item list', () => {
+    expect(getTodayOrdersByItem([])).toEqual([]);
+  });
+
+  it('excludes cancelled purchases', () => {
+    storePurchase(jid, 'u1', 'Alice', 'Burger', 4);
+    storePurchase(jid, 'u2', 'Bob', 'Burger', 4);
+
+    cancelLastPurchase('u2');
+
+    const result = getTodayOrdersByItem(['Burger']);
+    expect(result).toHaveLength(1);
+    expect(result[0].count).toBe(1);
   });
 });

@@ -7,14 +7,12 @@ import fs from 'fs';
 import path from 'path';
 
 import { GROUPS_DIR } from './config.js';
+import { loadFeatureConfig, stripDisabledFeatures } from './feature-config.js';
 import { resolveGroupFolderPath } from './group-folder.js';
 import { logger } from './logger.js';
 import { RegisteredGroup } from './types.js';
 
-const DM_TEMPLATE_PATH = path.resolve(
-  import.meta.dirname ?? '.',
-  '../governance/templates/dm-template.md',
-);
+const TEMPLATE_DIR = path.join(process.cwd(), 'governance/templates');
 
 /**
  * Sanitize a sender identifier into a valid folder name segment.
@@ -43,16 +41,51 @@ export function buildDmClaudeMd(
   userName: string,
   userId: string,
   slug: string,
-  adminId?: string,
+  crewList?: string,
   communityStartDate?: string,
+  personalContext?: string,
+  groupFolder?: string,
 ): string {
-  const template = fs.readFileSync(DM_TEMPLATE_PATH, 'utf-8');
+  const base = fs.readFileSync(
+    path.join(TEMPLATE_DIR, 'base-template.md'),
+    'utf-8',
+  );
+  const dm = fs.readFileSync(
+    path.join(TEMPLATE_DIR, 'dm-overlay-template.md'),
+    'utf-8',
+  );
+  let template = base + '\n\n' + dm;
+  if (personalContext) {
+    template += '\n\n## Personal Context\n\n' + personalContext;
+  }
+
+  if (groupFolder) {
+    const features = loadFeatureConfig(groupFolder);
+    template = stripDisabledFeatures(template, features);
+  }
+
+  // Read voice from group-config.json if available
+  let voice = '';
+  if (groupFolder) {
+    try {
+      const configPath = path.join(
+        resolveGroupFolderPath(groupFolder),
+        'group-config.json',
+      );
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      voice = config.voice || '';
+    } catch {
+      // No group-config.json — voice stays empty
+    }
+  }
+
   return template
     .replace(/\{\{community_name\}\}/g, communityName)
     .replace(/\{\{user_name\}\}/g, userName)
     .replace(/\{\{user_id\}\}/g, userId)
     .replace(/\{\{slug\}\}/g, slug)
-    .replace(/\{\{admin_id\}\}/g, adminId || 'unknown')
+    .replace(/\{\{crew_list\}\}/g, crewList || 'the crew')
+    .replace(/\{\{voice\}\}/g, voice)
     .replace(
       /\{\{community_start_date\}\}/g,
       communityStartDate || new Date().toISOString().split('T')[0],
@@ -68,8 +101,10 @@ export function writeDmClaudeMd(
   userName: string,
   userId: string,
   slug: string,
-  adminId?: string,
+  crewList?: string,
   communityStartDate?: string,
+  personalContext?: string,
+  groupFolder?: string,
 ): void {
   const dmDir = resolveGroupFolderPath(dmFolder);
   fs.mkdirSync(dmDir, { recursive: true });
@@ -79,8 +114,10 @@ export function writeDmClaudeMd(
     userName,
     userId,
     slug,
-    adminId,
+    crewList,
     communityStartDate,
+    personalContext,
+    groupFolder,
   );
   fs.writeFileSync(path.join(dmDir, 'CLAUDE.md'), content, 'utf-8');
 
@@ -107,8 +144,8 @@ export function findCommunityForUser(
   findSenderInGroup: (chatJid: string, senderJid: string) => boolean,
 ): CommunityMatch | null {
   for (const [jid, group] of Object.entries(registeredGroups)) {
-    // Skip DM folders (but not main group — it can also be a community)
-    if (group.folder.includes('-dm-')) continue;
+    // Only community (main) groups are valid matches — skip DMs and sub-groups
+    if (group.isMain !== true) continue;
 
     if (findSenderInGroup(jid, senderJid)) {
       // Extract slug from the community CLAUDE.md if it exists
