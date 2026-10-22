@@ -150,7 +150,7 @@ describe('Community template (Layer 2)', () => {
   });
 
   it('contains crew section with crew list', () => {
-    expect(rendered).toContain('Crew');
+    expect(rendered).toContain('crew');
     expect(rendered).toContain('the crew');
   });
 
@@ -248,7 +248,7 @@ describe('DM template (Layer 3)', () => {
   });
 
   it('includes crew info', () => {
-    expect(rendered).toContain('Crew');
+    expect(rendered).toContain('crew');
     expect(rendered).toContain('tg:admin1');
   });
 
@@ -258,7 +258,7 @@ describe('DM template (Layer 3)', () => {
   });
 
   it('includes onboarding for crew only', () => {
-    expect(rendered).toContain('Crew Onboarding');
+    expect(rendered).toContain('crew Onboarding');
     expect(rendered).toContain('seed knowledge');
   });
 

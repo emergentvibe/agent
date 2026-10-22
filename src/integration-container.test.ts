@@ -359,8 +359,8 @@ describe('Context file verification', () => {
     // Pattern sensing (from community)
     expect(combined).toContain('Pattern Sensing');
 
-    // Crew section (from community)
-    expect(combined).toContain('Crew');
+    // Crew section (from community — role_name defaults to 'crew')
+    expect(combined).toContain('crew');
   });
 
   it('rendered DM CLAUDE.md has correct community memory namespace', () => {

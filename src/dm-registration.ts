@@ -64,8 +64,10 @@ export function buildDmClaudeMd(
     template = stripDisabledFeatures(template, features);
   }
 
-  // Read voice from group-config.json if available
+  // Read group-config.json if available
   let voice = '';
+  let roleName = 'crew';
+  let assistantName = process.env.ASSISTANT_NAME || 'Andy';
   if (groupFolder) {
     try {
       const configPath = path.join(
@@ -74,8 +76,10 @@ export function buildDmClaudeMd(
       );
       const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
       voice = config.voice || '';
+      roleName = config.role_name || 'crew';
+      assistantName = config.assistant_name || assistantName;
     } catch {
-      // No group-config.json — voice stays empty
+      // No group-config.json — defaults stay
     }
   }
 
@@ -85,11 +89,14 @@ export function buildDmClaudeMd(
     .replace(/\{\{user_id\}\}/g, userId)
     .replace(/\{\{slug\}\}/g, slug)
     .replace(/\{\{crew_list\}\}/g, crewList || 'the crew')
+    .replace(/\{\{role_name\}\}/g, roleName)
+    .replace(/\{\{assistant_name\}\}/g, assistantName)
     .replace(/\{\{voice\}\}/g, voice)
     .replace(
       /\{\{community_start_date\}\}/g,
       communityStartDate || new Date().toISOString().split('T')[0],
-    );
+    )
+    .replace(/\{\{[a-z_]+\}\}/g, '(Not configured)');
 }
 
 /**

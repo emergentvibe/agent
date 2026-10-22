@@ -45,6 +45,7 @@ export function buildClaudeMd(template: string, group: GroupConfig, data: Consti
   return stripped
     .replace(/\{\{community_name\}\}/g, group.community_name)
     .replace(/\{\{crew_list\}\}/g, crewList)
+    .replace(/\{\{role_name\}\}/g, group.role_name || 'crew')
     .replace(/\{\{assistant_name\}\}/g, assistantName)
     .replace(/\{\{admin_id\}\}/g, group.admin_id || 'unknown')
     .replace(/\{\{admin_name\}\}/g, group.admin_name || 'the bootstrapper')
