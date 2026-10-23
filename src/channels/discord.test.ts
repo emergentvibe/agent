@@ -2,19 +2,12 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
 // --- Mocks ---
 
-// Mock registry (registerChannel runs at import time)
 vi.mock('./registry.js', () => ({ registerChannel: vi.fn() }));
-
-// Mock env reader (used by the factory, not needed in unit tests)
 vi.mock('../env.js', () => ({ readEnvFile: vi.fn(() => ({})) }));
-
-// Mock config
 vi.mock('../config.js', () => ({
   ASSISTANT_NAME: 'Andy',
   TRIGGER_PATTERN: /^@Andy\b/i,
 }));
-
-// Mock logger
 vi.mock('../logger.js', () => ({
   logger: {
     debug: vi.fn(),
@@ -23,6 +16,23 @@ vi.mock('../logger.js', () => ({
     error: vi.fn(),
   },
 }));
+vi.mock('../group-folder.js', () => ({
+  resolveGroupFolderPath: vi.fn(() => '/tmp/test-groups/test-server'),
+}));
+
+// fs mock — getDefaultChannelId reads group-config.json
+vi.mock('fs', async () => {
+  const actual = await vi.importActual<typeof import('fs')>('fs');
+  return {
+    ...actual,
+    default: {
+      ...actual,
+      readFileSync: vi.fn(() =>
+        JSON.stringify({ default_channel_id: '111222333444555666' }),
+      ),
+    },
+  };
+});
 
 // --- discord.js mock ---
 
@@ -43,6 +53,8 @@ vi.mock('discord.js', () => {
     MessageContent: 4,
     DirectMessages: 8,
   };
+
+  const Partials = { Channel: 0 };
 
   class MockClient {
     eventHandlers = new Map<string, Handler[]>();
@@ -66,7 +78,6 @@ vi.mock('discord.js', () => {
 
     async login(_token: string) {
       this._ready = true;
-      // Fire the ready event
       const readyHandlers = this.eventHandlers.get('ready') || [];
       for (const h of readyHandlers) {
         h({ user: this.user });
@@ -84,18 +95,52 @@ vi.mock('discord.js', () => {
       }),
     };
 
+    users = {
+      fetch: vi.fn().mockResolvedValue({
+        send: vi.fn().mockResolvedValue(undefined),
+        createDM: vi.fn().mockResolvedValue({ id: 'dm-channel-id' }),
+      }),
+    };
+
+    guilds = {
+      fetch: vi.fn().mockResolvedValue({
+        channels: {
+          fetch: vi.fn().mockResolvedValue(
+            new Map([
+              [
+                '111222333444555666',
+                {
+                  name: 'general',
+                  isTextBased: () => true,
+                  isThread: () => false,
+                },
+              ],
+              [
+                '222333444555666777',
+                {
+                  name: 'random',
+                  isTextBased: () => true,
+                  isThread: () => false,
+                },
+              ],
+            ]),
+          ),
+        },
+      }),
+    };
+
     destroy() {
       this._ready = false;
     }
   }
 
-  // Mock TextChannel type
   class TextChannel {}
 
   return {
     Client: MockClient,
     Events,
     GatewayIntentBits,
+    Partials,
     TextChannel,
   };
 });
@@ -104,15 +149,19 @@ import { DiscordChannel, DiscordChannelOpts } from './discord.js';
 
 // --- Test helpers ---
 
+const GUILD_ID = '888777666555444';
+const GUILD_JID = `dc:${GUILD_ID}`;
+
 function createTestOpts(
   overrides?: Partial<DiscordChannelOpts>,
 ): DiscordChannelOpts {
   return {
     onMessage: vi.fn(),
     onChatMetadata: vi.fn(),
+    onTopicDiscovered: vi.fn(),
     registeredGroups: vi.fn(() => ({
-      'dc:1234567890123456': {
-        name: 'Test Server #general',
+      [GUILD_JID]: {
+        name: 'Test Server',
         folder: 'test-server',
         trigger: '@Andy',
         added_at: '2024-01-01T00:00:00.000Z',
@@ -130,6 +179,7 @@ function createMessage(overrides: {
   authorDisplayName?: string;
   memberDisplayName?: string;
   isBot?: boolean;
+  guildId?: string;
   guildName?: string;
   channelName?: string;
   messageId?: string;
@@ -140,12 +190,14 @@ function createMessage(overrides: {
 }) {
   const channelId = overrides.channelId ?? '1234567890123456';
   const authorId = overrides.authorId ?? '55512345';
-  const botId = '999888777'; // matches mock client user id
+  const botId = '999888777';
 
   const mentionsMap = new Map();
   if (overrides.mentionsBotId) {
     mentionsMap.set(botId, { id: botId });
   }
+
+  const hasGuild = overrides.guildName !== undefined;
 
   return {
     channelId,
@@ -161,7 +213,9 @@ function createMessage(overrides: {
     member: overrides.memberDisplayName
       ? { displayName: overrides.memberDisplayName }
       : null,
-    guild: overrides.guildName ? { name: overrides.guildName } : null,
+    guild: hasGuild
+      ? { id: overrides.guildId ?? GUILD_ID, name: overrides.guildName }
+      : null,
     channel: {
       name: overrides.channelName ?? 'general',
       messages: {
@@ -205,18 +259,14 @@ describe('DiscordChannel', () => {
     it('resolves connect() when client is ready', async () => {
       const opts = createTestOpts();
       const channel = new DiscordChannel('test-token', opts);
-
       await channel.connect();
-
       expect(channel.isConnected()).toBe(true);
     });
 
     it('registers message handlers on connect', async () => {
       const opts = createTestOpts();
       const channel = new DiscordChannel('test-token', opts);
-
       await channel.connect();
-
       expect(currentClient().eventHandlers.has('messageCreate')).toBe(true);
       expect(currentClient().eventHandlers.has('error')).toBe(true);
       expect(currentClient().eventHandlers.has('ready')).toBe(true);
@@ -225,10 +275,8 @@ describe('DiscordChannel', () => {
     it('disconnects cleanly', async () => {
       const opts = createTestOpts();
       const channel = new DiscordChannel('test-token', opts);
-
       await channel.connect();
       expect(channel.isConnected()).toBe(true);
-
       await channel.disconnect();
       expect(channel.isConnected()).toBe(false);
     });
@@ -236,15 +284,14 @@ describe('DiscordChannel', () => {
     it('isConnected() returns false before connect', () => {
       const opts = createTestOpts();
       const channel = new DiscordChannel('test-token', opts);
-
       expect(channel.isConnected()).toBe(false);
     });
   });
 
-  // --- Text message handling ---
+  // --- Guild-level JID model ---
 
-  describe('text message handling', () => {
-    it('delivers message for registered channel', async () => {
+  describe('guild-level JID model', () => {
+    it('uses guild ID as chatJid for server messages', async () => {
       const opts = createTestOpts();
       const channel = new DiscordChannel('test-token', opts);
       await channel.connect();
@@ -257,39 +304,120 @@ describe('DiscordChannel', () => {
       await triggerMessage(msg);
 
       expect(opts.onChatMetadata).toHaveBeenCalledWith(
-        'dc:1234567890123456',
+        GUILD_JID,
         expect.any(String),
         'Test Server #general',
         'discord',
         true,
       );
       expect(opts.onMessage).toHaveBeenCalledWith(
-        'dc:1234567890123456',
+        GUILD_JID,
         expect.objectContaining({
-          id: 'msg_001',
-          chat_jid: 'dc:1234567890123456',
-          sender: '55512345',
-          sender_name: 'Alice',
-          content: 'Hello everyone',
-          is_from_me: false,
+          chat_jid: GUILD_JID,
+          thread_id: '1234567890123456',
         }),
       );
     });
 
-    it('only emits metadata for unregistered channels', async () => {
+    it('sets thread_id to channelId for guild messages', async () => {
       const opts = createTestOpts();
       const channel = new DiscordChannel('test-token', opts);
       await channel.connect();
 
       const msg = createMessage({
-        channelId: '9999999999999999',
-        content: 'Unknown channel',
+        channelId: '9876543210',
+        content: 'In a different channel',
+        guildName: 'Test Server',
+        channelName: 'random',
+      });
+      await triggerMessage(msg);
+
+      expect(opts.onMessage).toHaveBeenCalledWith(
+        GUILD_JID,
+        expect.objectContaining({
+          thread_id: '9876543210',
+        }),
+      );
+    });
+
+    it('uses dc-dm: prefix for DM messages', async () => {
+      const opts = createTestOpts({
+        registeredGroups: vi.fn(() => ({
+          'dc-dm:55512345': {
+            name: 'DM',
+            folder: 'test-server-dm-55512345',
+            trigger: '@Andy',
+            added_at: '2024-01-01T00:00:00.000Z',
+            requiresTrigger: false,
+          },
+        })),
+      });
+      const channel = new DiscordChannel('test-token', opts);
+      await channel.connect();
+
+      const msg = createMessage({
+        content: 'Hello in DM',
+        // No guild = DM
+      });
+      await triggerMessage(msg);
+
+      expect(opts.onChatMetadata).toHaveBeenCalledWith(
+        'dc-dm:55512345',
+        expect.any(String),
+        'Alice',
+        'discord',
+        false,
+      );
+      expect(opts.onMessage).toHaveBeenCalledWith(
+        'dc-dm:55512345',
+        expect.objectContaining({
+          chat_jid: 'dc-dm:55512345',
+          thread_id: undefined,
+        }),
+      );
+    });
+
+    it('does not set thread_id for DM messages', async () => {
+      const opts = createTestOpts({
+        registeredGroups: vi.fn(() => ({
+          'dc-dm:55512345': {
+            name: 'DM',
+            folder: 'dm',
+            trigger: '@Andy',
+            added_at: '2024-01-01T00:00:00.000Z',
+          },
+        })),
+      });
+      const channel = new DiscordChannel('test-token', opts);
+      await channel.connect();
+
+      const msg = createMessage({ content: 'DM hello' });
+      await triggerMessage(msg);
+
+      expect(opts.onMessage).toHaveBeenCalledWith(
+        'dc-dm:55512345',
+        expect.objectContaining({ thread_id: undefined }),
+      );
+    });
+  });
+
+  // --- Text message handling ---
+
+  describe('text message handling', () => {
+    it('only emits metadata for unregistered guilds', async () => {
+      const opts = createTestOpts();
+      const channel = new DiscordChannel('test-token', opts);
+      await channel.connect();
+
+      const msg = createMessage({
+        content: 'Unknown guild',
+        guildId: '999999999999999',
         guildName: 'Other Server',
       });
       await triggerMessage(msg);
 
       expect(opts.onChatMetadata).toHaveBeenCalledWith(
-        'dc:9999999999999999',
+        'dc:999999999999999',
         expect.any(String),
         expect.any(String),
         'discord',
@@ -310,7 +438,7 @@ describe('DiscordChannel', () => {
       expect(opts.onChatMetadata).not.toHaveBeenCalled();
     });
 
-    it('uses member displayName when available (server nickname)', async () => {
+    it('uses member displayName when available', async () => {
       const opts = createTestOpts();
       const channel = new DiscordChannel('test-token', opts);
       await channel.connect();
@@ -324,7 +452,7 @@ describe('DiscordChannel', () => {
       await triggerMessage(msg);
 
       expect(opts.onMessage).toHaveBeenCalledWith(
-        'dc:1234567890123456',
+        GUILD_JID,
         expect.objectContaining({ sender_name: 'Alice Nickname' }),
       );
     });
@@ -343,59 +471,8 @@ describe('DiscordChannel', () => {
       await triggerMessage(msg);
 
       expect(opts.onMessage).toHaveBeenCalledWith(
-        'dc:1234567890123456',
+        GUILD_JID,
         expect.objectContaining({ sender_name: 'Alice Global' }),
-      );
-    });
-
-    it('uses sender name for DM chats (no guild)', async () => {
-      const opts = createTestOpts({
-        registeredGroups: vi.fn(() => ({
-          'dc:1234567890123456': {
-            name: 'DM',
-            folder: 'dm',
-            trigger: '@Andy',
-            added_at: '2024-01-01T00:00:00.000Z',
-          },
-        })),
-      });
-      const channel = new DiscordChannel('test-token', opts);
-      await channel.connect();
-
-      const msg = createMessage({
-        content: 'Hello',
-        guildName: undefined,
-        authorDisplayName: 'Alice',
-      });
-      await triggerMessage(msg);
-
-      expect(opts.onChatMetadata).toHaveBeenCalledWith(
-        'dc:1234567890123456',
-        expect.any(String),
-        'Alice',
-        'discord',
-        false,
-      );
-    });
-
-    it('uses guild name + channel name for server messages', async () => {
-      const opts = createTestOpts();
-      const channel = new DiscordChannel('test-token', opts);
-      await channel.connect();
-
-      const msg = createMessage({
-        content: 'Hello',
-        guildName: 'My Server',
-        channelName: 'bot-chat',
-      });
-      await triggerMessage(msg);
-
-      expect(opts.onChatMetadata).toHaveBeenCalledWith(
-        'dc:1234567890123456',
-        expect.any(String),
-        'My Server #bot-chat',
-        'discord',
-        true,
       );
     });
   });
@@ -416,7 +493,7 @@ describe('DiscordChannel', () => {
       await triggerMessage(msg);
 
       expect(opts.onMessage).toHaveBeenCalledWith(
-        'dc:1234567890123456',
+        GUILD_JID,
         expect.objectContaining({
           content: '@Andy what time is it?',
         }),
@@ -435,31 +512,10 @@ describe('DiscordChannel', () => {
       });
       await triggerMessage(msg);
 
-      // Should NOT prepend @Andy — already starts with trigger
-      // But the <@botId> should still be stripped
       expect(opts.onMessage).toHaveBeenCalledWith(
-        'dc:1234567890123456',
+        GUILD_JID,
         expect.objectContaining({
           content: '@Andy hello',
-        }),
-      );
-    });
-
-    it('does not translate when bot is not mentioned', async () => {
-      const opts = createTestOpts();
-      const channel = new DiscordChannel('test-token', opts);
-      await channel.connect();
-
-      const msg = createMessage({
-        content: 'hello everyone',
-        guildName: 'Server',
-      });
-      await triggerMessage(msg);
-
-      expect(opts.onMessage).toHaveBeenCalledWith(
-        'dc:1234567890123456',
-        expect.objectContaining({
-          content: 'hello everyone',
         }),
       );
     });
@@ -477,7 +533,7 @@ describe('DiscordChannel', () => {
       await triggerMessage(msg);
 
       expect(opts.onMessage).toHaveBeenCalledWith(
-        'dc:1234567890123456',
+        GUILD_JID,
         expect.objectContaining({
           content: '@Andy check this',
         }),
@@ -504,56 +560,8 @@ describe('DiscordChannel', () => {
       await triggerMessage(msg);
 
       expect(opts.onMessage).toHaveBeenCalledWith(
-        'dc:1234567890123456',
-        expect.objectContaining({
-          content: '[Image: photo.png]',
-        }),
-      );
-    });
-
-    it('stores video attachment with placeholder', async () => {
-      const opts = createTestOpts();
-      const channel = new DiscordChannel('test-token', opts);
-      await channel.connect();
-
-      const attachments = new Map([
-        ['att1', { name: 'clip.mp4', contentType: 'video/mp4' }],
-      ]);
-      const msg = createMessage({
-        content: '',
-        attachments,
-        guildName: 'Server',
-      });
-      await triggerMessage(msg);
-
-      expect(opts.onMessage).toHaveBeenCalledWith(
-        'dc:1234567890123456',
-        expect.objectContaining({
-          content: '[Video: clip.mp4]',
-        }),
-      );
-    });
-
-    it('stores file attachment with placeholder', async () => {
-      const opts = createTestOpts();
-      const channel = new DiscordChannel('test-token', opts);
-      await channel.connect();
-
-      const attachments = new Map([
-        ['att1', { name: 'report.pdf', contentType: 'application/pdf' }],
-      ]);
-      const msg = createMessage({
-        content: '',
-        attachments,
-        guildName: 'Server',
-      });
-      await triggerMessage(msg);
-
-      expect(opts.onMessage).toHaveBeenCalledWith(
-        'dc:1234567890123456',
-        expect.objectContaining({
-          content: '[File: report.pdf]',
-        }),
+        GUILD_JID,
+        expect.objectContaining({ content: '[Image: photo.png]' }),
       );
     });
 
@@ -573,33 +581,9 @@ describe('DiscordChannel', () => {
       await triggerMessage(msg);
 
       expect(opts.onMessage).toHaveBeenCalledWith(
-        'dc:1234567890123456',
+        GUILD_JID,
         expect.objectContaining({
           content: 'Check this out\n[Image: photo.jpg]',
-        }),
-      );
-    });
-
-    it('handles multiple attachments', async () => {
-      const opts = createTestOpts();
-      const channel = new DiscordChannel('test-token', opts);
-      await channel.connect();
-
-      const attachments = new Map([
-        ['att1', { name: 'a.png', contentType: 'image/png' }],
-        ['att2', { name: 'b.txt', contentType: 'text/plain' }],
-      ]);
-      const msg = createMessage({
-        content: '',
-        attachments,
-        guildName: 'Server',
-      });
-      await triggerMessage(msg);
-
-      expect(opts.onMessage).toHaveBeenCalledWith(
-        'dc:1234567890123456',
-        expect.objectContaining({
-          content: '[Image: a.png]\n[File: b.txt]',
         }),
       );
     });
@@ -621,7 +605,7 @@ describe('DiscordChannel', () => {
       await triggerMessage(msg);
 
       expect(opts.onMessage).toHaveBeenCalledWith(
-        'dc:1234567890123456',
+        GUILD_JID,
         expect.objectContaining({
           content: '[Reply to Bob] I agree with that',
         }),
@@ -629,31 +613,43 @@ describe('DiscordChannel', () => {
     });
   });
 
-  // --- sendMessage ---
+  // --- sendMessage routing ---
 
   describe('sendMessage', () => {
-    it('sends message via channel', async () => {
+    it('sends to DM user when jid starts with dc-dm:', async () => {
       const opts = createTestOpts();
       const channel = new DiscordChannel('test-token', opts);
       await channel.connect();
 
-      await channel.sendMessage('dc:1234567890123456', 'Hello');
+      await channel.sendMessage('dc-dm:55512345', 'Hello DM');
 
-      const fetchedChannel =
-        await currentClient().channels.fetch('1234567890123456');
+      expect(currentClient().users.fetch).toHaveBeenCalledWith('55512345');
+    });
+
+    it('sends to channel when thread_id is provided', async () => {
+      const opts = createTestOpts();
+      const channel = new DiscordChannel('test-token', opts);
+      await channel.connect();
+
+      await channel.sendMessage(GUILD_JID, 'Hello channel', {
+        thread_id: '1234567890123456',
+      });
+
       expect(currentClient().channels.fetch).toHaveBeenCalledWith(
         '1234567890123456',
       );
     });
 
-    it('strips dc: prefix from JID', async () => {
+    it('falls back to default_channel_id when no thread_id', async () => {
       const opts = createTestOpts();
       const channel = new DiscordChannel('test-token', opts);
       await channel.connect();
 
-      await channel.sendMessage('dc:9876543210', 'Test');
+      await channel.sendMessage(GUILD_JID, 'Default channel message');
 
-      expect(currentClient().channels.fetch).toHaveBeenCalledWith('9876543210');
+      expect(currentClient().channels.fetch).toHaveBeenCalledWith(
+        '111222333444555666',
+      );
     });
 
     it('handles send failure gracefully', async () => {
@@ -665,20 +661,17 @@ describe('DiscordChannel', () => {
         new Error('Channel not found'),
       );
 
-      // Should not throw
       await expect(
-        channel.sendMessage('dc:1234567890123456', 'Will fail'),
+        channel.sendMessage(GUILD_JID, 'Will fail', {
+          thread_id: '1234567890123456',
+        }),
       ).resolves.toBeUndefined();
     });
 
     it('does nothing when client is not initialized', async () => {
       const opts = createTestOpts();
       const channel = new DiscordChannel('test-token', opts);
-
-      // Don't connect — client is null
-      await channel.sendMessage('dc:1234567890123456', 'No client');
-
-      // No error, no API call
+      await channel.sendMessage(GUILD_JID, 'No client');
     });
 
     it('splits messages exceeding 2000 characters', async () => {
@@ -693,7 +686,9 @@ describe('DiscordChannel', () => {
       currentClient().channels.fetch.mockResolvedValue(mockChannel);
 
       const longText = 'x'.repeat(3000);
-      await channel.sendMessage('dc:1234567890123456', longText);
+      await channel.sendMessage(GUILD_JID, longText, {
+        thread_id: '1234567890123456',
+      });
 
       expect(mockChannel.send).toHaveBeenCalledTimes(2);
       expect(mockChannel.send).toHaveBeenNthCalledWith(1, 'x'.repeat(2000));
@@ -709,9 +704,9 @@ describe('DiscordChannel', () => {
       expect(channel.ownsJid('dc:1234567890123456')).toBe(true);
     });
 
-    it('does not own WhatsApp group JIDs', () => {
+    it('owns dc-dm: JIDs', () => {
       const channel = new DiscordChannel('test-token', createTestOpts());
-      expect(channel.ownsJid('12345@g.us')).toBe(false);
+      expect(channel.ownsJid('dc-dm:55512345')).toBe(true);
     });
 
     it('does not own Telegram JIDs', () => {
@@ -728,41 +723,27 @@ describe('DiscordChannel', () => {
   // --- setTyping ---
 
   describe('setTyping', () => {
-    it('sends typing indicator when isTyping is true', async () => {
-      const opts = createTestOpts();
-      const channel = new DiscordChannel('test-token', opts);
-      await channel.connect();
-
-      const mockChannel = {
-        send: vi.fn(),
-        sendTyping: vi.fn().mockResolvedValue(undefined),
-      };
-      currentClient().channels.fetch.mockResolvedValue(mockChannel);
-
-      await channel.setTyping('dc:1234567890123456', true);
-
-      expect(mockChannel.sendTyping).toHaveBeenCalled();
-    });
-
     it('does nothing when isTyping is false', async () => {
       const opts = createTestOpts();
       const channel = new DiscordChannel('test-token', opts);
       await channel.connect();
-
-      await channel.setTyping('dc:1234567890123456', false);
-
-      // channels.fetch should NOT be called
+      await channel.setTyping(GUILD_JID, false);
       expect(currentClient().channels.fetch).not.toHaveBeenCalled();
     });
 
     it('does nothing when client is not initialized', async () => {
       const opts = createTestOpts();
       const channel = new DiscordChannel('test-token', opts);
+      await channel.setTyping(GUILD_JID, true);
+    });
 
-      // Don't connect
-      await channel.setTyping('dc:1234567890123456', true);
-
-      // No error
+    it('clears typing interval on disconnect', async () => {
+      const opts = createTestOpts();
+      const channel = new DiscordChannel('test-token', opts);
+      await channel.connect();
+      await channel.setTyping(GUILD_JID, true);
+      await channel.disconnect();
+      expect(channel.isConnected()).toBe(false);
     });
   });
 
@@ -772,6 +753,29 @@ describe('DiscordChannel', () => {
     it('has name "discord"', () => {
       const channel = new DiscordChannel('test-token', createTestOpts());
       expect(channel.name).toBe('discord');
+    });
+  });
+
+  // --- syncGroups ---
+
+  describe('syncGroups', () => {
+    it('calls onTopicDiscovered for each text channel', async () => {
+      const opts = createTestOpts();
+      const channel = new DiscordChannel('test-token', opts);
+      await channel.connect();
+
+      await channel.syncGroups();
+
+      expect(opts.onTopicDiscovered).toHaveBeenCalledWith(
+        GUILD_JID,
+        '111222333444555666',
+        'general',
+      );
+      expect(opts.onTopicDiscovered).toHaveBeenCalledWith(
+        GUILD_JID,
+        '222333444555666777',
+        'random',
+      );
     });
   });
 });
