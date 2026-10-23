@@ -167,13 +167,21 @@ function createSchema(database: Database.Database): void {
   database.exec(`
     CREATE TABLE IF NOT EXISTS web_tokens (
       token TEXT PRIMARY KEY,
-      telegram_id TEXT,
-      telegram_name TEXT,
+      channel_user_id TEXT,
+      user_name TEXT,
       created_at TEXT NOT NULL,
       expires_at TEXT NOT NULL
     );
-    CREATE INDEX IF NOT EXISTS idx_web_tokens_telegram ON web_tokens(telegram_id);
+    CREATE INDEX IF NOT EXISTS idx_web_tokens_user ON web_tokens(channel_user_id);
   `);
+
+  // Migrate old column names if they exist
+  try {
+    database.exec(`ALTER TABLE web_tokens RENAME COLUMN telegram_id TO channel_user_id`);
+    database.exec(`ALTER TABLE web_tokens RENAME COLUMN telegram_name TO user_name`);
+  } catch {
+    /* columns already renamed or table was created with new names */
+  }
 }
 
 export function initDatabase(): void {
