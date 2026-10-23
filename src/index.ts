@@ -151,6 +151,25 @@ export function registerGroup(jid: string, group: RegisteredGroup): void {
   // Create group folder
   fs.mkdirSync(path.join(groupDir, 'logs'), { recursive: true });
 
+  // Warn if a Discord guild group has no default_channel_id
+  if (jid.startsWith('dc:') && !jid.startsWith('dc-dm:')) {
+    try {
+      const configPath = path.join(groupDir, 'group-config.json');
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      if (!config.default_channel_id) {
+        logger.warn(
+          { jid, folder: group.folder },
+          'Discord group missing default_channel_id — digests and notifications will not be delivered',
+        );
+      }
+    } catch {
+      logger.warn(
+        { jid, folder: group.folder },
+        'Discord group has no group-config.json — digests and notifications will not be delivered',
+      );
+    }
+  }
+
   // Ensure scheduled tasks (digest, etc.) for this group
   if (group.isMain) {
     ensureDigestTask(group, jid);
