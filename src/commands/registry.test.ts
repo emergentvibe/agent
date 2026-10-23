@@ -36,8 +36,11 @@ describe('Commands registered via barrel import', () => {
   it('has agent commands registered', () => {
     expect(getCommand('today')).toBeDefined();
     expect(getCommand('today')!.type).toBe('agent');
+    expect(getCommand('where')).toBeDefined();
+    expect(getCommand('recall')).toBeDefined();
     expect(getCommand('hello')).toBeDefined();
     expect(getCommand('connect')).toBeDefined();
+    expect(getCommand('forget')).toBeDefined();
   });
 
   it('has subscribe commands registered', () => {

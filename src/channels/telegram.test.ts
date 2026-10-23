@@ -609,12 +609,12 @@ describe('TelegramChannel', () => {
       );
     });
 
-    it('rewrites each agent command (/hello, /connect)', async () => {
+    it('rewrites each agent command (/where, /recall, /hello, /connect, /forget)', async () => {
       const opts = createTestOpts();
       const channel = new TelegramChannel('test-token', opts);
       await channel.connect();
 
-      for (const cmd of ['hello', 'connect']) {
+      for (const cmd of ['where', 'recall', 'hello', 'connect', 'forget']) {
         (opts.onMessage as any).mockClear();
         const ctx = createTextCtx({ text: `/${cmd} something` });
         await triggerTextMessage(ctx);

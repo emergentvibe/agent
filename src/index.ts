@@ -81,8 +81,9 @@ import { Channel, NewMessage, RegisteredGroup } from './types.js';
 import { logger } from './logger.js';
 import { storeMemory } from './mem0-client.js';
 import { startExtractionLoop } from './extraction.js';
-// Web server imports — loaded dynamically when web feature is enabled
-// import { startWebServer } from './web/server.js';
+
+// Re-export for backwards compatibility during refactor
+export { escapeXml, formatMessages } from './router.js';
 
 let lastTimestamp = '';
 let sessions: Record<string, string> = {};

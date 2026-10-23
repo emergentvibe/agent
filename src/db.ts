@@ -876,9 +876,7 @@ export function getTopicName(
   threadId: number | string,
 ): string | null {
   const row = db
-    .prepare(
-      `SELECT name FROM topics WHERE chat_jid = ? AND thread_id = ?`,
-    )
+    .prepare(`SELECT name FROM topics WHERE chat_jid = ? AND thread_id = ?`)
     .get(chatJid, threadId) as { name: string } | undefined;
   return row?.name ?? null;
 }

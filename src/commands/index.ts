@@ -9,6 +9,16 @@ registerCommand({
   type: 'agent',
 });
 registerCommand({
+  name: 'where',
+  description: 'Find a place — /where kitchen',
+  type: 'agent',
+});
+registerCommand({
+  name: 'recall',
+  description: 'Search community memory — /recall yoga',
+  type: 'agent',
+});
+registerCommand({
   name: 'hello',
   description: 'Introduce yourself to the community',
   type: 'agent',
@@ -16,6 +26,11 @@ registerCommand({
 registerCommand({
   name: 'connect',
   description: 'Find people with shared interests',
+  type: 'agent',
+});
+registerCommand({
+  name: 'forget',
+  description: 'Remove your introduction from memory',
   type: 'agent',
 });
 

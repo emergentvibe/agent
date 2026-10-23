@@ -351,10 +351,13 @@ describe('topic registry', () => {
     expect(isExtractionEnabled('tg:123', 2)).toBe(false);
   });
 
-  it('General topic (null/undefined/1) always enabled', () => {
+  it('null/undefined thread_id (main channel) always enabled', () => {
     expect(isExtractionEnabled('tg:123', null)).toBe(true);
     expect(isExtractionEnabled('tg:123', undefined)).toBe(true);
-    expect(isExtractionEnabled('tg:123', 1)).toBe(true);
+  });
+
+  it('unregistered thread_id defaults to off', () => {
+    expect(isExtractionEnabled('tg:123', 1)).toBe(false);
   });
 
   it('toggles extraction on/off', () => {
