@@ -11,7 +11,7 @@ import { initAdminNotify, notifyError } from './admin-notify.js';
 import {
   ADMIN_HTTP_PORT,
   ADMIN_HTTP_TOKEN,
-  ADMIN_TELEGRAM_ID,
+  ADMIN_ID,
   ASSISTANT_NAME,
   CREDENTIAL_PROXY_PORT,
   IDLE_TIMEOUT,
@@ -734,7 +734,7 @@ export async function main(): Promise<void> {
           return;
         }
         if (trimmed.toLowerCase() === '/admin-reset-sessions') {
-          const adminIds = (ADMIN_TELEGRAM_ID || '')
+          const adminIds = (ADMIN_ID || '')
             .split(',')
             .map((s) => s.trim())
             .filter(Boolean);
@@ -754,7 +754,7 @@ export async function main(): Promise<void> {
           return;
         }
 
-        handleAdminCommand(trimmed, msg.sender, ADMIN_TELEGRAM_ID)
+        handleAdminCommand(trimmed, msg.sender, ADMIN_ID)
           .then((result) => {
             if (!result.handled) return;
             if (result.files && channel?.sendFile) {
@@ -879,7 +879,7 @@ export async function main(): Promise<void> {
               // (the first wakeMessageLoop fired before registration completed)
               wakeMessageLoop?.();
 
-              const adminIds = (ADMIN_TELEGRAM_ID || '')
+              const adminIds = (ADMIN_ID || '')
                 .split(',')
                 .map((s) => s.trim())
                 .filter(Boolean);
@@ -903,8 +903,11 @@ export async function main(): Promise<void> {
       channel?: string,
       isGroup?: boolean,
     ) => storeChatMetadata(chatJid, timestamp, name, channel, isGroup),
-    onTopicDiscovered: (chatJid: string, threadId: number | string, name: string) =>
-      upsertTopic(chatJid, threadId, name),
+    onTopicDiscovered: (
+      chatJid: string,
+      threadId: number | string,
+      name: string,
+    ) => upsertTopic(chatJid, threadId, name),
     registeredGroups: () => registeredGroups,
   };
 
@@ -930,14 +933,25 @@ export async function main(): Promise<void> {
   }
 
   // Init admin notifications (sends DMs to admin for escalations, errors)
-  initAdminNotify(async (jid, text) => {
-    const ch = findChannel(channels, jid);
-    if (!ch) {
-      logger.warn({ jid }, 'No channel for admin JID');
-      return;
-    }
-    await ch.sendMessage(jid, text);
-  }, ADMIN_TELEGRAM_ID);
+  initAdminNotify(
+    async (jid, text) => {
+      const ch = findChannel(channels, jid);
+      if (!ch) {
+        logger.warn({ jid }, 'No channel for admin JID');
+        return;
+      }
+      await ch.sendMessage(jid, text);
+    },
+    ADMIN_ID,
+    (adminId) => {
+      // Find admin's DM JID by scanning registered DM groups
+      for (const jid of Object.keys(registeredGroups)) {
+        const group = registeredGroups[jid];
+        if (group.folder.includes(`-dm-${adminId}`)) return jid;
+      }
+      return null;
+    },
+  );
 
   // Start subsystems (independently of connection handler)
   startSchedulerLoop({

@@ -1,6 +1,6 @@
 /**
  * Admin commands — handled directly by the host, not routed to containers.
- * Recognized in DMs from the configured ADMIN_TELEGRAM_ID.
+ * Recognized in DMs from the configured ADMIN_ID.
  */
 import { execSync } from 'child_process';
 
@@ -43,9 +43,9 @@ export interface AdminCommandResult {
 export async function handleAdminCommand(
   text: string,
   sender: string,
-  adminTelegramId: string | undefined,
+  adminId: string | undefined,
 ): Promise<AdminCommandResult> {
-  const adminIds = (adminTelegramId || '')
+  const adminIds = (adminId || '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);

@@ -9,7 +9,7 @@ import { readEnvFile } from './env.js';
 const envConfig = readEnvFile([
   'ASSISTANT_NAME',
   'ASSISTANT_HAS_OWN_NUMBER',
-  'ADMIN_TELEGRAM_ID',
+  'ADMIN_ID',
   'DATE_OVERRIDE',
 ]);
 
@@ -67,7 +67,6 @@ export const ADMIN_HTTP_PORT = parseInt(
 );
 export const ADMIN_HTTP_TOKEN = process.env.ADMIN_HTTP_TOKEN || '';
 export const WEB_PORT = parseInt(process.env.WEB_PORT || '8080', 10);
-export const TELEGRAM_BOT_USERNAME = process.env.TELEGRAM_BOT_USERNAME || '';
 export const IPC_POLL_INTERVAL = 1000;
 export const IDLE_TIMEOUT = parseInt(process.env.IDLE_TIMEOUT || '7200000', 10); // 2hr default — how long to keep container alive after last result
 export const MAX_CONCURRENT_CONTAINERS = Math.max(
@@ -79,8 +78,8 @@ function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-export const ADMIN_TELEGRAM_ID =
-  process.env.ADMIN_TELEGRAM_ID || envConfig.ADMIN_TELEGRAM_ID;
+export const ADMIN_ID =
+  process.env.ADMIN_ID || envConfig.ADMIN_ID;
 
 export const TRIGGER_PATTERN = new RegExp(
   `^@${escapeRegex(ASSISTANT_NAME)}\\b`,

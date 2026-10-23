@@ -1,5 +1,5 @@
 /**
- * Admin notifications — sends DMs to the admin's Telegram chat.
+ * Admin notifications — sends DMs to the admin.
  * Used for escalation alerts, error alerts, and daily admin summaries.
  */
 import { logger } from './logger.js';
@@ -11,14 +11,23 @@ let adminJid: string | null = null;
 
 export function initAdminNotify(
   send: SendFn,
-  adminTelegramId: string | undefined,
+  adminId: string | undefined,
+  resolveAdminDmJid: (adminId: string) => string | null,
 ): void {
-  if (!adminTelegramId) {
-    logger.debug('ADMIN_TELEGRAM_ID not set — admin notifications disabled');
+  sendFn = null;
+  adminJid = null;
+
+  if (!adminId) {
+    logger.debug('ADMIN_ID not set — admin notifications disabled');
+    return;
+  }
+  const jid = resolveAdminDmJid(adminId);
+  if (!jid) {
+    logger.warn({ adminId }, 'Admin has not DMed the bot — notifications disabled until they do');
     return;
   }
   sendFn = send;
-  adminJid = `tg:${adminTelegramId}`;
+  adminJid = jid;
   logger.info({ adminJid }, 'Admin notifications enabled');
 }
 
