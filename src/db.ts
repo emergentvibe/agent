@@ -177,8 +177,12 @@ function createSchema(database: Database.Database): void {
 
   // Migrate old column names if they exist
   try {
-    database.exec(`ALTER TABLE web_tokens RENAME COLUMN telegram_id TO channel_user_id`);
-    database.exec(`ALTER TABLE web_tokens RENAME COLUMN telegram_name TO user_name`);
+    database.exec(
+      `ALTER TABLE web_tokens RENAME COLUMN telegram_id TO channel_user_id`,
+    );
+    database.exec(
+      `ALTER TABLE web_tokens RENAME COLUMN telegram_name TO user_name`,
+    );
   } catch {
     /* columns already renamed or table was created with new names */
   }
@@ -865,6 +869,18 @@ export function getTopics(chatJid: string): TopicInfo[] {
       `SELECT chat_jid, thread_id, name, extraction_enabled FROM topics WHERE chat_jid = ? ORDER BY thread_id`,
     )
     .all(chatJid) as TopicInfo[];
+}
+
+export function getTopicName(
+  chatJid: string,
+  threadId: number | string,
+): string | null {
+  const row = db
+    .prepare(
+      `SELECT name FROM topics WHERE chat_jid = ? AND thread_id = ?`,
+    )
+    .get(chatJid, threadId) as { name: string } | undefined;
+  return row?.name ?? null;
 }
 
 export function isExtractionEnabled(

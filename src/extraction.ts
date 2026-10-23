@@ -19,6 +19,7 @@ import {
   getMessagesInTimeRange,
   getMessagesSince,
   getRouterState,
+  getTopicName,
   isExtractionEnabled,
   setRouterState,
 } from './db.js';
@@ -79,11 +80,20 @@ function formatTime(ts: string): string {
 }
 
 function formatMessagesForExtraction(messages: NewMessage[]): string {
+  const topicCache = new Map<string, string | null>();
   return messages
-    .map(
-      (m) =>
-        `[${formatTime(m.timestamp)} ${m.sender_name || m.sender}]: ${m.content}`,
-    )
+    .map((m) => {
+      let topicLabel = '';
+      if (m.thread_id != null) {
+        const key = `${m.chat_jid}:${m.thread_id}`;
+        if (!topicCache.has(key)) {
+          topicCache.set(key, getTopicName(m.chat_jid, m.thread_id));
+        }
+        const name = topicCache.get(key);
+        if (name) topicLabel = `#${name} `;
+      }
+      return `[${formatTime(m.timestamp)} ${topicLabel}${m.sender_name || m.sender}]: ${m.content}`;
+    })
     .join('\n');
 }
 
