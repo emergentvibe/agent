@@ -3,11 +3,9 @@ import { autoRetry } from '@grammyjs/auto-retry';
 import { Api, Bot, InputFile } from 'grammy';
 
 import { ASSISTANT_NAME, TRIGGER_PATTERN } from '../config.js';
-import {
-  addSubscription,
-  removeSubscription,
-  getSubscriptions,
-} from '../subscriptions.js';
+import { getAllCommands, getCommand } from '../commands/registry.js';
+import type { CommandContext } from '../commands/types.js';
+import '../commands/index.js';
 import { readEnvFile } from '../env.js';
 import { logger } from '../logger.js';
 import { loadFeatureConfig } from '../feature-config.js';
@@ -86,79 +84,29 @@ export class TelegramChannel implements Channel {
       return main?.folder ?? null;
     };
 
-    const isSubscribeEnabled = (): boolean => {
-      const folder = getMainGroupFolder();
-      if (!folder) return true;
-      return loadFeatureConfig(folder).commands.subscribe;
-    };
-
-    // Single source of truth for all slash commands.
-    // local: handled inside TelegramChannel, NOT forwarded to the agent.
-    // agent (the default): forwarded to the agent and rewritten with the
-    // trigger prefix so they match TRIGGER_PATTERN in groups.
-    // featureGate: if set, command only appears in menu when that feature is enabled.
-    const COMMANDS: Array<{
-      command: string;
-      description: string;
-      local?: boolean;
-      visible?: boolean;
-      featureGate?: 'subscribe';
-    }> = [
-      { command: 'today', description: "Today's events and schedule" },
-      { command: 'hello', description: 'Introduce yourself to the community' },
-      { command: 'connect', description: 'Find people with shared interests' },
-      {
-        command: 'subscribe',
-        description: 'Get notified about a topic',
-        local: true,
-        featureGate: 'subscribe',
-      },
-      {
-        command: 'unsubscribe',
-        description: 'Stop notifications for a topic',
-        local: true,
-        featureGate: 'subscribe',
-      },
-      {
-        command: 'subscriptions',
-        description: 'List your subscriptions',
-        local: true,
-        featureGate: 'subscribe',
-      },
-      {
-        command: 'chatid',
-        description: 'Get this chat ID',
-        local: true,
-        visible: false,
-      },
-      {
-        command: 'ping',
-        description: 'Check if bot is online',
-        local: true,
-        visible: false,
-      },
-    ];
-
-    // Filter commands by feature flags, then register visible ones for Telegram autocomplete.
+    // Command definitions come from the shared registry (src/commands/).
+    // Channels query the registry for menu generation and dispatch.
+    const allCommands = getAllCommands();
     const mainFolder = getMainGroupFolder();
     const features = mainFolder ? loadFeatureConfig(mainFolder) : null;
-    const activeCommands = COMMANDS.filter((c) => {
+    const activeCommands = allCommands.filter((c) => {
       if (!c.featureGate) return true;
       if (!features) return true;
-      return features.commands[c.featureGate];
+      return (features.commands as Record<string, boolean>)[c.featureGate] !==
+        false;
     });
 
     await this.bot.api.setMyCommands(
       activeCommands
         .filter((c) => c.visible !== false)
-        .map(({ command, description }) => ({ command, description })),
+        .map(({ name, description }) => ({ command: name, description })),
     );
 
     const LOCAL_COMMANDS = new Set(
-      COMMANDS.filter((c) => c.local).map((c) => c.command),
+      allCommands.filter((c) => c.type === 'local').map((c) => c.name),
     );
     const AGENT_COMMANDS = new Set(
-      COMMANDS.filter((c) => !c.local).map((c) => c.command),
+      allCommands.filter((c) => c.type === 'agent').map((c) => c.name),
     );
 
     // Command to get chat ID (useful for registration)
@@ -181,7 +129,7 @@ export class TelegramChannel implements Channel {
       ctx.reply(`${ASSISTANT_NAME} is online.`);
     });
 
-    // --- Subscribe system (local, no containers) ---
+    // --- Local commands dispatched through shared registry ---
 
     const resolveGroupFolder = (chatJid: string): string | null => {
       const group = this.opts.registeredGroups()[chatJid];
@@ -189,92 +137,27 @@ export class TelegramChannel implements Channel {
       return group.folder.replace(/-dm-\d+$/, '');
     };
 
-    this.bot.command('subscribe', async (ctx) => {
-      if (!isSubscribeEnabled()) {
-        await ctx.reply('Subscriptions are not available.');
-        return;
-      }
-      const chatJid = `tg:${ctx.chat.id}`;
-      const groupFolder = resolveGroupFolder(chatJid);
-      if (!groupFolder) {
-        await ctx.reply('Subscriptions are not available in this chat.');
-        return;
-      }
-      const topic = (ctx.match?.toString() || '').trim();
-      if (!topic) {
-        await ctx.reply('What topic? Usage: /subscribe yoga');
-        return;
-      }
-      if (topic.length < 3) {
-        await ctx.reply('Topic must be at least 3 characters.');
-        return;
-      }
+    const buildCmdContext = (ctx: any): CommandContext => {
       const userId = ctx.from?.id?.toString() || '';
-      const userName = ctx.from?.first_name || ctx.from?.username || userId;
-      const dmJid = `tg:${ctx.from?.id}`;
-      addSubscription(groupFolder, userId, userName, topic, dmJid);
-      await ctx.reply(
-        `Subscribed to "${topic}" — I'll DM you when it comes up.`,
-      );
-    });
+      return {
+        userId,
+        userName: ctx.from?.first_name || ctx.from?.username || userId,
+        chatJid: `tg:${ctx.chat.id}`,
+        dmJid: `tg:${ctx.from?.id}`,
+        groupFolder: resolveGroupFolder(`tg:${ctx.chat.id}`),
+        args: ctx.match?.toString() || '',
+      };
+    };
 
-    this.bot.command('unsubscribe', async (ctx) => {
-      if (!isSubscribeEnabled()) {
-        await ctx.reply('Subscriptions are not available.');
-        return;
-      }
-      const chatJid = `tg:${ctx.chat.id}`;
-      const groupFolder = resolveGroupFolder(chatJid);
-      if (!groupFolder) {
-        await ctx.reply('Subscriptions are not available in this chat.');
-        return;
-      }
-      const topic = (ctx.match?.toString() || '').trim();
-      if (!topic) {
-        const subs = getSubscriptions(groupFolder, ctx.from?.id?.toString());
-        if (subs.length === 0) {
-          await ctx.reply("You don't have any subscriptions.");
-        } else {
-          const list = subs.map((s) => `• ${s.topic}`).join('\n');
-          await ctx.reply(
-            `Your subscriptions:\n${list}\n\nTo unsubscribe: /unsubscribe [topic]`,
-          );
-        }
-        return;
-      }
-      const userId = ctx.from?.id?.toString() || '';
-      const removed = removeSubscription(groupFolder, userId, topic);
-      if (removed) {
-        await ctx.reply(`Unsubscribed from "${topic}".`);
-      } else {
-        await ctx.reply(`You weren't subscribed to "${topic}".`);
-      }
-    });
-
-    this.bot.command('subscriptions', async (ctx) => {
-      if (!isSubscribeEnabled()) {
-        await ctx.reply('Subscriptions are not available.');
-        return;
-      }
-      const chatJid = `tg:${ctx.chat.id}`;
-      const groupFolder = resolveGroupFolder(chatJid);
-      if (!groupFolder) {
-        await ctx.reply('Subscriptions are not available in this chat.');
-        return;
-      }
-      const userId = ctx.from?.id?.toString() || '';
-      const subs = getSubscriptions(groupFolder, userId);
-      if (subs.length === 0) {
-        await ctx.reply(
-          "You don't have any subscriptions yet. Use /subscribe [topic] to get started.",
-        );
-        return;
-      }
-      const lines = subs.map((s) => `• ${s.topic}`);
-      await ctx.reply(
-        `Your subscriptions:\n${lines.join('\n')}\n\nI'll DM you when any of these come up in the group. Use /unsubscribe [topic] to remove one.`,
-      );
-    });
+    for (const cmdName of ['subscribe', 'unsubscribe', 'subscriptions']) {
+      const cmd = getCommand(cmdName);
+      if (!cmd?.handler) continue;
+      const handler = cmd.handler;
+      this.bot.command(cmdName, async (ctx) => {
+        const response = await handler(buildCmdContext(ctx));
+        await ctx.reply(response);
+      });
+    }
 
     // /start deep link handler (NFC stickers, DM entry points)
     this.bot.command('start', async (ctx) => {
