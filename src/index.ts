@@ -722,7 +722,8 @@ export async function main(): Promise<void> {
       const trimmed = msg.content.trim();
       if (trimmed.startsWith('/admin-')) {
         const channel = findChannel(channels, chatJid);
-        const isGroup = chatJid.includes(':-');
+        const chatMeta = getChatMetadata(chatJid);
+        const isGroup = chatMeta?.is_group === 1;
         if (isGroup) {
           channel
             ?.sendMessage(chatJid, 'Use this in a DM with me.', {
