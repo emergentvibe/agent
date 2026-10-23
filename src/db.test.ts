@@ -588,8 +588,8 @@ describe('isExtractionEnabled', () => {
     expect(isExtractionEnabled(chatJid, undefined)).toBe(true);
   });
 
-  it('General topic (thread_id 1) is always enabled', () => {
-    expect(isExtractionEnabled(chatJid, 1)).toBe(true);
+  it('thread_id 1 is treated like any other topic (not auto-enabled)', () => {
+    expect(isExtractionEnabled(chatJid, 1)).toBe(false);
   });
 
   it('unknown topic defaults to OFF', () => {

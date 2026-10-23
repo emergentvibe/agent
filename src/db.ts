@@ -325,7 +325,7 @@ export function storeMessageDirect(msg: {
   timestamp: string;
   is_from_me: boolean;
   is_bot_message?: boolean;
-  thread_id?: number;
+  thread_id?: number | string;
 }): void {
   db.prepare(
     `INSERT OR REPLACE INTO messages (id, chat_jid, sender, sender_name, content, timestamp, is_from_me, is_bot_message, thread_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -818,14 +818,14 @@ function migrateJsonState(): void {
 
 export interface TopicInfo {
   chat_jid: string;
-  thread_id: number;
+  thread_id: number | string;
   name: string;
   extraction_enabled: number;
 }
 
 export function upsertTopic(
   chatJid: string,
-  threadId: number,
+  threadId: number | string,
   name: string,
 ): void {
   db.prepare(
@@ -837,7 +837,7 @@ export function upsertTopic(
 
 export function setTopicExtraction(
   chatJid: string,
-  threadId: number,
+  threadId: number | string,
   enabled: boolean,
 ): void {
   db.prepare(
@@ -855,10 +855,9 @@ export function getTopics(chatJid: string): TopicInfo[] {
 
 export function isExtractionEnabled(
   chatJid: string,
-  threadId: number | null | undefined,
+  threadId: number | string | null | undefined,
 ): boolean {
-  // General topic (null/undefined/1) is always extracted
-  if (!threadId || threadId === 1) return true;
+  if (threadId == null) return true;
   const row = db
     .prepare(
       `SELECT extraction_enabled FROM topics WHERE chat_jid = ? AND thread_id = ?`,

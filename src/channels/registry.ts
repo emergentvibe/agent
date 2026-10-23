@@ -8,7 +8,7 @@ import {
 export interface ChannelOpts {
   onMessage: OnInboundMessage;
   onChatMetadata: OnChatMetadata;
-  onTopicDiscovered?: (chatJid: string, threadId: number, name: string) => void;
+  onTopicDiscovered?: (chatJid: string, threadId: number | string, name: string) => void;
   registeredGroups: () => Record<string, RegisteredGroup>;
 }
 

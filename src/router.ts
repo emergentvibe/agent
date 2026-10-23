@@ -51,7 +51,7 @@ export function routeOutbound(
   channels: Channel[],
   jid: string,
   text: string,
-  opts?: { thread_id?: number },
+  opts?: { thread_id?: number | string },
 ): Promise<void> {
   const channel = channels.find((c) => c.ownsJid(jid) && c.isConnected());
   if (!channel) throw new Error(`No channel for JID: ${jid}`);

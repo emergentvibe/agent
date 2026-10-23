@@ -88,7 +88,7 @@ let lastTimestamp = '';
 let sessions: Record<string, string> = {};
 let registeredGroups: Record<string, RegisteredGroup> = {};
 let lastAgentTimestamp: Record<string, string> = {};
-let lastReplyThreadId: Record<string, number | undefined> = {};
+let lastReplyThreadId: Record<string, number | string | undefined> = {};
 let messageLoopRunning = false;
 let wakeMessageLoop: (() => void) | null = null;
 
@@ -903,7 +903,7 @@ export async function main(): Promise<void> {
       channel?: string,
       isGroup?: boolean,
     ) => storeChatMetadata(chatJid, timestamp, name, channel, isGroup),
-    onTopicDiscovered: (chatJid: string, threadId: number, name: string) =>
+    onTopicDiscovered: (chatJid: string, threadId: number | string, name: string) =>
       upsertTopic(chatJid, threadId, name),
     registeredGroups: () => registeredGroups,
   };
