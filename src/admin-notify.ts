@@ -23,7 +23,10 @@ export function initAdminNotify(
   }
   const jid = resolveAdminDmJid(adminId);
   if (!jid) {
-    logger.warn({ adminId }, 'Admin has not DMed the bot — notifications disabled until they do');
+    logger.warn(
+      { adminId },
+      'Admin has not DMed the bot — notifications disabled until they do',
+    );
     return;
   }
   sendFn = send;

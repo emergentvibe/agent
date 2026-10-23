@@ -144,7 +144,13 @@ export class DiscordChannel implements Channel {
       }
 
       const isGroup = !isDm;
-      this.opts.onChatMetadata(chatJid, timestamp, chatName, 'discord', isGroup);
+      this.opts.onChatMetadata(
+        chatJid,
+        timestamp,
+        chatName,
+        'discord',
+        isGroup,
+      );
 
       const group = this.opts.registeredGroups()[chatJid];
       if (!group) {
@@ -233,7 +239,10 @@ export class DiscordChannel implements Channel {
         return;
       }
 
-      await this.splitAndSend((chunk) => (channel as TextChannel).send(chunk), text);
+      await this.splitAndSend(
+        (chunk) => (channel as TextChannel).send(chunk),
+        text,
+      );
       logger.info(
         { jid, thread_id: opts?.thread_id, length: text.length },
         'Discord message sent',

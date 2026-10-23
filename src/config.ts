@@ -78,8 +78,7 @@ function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-export const ADMIN_ID =
-  process.env.ADMIN_ID || envConfig.ADMIN_ID;
+export const ADMIN_ID = process.env.ADMIN_ID || envConfig.ADMIN_ID;
 
 export const TRIGGER_PATTERN = new RegExp(
   `^@${escapeRegex(ASSISTANT_NAME)}\\b`,
