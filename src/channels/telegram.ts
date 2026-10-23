@@ -21,11 +21,6 @@ export interface TelegramChannelOpts {
   onMessage: OnInboundMessage;
   onChatMetadata: OnChatMetadata;
   onTopicDiscovered?: (chatJid: string, threadId: number, name: string) => void;
-  onEnsureIdentity?: (
-    telegramId: string,
-    name?: string,
-    handle?: string,
-  ) => void;
   registeredGroups: () => Record<string, RegisteredGroup>;
 }
 
@@ -92,8 +87,9 @@ export class TelegramChannel implements Channel {
     const activeCommands = allCommands.filter((c) => {
       if (!c.featureGate) return true;
       if (!features) return true;
-      return (features.commands as Record<string, boolean>)[c.featureGate] !==
-        false;
+      return (
+        (features.commands as Record<string, boolean>)[c.featureGate] !== false
+      );
     });
 
     await this.bot.api.setMyCommands(
@@ -162,16 +158,6 @@ export class TelegramChannel implements Channel {
     // /start deep link handler (NFC stickers, DM entry points)
     this.bot.command('start', async (ctx) => {
       const payload = ctx.match?.toString().trim();
-
-      // Bind identity on every /start variant (idempotent)
-      if (ctx.chat.type === 'private' && ctx.from?.id) {
-        const tgId = ctx.from.id.toString();
-        const name =
-          [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(' ') ||
-          undefined;
-        const handle = ctx.from.username ? `@${ctx.from.username}` : undefined;
-        this.opts.onEnsureIdentity?.(tgId, name, handle);
-      }
 
       if (!payload) {
         const chatJid = `tg:${ctx.chat.id}`;
