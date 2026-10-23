@@ -62,6 +62,8 @@ describe('stripDisabledFeatures', () => {
     commands: {
       subscribe: true,
       governance: true,
+      rota: true,
+      purchase: true,
     },
     behaviors: { daily_digest: true, crew_digest: true, web: true },
   };
@@ -99,6 +101,8 @@ describe('stripDisabledFeatures', () => {
       commands: {
         subscribe: false,
         governance: true,
+        rota: false,
+        purchase: false,
       },
       behaviors: { daily_digest: true, crew_digest: true, web: false },
     };

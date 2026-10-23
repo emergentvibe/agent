@@ -7,6 +7,8 @@ export interface FeatureConfig {
   commands: {
     subscribe: boolean;
     governance: boolean;
+    rota: boolean;
+    purchase: boolean;
   };
   behaviors: {
     daily_digest: boolean;
@@ -19,6 +21,8 @@ export const DEFAULT_FEATURES: FeatureConfig = {
   commands: {
     subscribe: true,
     governance: false,
+    rota: false,
+    purchase: false,
   },
   behaviors: {
     daily_digest: false,
